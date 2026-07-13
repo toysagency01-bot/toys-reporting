@@ -112,6 +112,18 @@ border-top:1px solid var(--line)}
   .task-main{flex:1 1 100%}
   .badge{margin-left:0}
 }
+.camp-row{padding:12px 0;border-top:1px solid var(--line)}
+.task-group .camp-row:first-of-type{border-top:none}
+.camp-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.camp-name{font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chan-tag{flex:0 0 auto;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.chan-tag.meta{background:rgba(143,123,255,.15);color:#8f7bff}
+.chan-tag.google{background:var(--accent-dim);color:var(--accent)}
+.camp-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 10px}
+.camp-metrics .m{min-width:0}
+.camp-metrics .mlabel{display:block;color:var(--muted);font-size:10px;letter-spacing:.04em;
+text-transform:uppercase;margin-bottom:1px}
+.camp-metrics .mval{font-size:13px;font-variant-numeric:tabular-nums;font-weight:600}
 @media (max-width: 640px){
   .cards{grid-template-columns:repeat(2,1fr);gap:8px}
   .card{padding:14px 14px 12px}
@@ -185,11 +197,7 @@ ${HAS_PROJECT ? `
   </div>
   <div class="panel">
     <h2>Кампании</h2>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Аккаунт</th><th>Кампания</th><th>Канал</th><th>Показы</th><th>Клики</th>
-      <th>CTR</th><th>Расход</th><th>Конв.</th><th>CPA</th></tr></thead>
-      <tbody id="tbody"></tbody>
-    </table></div>
+    <div id="campList"></div>
   </div>
 </div>
 </div>
@@ -442,14 +450,35 @@ function drawTable(rows){
     agg[k] = agg[k] || {account:r.account,campaign:r.campaign,currency:r.currency,platform:r.platform,impr:0,clicks:0,cost:0,conv:0};
     agg[k].impr+=r.impr; agg[k].clicks+=r.clicks; agg[k].cost+=r.cost; agg[k].conv+=r.conv;
   });
-  el('tbody').innerHTML = Object.values(agg).sort((a,b)=>b.cost-a.cost).map(r=>`
-    <tr><td data-label="Аккаунт">${esc(r.account)}</td>
-    <td class="camp" data-label="Кампания" title="${esc(r.campaign)}">${esc(r.campaign)}</td>
-    <td data-label="Канал">${r.platform==='Meta Ads'?'Meta':'Google'}</td>
-    <td data-label="Показы">${fmtN(r.impr)}</td><td data-label="Клики">${fmtN(r.clicks)}</td>
-    <td data-label="CTR">${r.impr?(r.clicks/r.impr*100).toFixed(2)+'%':'—'}</td>
-    <td data-label="Расход">${fmtM(r.cost)} ${sym(r.currency)}</td><td data-label="Конв.">${fmtM(r.conv)}</td>
-    <td data-label="CPA">${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}</td></tr>`).join('');
+  const list = Object.values(agg).sort((a,b)=>b.cost-a.cost);
+
+  // группируем по аккаунту — имя аккаунта не повторяем на каждой кампании
+  const groups = [];
+  const seen = {};
+  list.forEach(r=>{
+    if(!seen[r.account]){ seen[r.account] = {account:r.account, items:[]}; groups.push(seen[r.account]); }
+    seen[r.account].items.push(r);
+  });
+
+  el('campList').innerHTML = groups.map(g => `
+    <div class="task-group">
+      ${groups.length > 1 ? `<div class="task-group-title">${esc(g.account)}</div>` : ''}
+      ${g.items.map(r => `
+        <div class="camp-row">
+          <div class="camp-head">
+            <span class="camp-name" title="${esc(r.campaign)}">${esc(r.campaign)}</span>
+            <span class="chan-tag ${r.platform==='Meta Ads'?'meta':'google'}">${r.platform==='Meta Ads'?'Meta':'Google'}</span>
+          </div>
+          <div class="camp-metrics">
+            <div class="m"><span class="mlabel">Показы</span><span class="mval">${fmtN(r.impr)}</span></div>
+            <div class="m"><span class="mlabel">Клики</span><span class="mval">${fmtN(r.clicks)}</span></div>
+            <div class="m"><span class="mlabel">CTR</span><span class="mval">${r.impr?(r.clicks/r.impr*100).toFixed(2)+'%':'—'}</span></div>
+            <div class="m"><span class="mlabel">Расход</span><span class="mval">${fmtM(r.cost)} ${sym(r.currency)}</span></div>
+            <div class="m"><span class="mlabel">Конв.</span><span class="mval">${fmtM(r.conv)}</span></div>
+            <div class="m"><span class="mlabel">CPA</span><span class="mval">${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}</span></div>
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
 }
 
 function buildAccountSelect(){
