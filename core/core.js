@@ -614,41 +614,40 @@ function rawRow(r){ return (r.c || []).map(rawCell); }
 
 function renderWeeklyReport(json){
   const rows = ((json.table && json.table.rows) || []).map(rawRow);
+
+  // находим ВСЕ шапки таблиц кампаний — каждая начинает новый период.
+  // Между периодами может не быть пустых строк вообще (проверено на
+  // реальных данных), поэтому границей блока служит начало СЛЕДУЮЩЕЙ
+  // шапки, а не поиск пустой строки.
+  const headerIdxs = [];
+  for(let i = 0; i < rows.length; i++){
+    if(rows[i].some(v => v.trim() === 'Campaign Name')) headerIdxs.push(i);
+  }
+  if(!headerIdxs.length){ gShow('gError'); return; }
+
   const blocks = [];
-  let i = 0;
+  for(let h = 0; h < headerIdxs.length; h++){
+    const start = headerIdxs[h];
+    const end = h+1 < headerIdxs.length ? headerIdxs[h+1] : rows.length;
 
-  while(i < rows.length){
-    // ищем строку-шапку таблицы кампаний (ячейка "Campaign Name")
-    const colName = rows[i].findIndex(v => v.trim() === 'Campaign Name');
-    if(colName === -1){ i++; continue; }
-
-    // заголовок периода — одиночная непустая ячейка в нескольких строках выше
+    // заголовок периода — одиночная непустая ячейка в паре строк выше шапки
     let title = 'Период';
-    for(let back = i-1; back >= Math.max(0, i-6); back--){
+    for(let back = start-1; back >= Math.max(0, start-4); back--){
       const nonEmpty = rows[back].map(v=>v.trim()).filter(Boolean);
       if(nonEmpty.length === 1){ title = nonEmpty[0]; break; }
+      if(nonEmpty.length > 1) break; // это уже не заголовок периода
     }
 
-    // весь блок — от шапки таблицы до первой полностью пустой строки
-    let end = i + 1;
-    for(; end < rows.length; end++){
-      if(rows[end].every(v => !v.trim())) break;
-    }
-
-    // заметки — просто самый длинный текст во всём блоке.
-    // Реальный абзац выводов всегда на порядок длиннее любого
-    // названия кампании, поэтому это надёжнее любых порогов/признаков.
+    // заметки — самый длинный текст внутри блока (реальный абзац всегда
+    // на порядок длиннее любого названия кампании)
     let notes = '', bestLen = 0;
-    for(let k = i+1; k < end; k++){
+    for(let k = start+1; k < end; k++){
       for(const v of rows[k]){
         const t = v.trim();
         if(t.length > bestLen){ bestLen = t.length; notes = t; }
       }
     }
-    if(bestLen < 60) notes = ''; // слишком коротко — вряд ли это абзац заметок
-
-    if(notes) blocks.push({title, notes});
-    i = end;
+    if(bestLen >= 60) blocks.push({title, notes});
   }
 
   if(!blocks.length){ gShow('gError'); return; }
