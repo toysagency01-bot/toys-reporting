@@ -124,6 +124,24 @@ border-top:1px solid var(--line)}
 .camp-metrics .mlabel{display:block;color:var(--muted);font-size:10px;letter-spacing:.04em;
 text-transform:uppercase;margin-bottom:1px}
 .camp-metrics .mval{font-size:13px;font-variant-numeric:tabular-nums;font-weight:600}
+.wk-block{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.wk-block:first-child{margin-top:0;padding-top:0;border-top:none}
+.wk-title{font-size:14px;font-weight:700;color:var(--accent);margin-bottom:10px}
+.wk-totals td{font-weight:700;border-top:1px solid var(--line)}
+.wk-notes{margin-top:12px;padding:12px 14px;background:var(--panel-2);border-radius:10px}
+.wk-notes p{font-size:13px;line-height:1.6;color:var(--text);margin-bottom:6px}
+.wk-notes p:last-child{margin-bottom:0}
+.comp-card{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.comp-card:first-child{margin-top:0;padding-top:0;border-top:none}
+.comp-title{font-size:15px;font-weight:700;color:var(--accent);margin-bottom:10px}
+.comp-row{padding:8px 0;border-top:1px solid var(--line)}
+.comp-card .comp-row:first-of-type{border-top:none}
+.comp-attr{font-size:11px;color:var(--muted);letter-spacing:.03em;text-transform:uppercase;margin-bottom:2px}
+.comp-result{font-size:14px;line-height:1.5}
+.comp-notes{font-size:12px;color:var(--muted);line-height:1.5;margin-top:4px;font-style:italic}
+.comp-summary{margin-top:20px;padding:14px;background:var(--panel-2);border-radius:10px}
+.comp-summary p{font-size:13px;line-height:1.6;margin-bottom:6px}
+.comp-summary p:last-child{margin-bottom:0}
 @media (max-width: 640px){
   .cards{grid-template-columns:repeat(2,1fr);gap:8px}
   .card{padding:14px 14px 12px}
@@ -231,7 +249,7 @@ ${HAS_PROJECT ? `
     Проверь доступ к проектной таблице.</div>
     <div class="panel hidden" id="gPanel">
       <h2 id="gTitle"></h2>
-      <div class="table-wrap"><table id="gTable"></table></div>
+      <div id="gWrap"></div>
     </div>
   </div>
 </div>` : ''}`;
@@ -496,9 +514,9 @@ const PROJECT_TAB = C.projectTab || 'План работ';
 // через projectExtraTabs в его index.html — но по умолчанию всё берётся отсюда.
 const DEFAULT_EXTRA_TABS = [
   { tab: 'ОС по лидам', label: 'ОС по лидам' },
-  { tab: 'Еженедельная сводка', label: 'Сводка (неделя)' },
-  { tab: 'Месячная сводка', label: 'Сводка (месяц)' },
-  { tab: 'Анализ конкурентов', label: 'Конкуренты' },
+  { tab: 'Еженедельная сводка', label: 'Сводка (неделя)', mode: 'weekly-report' },
+  { tab: 'Месячная сводка', label: 'Сводка (месяц)', mode: 'weekly-report' },
+  { tab: 'Анализ конкурентов', label: 'Конкуренты', mode: 'competitors' },
   { tab: 'Стратегия', label: 'Стратегия' },
   { tab: 'Креативный бриф', label: 'Креативный бриф' },
 ];
@@ -544,16 +562,177 @@ function initProject(){
     () => { pShow('pError'); });
 }
 
-// показывает произвольную вкладку таблицы "как есть": шапка + строки
+// показывает произвольную вкладку таблицы. Три режима:
+// 'table' (по умолчанию) — шапка+строки как есть
+// 'weekly-report' — повторяющиеся блоки период/таблица/итого/заметки
+// 'competitors' — карточки конкурентов из атрибутных блоков
 function loadGenericTab(tabDef){
   gShow('gLoading');
   el('gTitle').textContent = tabDef.label;
 
-  if(genericCache[tabDef.tab]){ renderGeneric(genericCache[tabDef.tab]); return; }
+  if(genericCache[tabDef.tab]){ renderGenericByMode(tabDef, genericCache[tabDef.tab]); return; }
 
   gvizFrom(C.projectSheetId, tabDef.tab,
-    j => { genericCache[tabDef.tab] = j; renderGeneric(j); },
+    j => { genericCache[tabDef.tab] = j; renderGenericByMode(tabDef, j); },
     () => gShow('gError'));
+}
+
+function renderGenericByMode(tabDef, json){
+  if(tabDef.mode === 'weekly-report') return renderWeeklyReport(json);
+  if(tabDef.mode === 'competitors') return renderCompetitors(json);
+  return renderGeneric(json);
+}
+
+// достаёт "сырое" значение ячейки — отформатированное (f) если есть, иначе значение (v)
+function rawCell(c){
+  if(!c) return '';
+  if(c.f != null) return String(c.f);
+  if(c.v != null) return String(c.v);
+  return '';
+}
+function rawRow(r){ return (r.c || []).map(rawCell); }
+
+/* ---------- еженедельная/месячная сводка: период -> таблица -> итого -> заметки ---------- */
+
+function renderWeeklyReport(json){
+  const rows = ((json.table && json.table.rows) || []).map(rawRow);
+  const blocks = [];
+  let i = 0;
+
+  while(i < rows.length){
+    // ищем строку-шапку таблицы кампаний (ячейка "Campaign Name")
+    const colName = rows[i].findIndex(v => v.trim() === 'Campaign Name');
+    if(colName === -1){ i++; continue; }
+
+    const headerRow = rows[i];
+    const headers = [];
+    for(let c = colName; c < headerRow.length; c++){
+      if(!headerRow[c].trim() && c > colName) break;
+      if(headerRow[c].trim()) headers.push({idx:c, label:headerRow[c].trim()});
+    }
+
+    // ищем заголовок периода в нескольких строках выше
+    let title = 'Период';
+    for(let back = i-1; back >= Math.max(0, i-6); back--){
+      const nonEmpty = rows[back].map((v,idx)=>({v:v.trim(),idx})).filter(x=>x.v);
+      if(nonEmpty.length === 1){ title = nonEmpty[0].v; break; }
+    }
+
+    // данные до строки "Всего"/"ИТОГО"
+    const dataRows = [];
+    let totalsRow = null;
+    let lastName = '';
+    let j = i + 1;
+    for(; j < rows.length; j++){
+      const r = rows[j];
+      const nameCell = (r[colName] || '').trim();
+      const isTotals = /^(всего|итого)$/i.test(nameCell);
+      const hasAnyData = headers.some(h => (r[h.idx]||'').trim());
+      if(!hasAnyData && !nameCell) break; // пустая строка — конец блока
+      if(isTotals){ totalsRow = r; j++; break; }
+      const displayName = nameCell || lastName;
+      if(nameCell) lastName = nameCell;
+      dataRows.push({name: displayName, cells: headers.map(h => (r[h.idx]||'').trim())});
+    }
+
+    // заметки — следующая непустая строка после "Всего"
+    let notes = '';
+    if(totalsRow){
+      for(; j < rows.length; j++){
+        const cell = rows[j].find(v => v.trim().length > 20);
+        if(cell){ notes = cell; j++; break; }
+        if(rows[j].every(v=>!v.trim())) continue;
+        break;
+      }
+    }
+
+    blocks.push({
+      title, headers, dataRows,
+      totals: totalsRow ? headers.map(h => (totalsRow[h.idx]||'').trim()) : null,
+      notes
+    });
+    i = j;
+  }
+
+  if(!blocks.length){ gShow('gError'); return; }
+
+  el('gWrap').innerHTML = blocks.map(b => `
+    <div class="wk-block">
+      <div class="wk-title">${esc(b.title)}</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Кампания</th>${b.headers.slice(1).map(h=>`<th>${esc(h.label)}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${b.dataRows.map(r => `<tr>
+            <td data-label="Кампания">${esc(r.name)}</td>
+            ${r.cells.slice(1).map((v,i)=>`<td data-label="${esc(b.headers[i+1].label)}">${esc(v)}</td>`).join('')}
+          </tr>`).join('')}
+          ${b.totals ? `<tr class="wk-totals">
+            <td data-label="Кампания">Всего</td>
+            ${b.totals.slice(1).map((v,i)=>`<td data-label="${esc(b.headers[i+1].label)}">${esc(v)}</td>`).join('')}
+          </tr>` : ''}
+        </tbody>
+      </table></div>
+      ${b.notes ? `<div class="wk-notes">${esc(b.notes).split('\n').filter(Boolean).map(l=>`<p>${l}</p>`).join('')}</div>` : ''}
+    </div>`).join('');
+  gShow('gPanel');
+}
+
+/* ---------- анализ конкурентов: карточка на конкурента + общий вывод ---------- */
+
+function renderCompetitors(json){
+  const rows = ((json.table && json.table.rows) || []).map(rawRow);
+  const cards = [];
+  let summary = '';
+  let i = 0;
+
+  while(i < rows.length){
+    if((rows[i][1]||'').trim() === 'Анализ'){
+      i++;
+      if(i >= rows.length) break;
+      const label = (rows[i][0]||'').trim() || `Конкурент ${cards.length+1}`;
+      const items = [];
+      while(i < rows.length && (rows[i][1]||'').trim() && (rows[i][1]||'').trim() !== 'Анализ'){
+        items.push({
+          attr: rows[i][1].trim(),
+          result: (rows[i][4]||'').trim(),
+          notes: (rows[i][8]||'').trim(),
+        });
+        i++;
+      }
+      cards.push({label, items});
+      continue;
+    }
+    // общий вывод в конце документа
+    if(/общие выводы/i.test(rows[i][0]||'')){
+      const parts = [];
+      let k = i+1;
+      for(; k < rows.length; k++){
+        const cell = rows[k].find(v=>v.trim().length>20);
+        if(cell) parts.push(cell); else if(parts.length) break;
+      }
+      summary = parts.join('\n');
+      i = k;
+      continue;
+    }
+    i++;
+  }
+
+  if(!cards.length){ gShow('gError'); return; }
+
+  el('gWrap').innerHTML =
+    cards.map(c => `
+      <div class="comp-card">
+        <div class="comp-title">${esc(c.label)}</div>
+        ${c.items.map(it => `
+          <div class="comp-row">
+            <div class="comp-attr">${esc(it.attr)}</div>
+            <div class="comp-result">${esc(it.result)}</div>
+            ${it.notes ? `<div class="comp-notes">${esc(it.notes)}</div>` : ''}
+          </div>`).join('')}
+      </div>`).join('') +
+    (summary ? `<div class="comp-summary"><div class="wk-title">Общие выводы</div>
+      ${esc(summary).split('\n').filter(Boolean).map(l=>`<p>${l}</p>`).join('')}</div>` : '');
+  gShow('gPanel');
 }
 
 function renderGeneric(json){
@@ -575,7 +754,7 @@ function renderGeneric(json){
     }).join('') + '</tr>';
   }).join('') + '</tbody>';
 
-  el('gTable').innerHTML = thead + tbody;
+  el('gWrap').innerHTML = `<div class="table-wrap"><table>${thead}${tbody}</table></div>`;
   gShow('gPanel');
 }
 
