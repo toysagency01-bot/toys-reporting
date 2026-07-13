@@ -86,6 +86,11 @@ document.body.innerHTML = `
 </header>
 <div class="controls hidden" id="controls">
   ${LOCKED ? '' : '<select id="accountSelect" aria-label="Аккаунт"></select>'}
+  <div class="seg hidden" role="group" aria-label="Канал" id="platformSeg">
+    <button data-platform="__all" class="active">Все каналы</button>
+    <button data-platform="Google Ads">Google</button>
+    <button data-platform="Meta Ads">Meta</button>
+  </div>
   <div class="seg" role="group" aria-label="Период">
     <button data-days="1">Вчера</button>
     <button data-days="7" class="active">7 дней</button>
@@ -117,7 +122,7 @@ document.body.innerHTML = `
   <div class="panel">
     <h2>Кампании</h2>
     <div class="table-wrap"><table>
-      <thead><tr><th>Аккаунт</th><th>Кампания</th><th>Показы</th><th>Клики</th>
+      <thead><tr><th>Аккаунт</th><th>Кампания</th><th>Канал</th><th>Показы</th><th>Клики</th>
       <th>CTR</th><th>Расход</th><th>Конв.</th><th>CPA</th></tr></thead>
       <tbody id="tbody"></tbody>
     </table></div>
@@ -131,21 +136,38 @@ const fmtN = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).forma
 const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}).format(n);
 
 let DATA = [], INSIGHTS = [];
-let period = 7, account = '__all', chart = null;
+let period = 7, account = '__all', platform = '__all', chart = null;
 
-/* ---------- boot: Chart.js -> данные -> insights ---------- */
+/* ---------- boot: Chart.js -> данные (оба канала) -> insights ---------- */
 loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
-  gviz('GoogleAds', json => {
-    try { DATA = parseData(json); if(!DATA.length) throw 0; }
-    catch(e){ show('errorState'); return; }
+  let google = null, meta = null, done = 0;
+  const finish = () => {
+    if (++done < 2) return;
+    DATA = [...(google || []), ...(meta || [])];
+    if (!DATA.length) { show('errorState'); return; }
     gviz('Insights', j2 => { INSIGHTS = parseInsights(j2); start(); },
-         () => { INSIGHTS = []; start(); });   // вкладки может не быть — не страшно
-  }, () => show('errorState'));
+         () => { INSIGHTS = []; start(); });
+  };
+  gviz('GoogleAds', j => { google = parseData(j, 'Google Ads'); finish(); }, finish);
+  gviz('MetaAds',  j => { meta   = parseData(j, 'Meta Ads');   finish(); }, finish);
 });
 
 function start(){
   if(!LOCKED) buildAccountSelect();
   document.getElementById('controls').classList.remove('hidden');
+
+  // фильтр каналов показываем только если данных больше одного канала
+  const platforms = [...new Set(DATA.map(r=>r.platform))];
+  if(platforms.length > 1){
+    const seg = el('platformSeg');
+    seg.classList.remove('hidden');
+    seg.querySelectorAll('button').forEach(b=>{
+      b.addEventListener('click',()=>{
+        seg.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active'); platform = b.dataset.platform; render();
+      });
+    });
+  }
   document.querySelectorAll('.seg button').forEach(b=>{
     b.addEventListener('click',()=>{
       document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('active'));
@@ -196,14 +218,15 @@ function cellDate(c){
 const num = c => c && c.v != null ? Number(c.v) || 0 : 0;
 const str = c => c && c.v != null ? String(c.v) : '';
 
-function parseData(json){
-  const rows = (json.table && json.table.rows) || [];
+function parseData(json, defaultPlatform){
+  const rows = (json && json.table && json.table.rows) || [];
   const out = [];
   for(const r of rows){
     const c = r.c;
     if(!c || !c[0]) continue;
     out.push({
-      date: cellDate(c[0]), account: str(c[2]), currency: str(c[4]),
+      date: cellDate(c[0]), platform: str(c[1]) || defaultPlatform,
+      account: str(c[2]), currency: str(c[4]),
       campaign: str(c[5]), impr: num(c[6]), clicks: num(c[7]),
       cost: num(c[8]), conv: num(c[9]),
     });
@@ -241,7 +264,9 @@ function periodDates(){
 function render(){
   const dates = periodDates();
   const set = new Set(dates);
-  const rows = DATA.filter(r => set.has(r.date) && (account==='__all' || r.account===account));
+  const rows = DATA.filter(r => set.has(r.date)
+    && (account==='__all' || r.account===account)
+    && (platform==='__all' || r.platform===platform));
   if(!rows.length){ show('emptyState'); return; }
   show('content');
 
@@ -311,13 +336,14 @@ function drawChart(dates, rows, curs){
 function drawTable(rows){
   const agg = {};
   rows.forEach(r=>{
-    const k = r.account+'||'+r.campaign+'||'+r.currency;
-    agg[k] = agg[k] || {account:r.account,campaign:r.campaign,currency:r.currency,impr:0,clicks:0,cost:0,conv:0};
+    const k = r.account+'||'+r.campaign+'||'+r.currency+'||'+r.platform;
+    agg[k] = agg[k] || {account:r.account,campaign:r.campaign,currency:r.currency,platform:r.platform,impr:0,clicks:0,cost:0,conv:0};
     agg[k].impr+=r.impr; agg[k].clicks+=r.clicks; agg[k].cost+=r.cost; agg[k].conv+=r.conv;
   });
   el('tbody').innerHTML = Object.values(agg).sort((a,b)=>b.cost-a.cost).map(r=>`
     <tr><td>${esc(r.account)}</td>
     <td class="camp" title="${esc(r.campaign)}">${esc(r.campaign)}</td>
+    <td>${r.platform==='Meta Ads'?'Meta':'Google'}</td>
     <td>${fmtN(r.impr)}</td><td>${fmtN(r.clicks)}</td>
     <td>${r.impr?(r.clicks/r.impr*100).toFixed(2)+'%':'—'}</td>
     <td>${fmtM(r.cost)} ${sym(r.currency)}</td><td>${fmtM(r.conv)}</td>
