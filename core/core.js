@@ -95,6 +95,18 @@ border-bottom:2px solid transparent;margin-bottom:-1px}
 .wait:last-child{margin-bottom:0}
 .wait .wtask{font-size:14px;line-height:1.5}
 .wait .wmeta{color:var(--muted);font-size:12px;margin-top:3px}
+@media (max-width: 640px){
+  .table-wrap{overflow-x:visible}
+  .table-wrap table{min-width:0}
+  .table-wrap thead{display:none}
+  .table-wrap tr{display:block;border-bottom:1px solid var(--line);padding:12px 0}
+  .table-wrap tr:last-child{border-bottom:none}
+  .table-wrap td{display:block;width:auto;text-align:left;border:none;
+    padding:3px 0;white-space:normal;word-break:break-word}
+  .table-wrap td.camp{max-width:none}
+  .table-wrap td::before{content:attr(data-label);display:block;color:var(--muted);
+    font-size:11px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:1px}
+}
 @media (prefers-reduced-motion:no-preference){
 .card,.panel{animation:rise .35s ease both}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}}
@@ -161,26 +173,38 @@ ${HAS_PROJECT ? `
 </div>
 ${HAS_PROJECT ? `
 <div id="projectView" class="hidden">
-  <div class="state" id="pLoading">Загружаю план проекта…</div>
-  <div class="state hidden" id="pError"><b>Не удалось загрузить план проекта.</b><br>
-  Проверь доступ к проектной таблице: «Все, у кого есть ссылка — Читатель».</div>
-  <div id="pContent" class="hidden">
-    <div class="panel">
-      <h2>Прогресс проекта</h2>
-      <div class="ptotal"><div class="pbar"><div class="pfill" id="pTotalFill"></div></div>
-      <div class="ppct" id="pTotalPct"></div></div>
-      <div id="pTopics"></div>
+  <div class="seg hidden" id="projectSubNav" role="group" aria-label="Раздел проекта"></div>
+  <div id="planSection">
+    <div class="state" id="pLoading">Загружаю план проекта…</div>
+    <div class="state hidden" id="pError"><b>Не удалось загрузить план проекта.</b><br>
+    Проверь доступ к проектной таблице: «Все, у кого есть ссылка — Читатель».</div>
+    <div id="pContent" class="hidden">
+      <div class="panel">
+        <h2>Прогресс проекта</h2>
+        <div class="ptotal"><div class="pbar"><div class="pfill" id="pTotalFill"></div></div>
+        <div class="ppct" id="pTotalPct"></div></div>
+        <div id="pTopics"></div>
+      </div>
+      <div class="panel hidden" id="pWaitPanel">
+        <h2>Ждём от вас</h2>
+        <div id="pWaitList"></div>
+      </div>
+      <div class="panel">
+        <h2>Все задачи</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Этап</th><th>Задача</th><th>Дедлайн</th><th>Ответственный</th><th>Статус</th></tr></thead>
+          <tbody id="pTbody"></tbody>
+        </table></div>
+      </div>
     </div>
-    <div class="panel hidden" id="pWaitPanel">
-      <h2>Ждём от вас</h2>
-      <div id="pWaitList"></div>
-    </div>
-    <div class="panel">
-      <h2>Все задачи</h2>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Этап</th><th>Задача</th><th>Дедлайн</th><th>Ответственный</th><th>Статус</th></tr></thead>
-        <tbody id="pTbody"></tbody>
-      </table></div>
+  </div>
+  <div id="genericSection" class="hidden">
+    <div class="state" id="gLoading">Загружаю…</div>
+    <div class="state hidden" id="gError"><b>Не удалось загрузить раздел.</b><br>
+    Проверь доступ к проектной таблице.</div>
+    <div class="panel hidden" id="gPanel">
+      <h2 id="gTitle"></h2>
+      <div class="table-wrap"><table id="gTable"></table></div>
     </div>
   </div>
 </div>` : ''}`;
@@ -400,13 +424,13 @@ function drawTable(rows){
     agg[k].impr+=r.impr; agg[k].clicks+=r.clicks; agg[k].cost+=r.cost; agg[k].conv+=r.conv;
   });
   el('tbody').innerHTML = Object.values(agg).sort((a,b)=>b.cost-a.cost).map(r=>`
-    <tr><td>${esc(r.account)}</td>
-    <td class="camp" title="${esc(r.campaign)}">${esc(r.campaign)}</td>
-    <td>${r.platform==='Meta Ads'?'Meta':'Google'}</td>
-    <td>${fmtN(r.impr)}</td><td>${fmtN(r.clicks)}</td>
-    <td>${r.impr?(r.clicks/r.impr*100).toFixed(2)+'%':'—'}</td>
-    <td>${fmtM(r.cost)} ${sym(r.currency)}</td><td>${fmtM(r.conv)}</td>
-    <td>${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}</td></tr>`).join('');
+    <tr><td data-label="Аккаунт">${esc(r.account)}</td>
+    <td class="camp" data-label="Кампания" title="${esc(r.campaign)}">${esc(r.campaign)}</td>
+    <td data-label="Канал">${r.platform==='Meta Ads'?'Meta':'Google'}</td>
+    <td data-label="Показы">${fmtN(r.impr)}</td><td data-label="Клики">${fmtN(r.clicks)}</td>
+    <td data-label="CTR">${r.impr?(r.clicks/r.impr*100).toFixed(2)+'%':'—'}</td>
+    <td data-label="Расход">${fmtM(r.cost)} ${sym(r.currency)}</td><td data-label="Конв.">${fmtM(r.conv)}</td>
+    <td data-label="CPA">${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}</td></tr>`).join('');
 }
 
 function buildAccountSelect(){
@@ -419,6 +443,8 @@ function buildAccountSelect(){
 /* ---------- проект ---------- */
 
 const PROJECT_TAB = C.projectTab || 'План работ META ADS';
+const EXTRA_TABS = C.projectExtraTabs || []; // [{tab:'ОС по лидам', label:'ОС по лидам'}, ...]
+const genericCache = {};
 
 function initProject(){
   const tabs = el('viewTabs');
@@ -432,9 +458,71 @@ function initProject(){
     });
   });
 
+  if(EXTRA_TABS.length){
+    const nav = el('projectSubNav');
+    nav.classList.remove('hidden');
+    nav.innerHTML = `<button data-sub="__plan" class="active">План работ</button>` +
+      EXTRA_TABS.map((t,i)=>`<button data-sub="${i}">${esc(t.label)}</button>`).join('');
+    nav.querySelectorAll('button').forEach(b=>{
+      b.addEventListener('click',()=>{
+        nav.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        const sub = b.dataset.sub;
+        if(sub === '__plan'){
+          el('planSection').classList.remove('hidden');
+          el('genericSection').classList.add('hidden');
+        } else {
+          el('planSection').classList.add('hidden');
+          el('genericSection').classList.remove('hidden');
+          loadGenericTab(EXTRA_TABS[+sub]);
+        }
+      });
+    });
+  }
+
   gvizFrom(C.projectSheetId, PROJECT_TAB,
     j => { renderProject(parseProject(j)); },
     () => { pShow('pError'); });
+}
+
+// показывает произвольную вкладку таблицы "как есть": шапка + строки
+function loadGenericTab(tabDef){
+  gShow('gLoading');
+  el('gTitle').textContent = tabDef.label;
+
+  if(genericCache[tabDef.tab]){ renderGeneric(genericCache[tabDef.tab]); return; }
+
+  gvizFrom(C.projectSheetId, tabDef.tab,
+    j => { genericCache[tabDef.tab] = j; renderGeneric(j); },
+    () => gShow('gError'));
+}
+
+function renderGeneric(json){
+  const cols = (json.table && json.table.cols) || [];
+  const rows = (json.table && json.table.rows) || [];
+  // берём только колонки с заголовком — пустые служебные столбцы пропускаем
+  const idxs = cols.map((c,i)=>c.label ? i : -1).filter(i=>i!==-1);
+  if(!idxs.length || !rows.length){ gShow('gError'); return; }
+
+  const thead = '<thead><tr>' + idxs.map(i=>`<th>${esc(cols[i].label)}</th>`).join('') + '</tr></thead>';
+  const tbody = '<tbody>' + rows.map(r=>{
+    const c = r.c || [];
+    // пропускаем полностью пустые строки
+    if(idxs.every(i => !c[i] || (c[i].f==null && c[i].v==null))) return '';
+    return '<tr>' + idxs.map(i=>{
+      const cell = c[i];
+      const val = cell ? (cell.f != null ? cell.f : (cell.v != null ? cell.v : '')) : '';
+      return `<td data-label="${esc(cols[i].label)}">${esc(String(val))}</td>`;
+    }).join('') + '</tr>';
+  }).join('') + '</tbody>';
+
+  el('gTable').innerHTML = thead + tbody;
+  gShow('gPanel');
+}
+
+function gShow(id){
+  ['gLoading','gError','gPanel'].forEach(x=>
+    el(x).classList.toggle('hidden', x!==id));
 }
 
 function normStatus(s){
@@ -517,11 +605,11 @@ function renderProject(tasks){
   // все задачи
   el('pTbody').innerHTML = tasks.map(t=>`
     <tr>
-      <td>${esc(t.topic)}</td>
-      <td class="camp" title="${esc(t.task)}">${esc(t.task)}</td>
-      <td>${esc(t.deadline)}</td>
-      <td>${esc(t.owner)}</td>
-      <td><span class="badge b-${t.status}">${STATUS_LABEL[t.status]}</span></td>
+      <td data-label="Этап">${esc(t.topic)}</td>
+      <td class="camp" data-label="Задача" title="${esc(t.task)}">${esc(t.task)}</td>
+      <td data-label="Дедлайн">${esc(t.deadline)}</td>
+      <td data-label="Ответственный">${esc(t.owner)}</td>
+      <td data-label="Статус"><span class="badge b-${t.status}">${STATUS_LABEL[t.status]}</span></td>
     </tr>`).join('');
 }
 
