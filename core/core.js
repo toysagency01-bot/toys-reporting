@@ -490,8 +490,19 @@ function buildAccountSelect(){
 
 /* ---------- проект ---------- */
 
-const PROJECT_TAB = C.projectTab || 'План работ META ADS';
-const EXTRA_TABS = C.projectExtraTabs || []; // [{tab:'ОС по лидам', label:'ОС по лидам'}, ...]
+const PROJECT_TAB = C.projectTab || 'План работ';
+// Стандартный набор доп.вкладок проекта — общий для всех клиентов.
+// Если у конкретного клиента вкладки называются иначе, можно переопределить
+// через projectExtraTabs в его index.html — но по умолчанию всё берётся отсюда.
+const DEFAULT_EXTRA_TABS = [
+  { tab: 'ОС по лидам', label: 'ОС по лидам' },
+  { tab: 'Еженедельная сводка', label: 'Сводка (неделя)' },
+  { tab: 'Месячная сводка', label: 'Сводка (месяц)' },
+  { tab: 'Анализ конкурентов', label: 'Конкуренты' },
+  { tab: 'Стратегия', label: 'Стратегия' },
+  { tab: 'Креативный бриф', label: 'Креативный бриф' },
+];
+const EXTRA_TABS = C.projectExtraTabs || DEFAULT_EXTRA_TABS;
 const genericCache = {};
 
 function initProject(){
