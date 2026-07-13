@@ -16,6 +16,12 @@ const SHOW_DRAFTS = !!C.showDrafts;
 const TITLE = C.title || 'reporting';
 
 /* ---------- styles + fonts ---------- */
+/* ---------- логотипы ----------
+   Логотип агентства общий для всех страниц — путь один раз здесь.
+   Логотип клиента задаётся в его собственном index.html через
+   DASH_CONFIG.clientLogoUrl (путь относительно папки клиента).       */
+const AGENCY_LOGO_URL = '../assets/toys-logo.svg';
+
 document.head.insertAdjacentHTML('beforeend', `
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,6 +37,9 @@ header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding-bottom:
 margin-bottom:22px;border-bottom:1px solid var(--line)}
 .logo{font-weight:800;font-size:22px;letter-spacing:.04em}
 .logo b{color:var(--accent)}
+.logo-row{display:flex;align-items:center;gap:10px}
+.logo-row img{display:block;height:26px;width:auto;max-width:140px;object-fit:contain}
+.logo-sep{color:var(--muted);font-size:15px;font-weight:300}
 .sub{color:var(--muted);font-size:13px}
 .updated{margin-left:auto;color:var(--muted);font-size:12px}
 .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:22px}
@@ -181,7 +190,14 @@ a:hover{opacity:.8}
 const HAS_PROJECT = !!C.projectSheetId;
 document.body.innerHTML = `
 <header>
-  <div class="logo">TOYS<b>.</b></div>
+  <div class="logo-row">
+    <img src="${AGENCY_LOGO_URL}" alt="TOYS"
+      onerror="this.outerHTML='<div class=&quot;logo&quot;>TOYS<b>.</b></div>'">
+    ${C.clientLogoUrl ? `
+    <span class="logo-sep">×</span>
+    <img src="${esc(C.clientLogoUrl)}" alt="${esc(TITLE)}"
+      onerror="this.style.display='none'">` : ''}
+  </div>
   <div class="sub">${esc(TITLE)}</div>
   <div class="updated" id="updated"></div>
 </header>
