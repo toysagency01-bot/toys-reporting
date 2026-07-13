@@ -39,9 +39,11 @@ padding:10px 36px 10px 14px;font:500 14px 'Golos Text',sans-serif;appearance:non
 background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2387878f' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
 background-repeat:no-repeat;background-position:right 14px center}
 select:focus-visible{border-color:var(--accent)}
-.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
 .seg button{background:none;border:none;color:var(--muted);cursor:pointer;padding:10px 16px;
-font:500 14px 'Golos Text',sans-serif}
+font:500 14px 'Golos Text',sans-serif;white-space:nowrap;flex:0 0 auto}
 .seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .seg button.active{background:var(--accent-dim);color:var(--accent)}
 .cards{display:grid;gap:12px;margin-bottom:22px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
@@ -72,10 +74,12 @@ tr:last-child td{border-bottom:none}
 .state{padding:60px 20px;text-align:center;color:var(--muted);font-size:14px;line-height:1.7}
 .state b{color:var(--text)}
 .hidden{display:none}
-.tabs{display:flex;gap:4px;margin-bottom:22px;border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:4px;margin-bottom:22px;border-bottom:1px solid var(--line);
+overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
 .tabs button{background:none;border:none;color:var(--muted);cursor:pointer;
 padding:10px 18px 12px;font:600 14px 'Golos Text',sans-serif;
-border-bottom:2px solid transparent;margin-bottom:-1px}
+border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;flex:0 0 auto}
 .tabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
 .tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .ptotal{display:flex;align-items:center;gap:14px;margin-bottom:20px}
@@ -578,9 +582,13 @@ function loadGenericTab(tabDef){
 }
 
 function renderGenericByMode(tabDef, json){
-  if(tabDef.mode === 'weekly-report') return renderWeeklyReport(json);
-  if(tabDef.mode === 'competitors') return renderCompetitors(json);
-  return renderGeneric(json);
+  try{
+    if(tabDef.mode === 'weekly-report') return renderWeeklyReport(json);
+    if(tabDef.mode === 'competitors') return renderCompetitors(json);
+    return renderGeneric(json);
+  }catch(e){
+    gShow('gError');
+  }
 }
 
 // достаёт "сырое" значение ячейки — отформатированное (f) если есть, иначе значение (v)
@@ -618,7 +626,9 @@ function renderWeeklyReport(json){
       if(nonEmpty.length === 1){ title = nonEmpty[0].v; break; }
     }
 
-    // данные до строки "Всего"/"ИТОГО"
+    // данные до итоговой строки: либо явная метка "Всего"/"Итого",
+    // либо строка без названия кампании И без адсета, но с цифрами
+    // (в некоторых сводках итоговая строка вообще без подписи)
     const dataRows = [];
     let totalsRow = null;
     let lastName = '';
@@ -626,10 +636,13 @@ function renderWeeklyReport(json){
     for(; j < rows.length; j++){
       const r = rows[j];
       const nameCell = (r[colName] || '').trim();
-      const isTotals = /^(всего|итого)$/i.test(nameCell);
+      const adsetCell = (r[colName+1] || '').trim();
       const hasAnyData = headers.some(h => (r[h.idx]||'').trim());
+      const isLabeledTotals = /^(всего|итого)$/i.test(nameCell);
+      const isUnlabeledTotals = !nameCell && !adsetCell &&
+        headers.some(h => h.idx > colName+1 && (r[h.idx]||'').trim());
       if(!hasAnyData && !nameCell) break; // пустая строка — конец блока
-      if(isTotals){ totalsRow = r; j++; break; }
+      if(isLabeledTotals || isUnlabeledTotals){ totalsRow = r; j++; break; }
       const displayName = nameCell || lastName;
       if(nameCell) lastName = nameCell;
       dataRows.push({name: displayName, cells: headers.map(h => (r[h.idx]||'').trim())});
