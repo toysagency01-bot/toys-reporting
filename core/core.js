@@ -622,67 +622,34 @@ function renderWeeklyReport(json){
     const colName = rows[i].findIndex(v => v.trim() === 'Campaign Name');
     if(colName === -1){ i++; continue; }
 
-    const headerRow = rows[i];
-    const headers = [];
-    for(let c = colName; c < headerRow.length; c++){
-      if(!headerRow[c].trim() && c > colName) break;
-      if(headerRow[c].trim()) headers.push({idx:c, label:headerRow[c].trim()});
-    }
-
-    // ищем заголовок периода в нескольких строках выше
+    // заголовок периода — одиночная непустая ячейка в нескольких строках выше
     let title = 'Период';
     for(let back = i-1; back >= Math.max(0, i-6); back--){
-      const nonEmpty = rows[back].map((v,idx)=>({v:v.trim(),idx})).filter(x=>x.v);
-      if(nonEmpty.length === 1){ title = nonEmpty[0].v; break; }
+      const nonEmpty = rows[back].map(v=>v.trim()).filter(Boolean);
+      if(nonEmpty.length === 1){ title = nonEmpty[0]; break; }
     }
 
-    // данные до итоговой строки: либо явная метка "Всего"/"Итого",
-    // либо строка без названия кампании И без адсета, но с цифрами
-    // (в некоторых сводках итоговая строка вообще без подписи)
-    const dataRows = [];
-    let totalsRow = null;
-    let lastName = '';
-    let j = i + 1;
-    for(; j < rows.length; j++){
-      const r = rows[j];
-      const nameCell = (r[colName] || '').trim();
-      const adsetCell = (r[colName+1] || '').trim();
-      const hasAnyData = headers.some(h => (r[h.idx]||'').trim());
-      const isLabeledTotals = /^(всего|итого)$/i.test(nameCell);
-      const isUnlabeledTotals = !nameCell && !adsetCell &&
-        headers.some(h => h.idx > colName+1 && (r[h.idx]||'').trim());
-      if(!hasAnyData && !nameCell) break; // пустая строка — конец блока
-      if(isLabeledTotals || isUnlabeledTotals){ totalsRow = r; j++; break; }
-      const displayName = nameCell || lastName;
-      if(nameCell) lastName = nameCell;
-      dataRows.push({name: displayName, cells: headers.map(h => (r[h.idx]||'').trim())});
+    // весь блок — от шапки таблицы до первой полностью пустой строки
+    let end = i + 1;
+    for(; end < rows.length; end++){
+      if(rows[end].every(v => !v.trim())) break;
     }
 
-    // заметки — следующая непустая строка после "Всего"
+    // заметки — первая достаточно длинная текстовая ячейка внутри блока
+    // (не привязываемся к формату итоговой строки — он может отличаться)
     let notes = '';
-    if(totalsRow){
-      for(; j < rows.length; j++){
-        const cell = rows[j].find(v => v.trim().length > 20);
-        if(cell){ notes = cell; j++; break; }
-        if(rows[j].every(v=>!v.trim())) continue;
-        break;
-      }
+    for(let k = i+1; k < end; k++){
+      const cell = rows[k].find(v => v.trim().length > 40);
+      if(cell){ notes = cell; break; }
     }
 
-    blocks.push({
-      title, headers, dataRows,
-      totals: totalsRow ? headers.map(h => (totalsRow[h.idx]||'').trim()) : null,
-      notes
-    });
-    i = j;
+    if(notes) blocks.push({title, notes});
+    i = end;
   }
 
   if(!blocks.length){ gShow('gError'); return; }
 
-  const withNotes = blocks.filter(b => b.notes);
-  if(!withNotes.length){ gShow('gError'); return; }
-
-  el('gWrap').innerHTML = withNotes.map(b => `
+  el('gWrap').innerHTML = blocks.map(b => `
     <div class="wk-block">
       <div class="wk-title">${esc(b.title)}</div>
       <div class="wk-notes">${linkify(b.notes).split('\n').filter(Boolean).map(l=>`<p>${l}</p>`).join('')}</div>
