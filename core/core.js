@@ -146,6 +146,15 @@ text-transform:uppercase;margin-bottom:1px}
 .comp-summary{margin-top:20px;padding:14px;background:var(--panel-2);border-radius:10px}
 .comp-summary p{font-size:13px;line-height:1.6;margin-bottom:6px}
 .comp-summary p:last-child{margin-bottom:0}
+a{color:var(--accent);text-decoration:underline;word-break:break-all}
+a:hover{opacity:.8}
+.cb-card{margin-top:14px;padding:12px 0;border-top:1px solid var(--line)}
+.task-group .cb-card:first-of-type{margin-top:0;padding-top:0;border-top:none}
+.cb-label{font-size:13px;font-weight:700;color:var(--text);margin-bottom:5px}
+.cb-hyp{font-size:14px;line-height:1.55;margin-bottom:8px}
+.cb-meta{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--muted);margin-bottom:6px}
+.cb-audience{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:6px}
+.cb-status{display:flex;flex-wrap:wrap;gap:6px}
 @media (max-width: 640px){
   .cards{grid-template-columns:repeat(2,1fr);gap:8px}
   .card{padding:14px 14px 12px}
@@ -522,7 +531,7 @@ const DEFAULT_EXTRA_TABS = [
   { tab: 'Месячная сводка', label: 'Сводка (месяц)', mode: 'weekly-report' },
   { tab: 'Анализ конкурентов', label: 'Конкуренты', mode: 'competitors' },
   { tab: 'Стратегия', label: 'Стратегия' },
-  { tab: 'Креативный бриф', label: 'Креативный бриф' },
+  { tab: 'Креативный бриф', label: 'Креативный бриф', mode: 'creative-brief' },
 ];
 const EXTRA_TABS = C.projectExtraTabs || DEFAULT_EXTRA_TABS;
 const genericCache = {};
@@ -585,6 +594,7 @@ function renderGenericByMode(tabDef, json){
   try{
     if(tabDef.mode === 'weekly-report') return renderWeeklyReport(json);
     if(tabDef.mode === 'competitors') return renderCompetitors(json);
+    if(tabDef.mode === 'creative-brief') return renderCreativeBrief(json);
     return renderGeneric(json);
   }catch(e){
     gShow('gError');
@@ -669,28 +679,71 @@ function renderWeeklyReport(json){
 
   if(!blocks.length){ gShow('gError'); return; }
 
-  el('gWrap').innerHTML = blocks.map(b => `
+  const withNotes = blocks.filter(b => b.notes);
+  if(!withNotes.length){ gShow('gError'); return; }
+
+  el('gWrap').innerHTML = withNotes.map(b => `
     <div class="wk-block">
       <div class="wk-title">${esc(b.title)}</div>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Кампания</th>${b.headers.slice(1).map(h=>`<th>${esc(h.label)}</th>`).join('')}</tr></thead>
-        <tbody>
-          ${b.dataRows.map(r => `<tr>
-            <td data-label="Кампания">${esc(r.name)}</td>
-            ${r.cells.slice(1).map((v,i)=>`<td data-label="${esc(b.headers[i+1].label)}">${esc(v)}</td>`).join('')}
-          </tr>`).join('')}
-          ${b.totals ? `<tr class="wk-totals">
-            <td data-label="Кампания">Всего</td>
-            ${b.totals.slice(1).map((v,i)=>`<td data-label="${esc(b.headers[i+1].label)}">${esc(v)}</td>`).join('')}
-          </tr>` : ''}
-        </tbody>
-      </table></div>
-      ${b.notes ? `<div class="wk-notes">${esc(b.notes).split('\n').filter(Boolean).map(l=>`<p>${l}</p>`).join('')}</div>` : ''}
+      <div class="wk-notes">${linkify(b.notes).split('\n').filter(Boolean).map(l=>`<p>${l}</p>`).join('')}</div>
     </div>`).join('');
   gShow('gPanel');
 }
 
-/* ---------- анализ конкурентов: карточка на конкурента + общий вывод ---------- */
+/* ---------- креативный бриф: секции (Статика/Видео) -> карточки идей ---------- */
+
+function renderCreativeBrief(json){
+  const rows = ((json.table && json.table.rows) || []).map(rawRow);
+  const headerIdx = rows.findIndex(r => (r[1]||'').trim() === 'Гипотеза');
+  if(headerIdx === -1){ gShow('gError'); return; }
+
+  const groups = [];
+  let current = null;
+
+  for(let i = headerIdx+1; i < rows.length; i++){
+    const r = rows[i];
+    const label = (r[0]||'').trim();
+    const hyp = (r[1]||'').trim();
+    const restEmpty = r.slice(1).every(v => !v.trim());
+
+    if(label && restEmpty){ current = {name: label, items: []}; groups.push(current); continue; }
+    if(!hyp) continue; // пустая строка-разделитель
+    if(!current){ current = {name: '', items: []}; groups.push(current); }
+
+    current.items.push({
+      label,
+      hypothesis: hyp,
+      reference: (r[2]||'').trim(),
+      count: (r[3]||'').trim(),
+      audience: (r[4]||'').trim(),
+      statusTeam: (r[5]||'').trim(),
+      statusClient: (r[6]||'').trim(),
+    });
+  }
+
+  const filled = groups.filter(g => g.items.length);
+  if(!filled.length){ gShow('gError'); return; }
+
+  el('gWrap').innerHTML = filled.map(g => `
+    <div class="task-group">
+      ${g.name ? `<div class="task-group-title">${esc(g.name)}</div>` : ''}
+      ${g.items.map(it => `
+        <div class="cb-card">
+          ${it.label ? `<div class="cb-label">${esc(it.label)}</div>` : ''}
+          <div class="cb-hyp">${linkify(it.hypothesis)}</div>
+          <div class="cb-meta">
+            ${it.reference ? `<span>Референс: ${linkify(it.reference)}</span>` : ''}
+            ${it.count ? `<span>Креативов: ${esc(it.count)}</span>` : ''}
+          </div>
+          ${it.audience ? `<div class="cb-audience">${esc(it.audience)}</div>` : ''}
+          ${(it.statusTeam || it.statusClient) ? `<div class="cb-status">
+            ${it.statusTeam ? `<span class="badge b-plan">Команда: ${esc(it.statusTeam)}</span>` : ''}
+            ${it.statusClient ? `<span class="badge b-plan">Клиент: ${esc(it.statusClient)}</span>` : ''}
+          </div>` : ''}
+        </div>`).join('')}
+    </div>`).join('');
+  gShow('gPanel');
+}
 
 function renderCompetitors(json){
   const rows = ((json.table && json.table.rows) || []).map(rawRow);
@@ -739,12 +792,12 @@ function renderCompetitors(json){
         ${c.items.map(it => `
           <div class="comp-row">
             <div class="comp-attr">${esc(it.attr)}</div>
-            <div class="comp-result">${esc(it.result)}</div>
-            ${it.notes ? `<div class="comp-notes">${esc(it.notes)}</div>` : ''}
+            <div class="comp-result">${linkify(it.result)}</div>
+            ${it.notes ? `<div class="comp-notes">${linkify(it.notes)}</div>` : ''}
           </div>`).join('')}
       </div>`).join('') +
     (summary ? `<div class="comp-summary"><div class="wk-title">Общие выводы</div>
-      ${esc(summary).split('\n').filter(Boolean).map(l=>`<p>${l}</p>`).join('')}</div>` : '');
+      ${summary.split('\n').filter(Boolean).map(l=>`<p>${linkify(l)}</p>`).join('')}</div>` : '');
   gShow('gPanel');
 }
 
@@ -763,7 +816,7 @@ function renderGeneric(json){
     return '<tr>' + idxs.map(i=>{
       const cell = c[i];
       const val = cell ? (cell.f != null ? cell.f : (cell.v != null ? cell.v : '')) : '';
-      return `<td data-label="${esc(cols[i].label)}">${esc(String(val))}</td>`;
+      return `<td data-label="${esc(cols[i].label)}">${linkify(String(val))}</td>`;
     }).join('') + '</tr>';
   }).join('') + '</tbody>';
 
@@ -886,4 +939,14 @@ function show(id){
 }
 function el(id){ return document.getElementById(id); }
 function esc(s){ return String(s).replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+// экранирует текст и превращает http(s)-ссылки внутри в кликабельные
+function linkify(raw){
+  return esc(raw).replace(/https?:\/\/\S+/g, m => {
+    const trail = m.match(/[),.;:!?]+$/);
+    const clean = trail ? m.slice(0, -trail[0].length) : m;
+    const punct = trail ? trail[0] : '';
+    return `<a href="${clean}" target="_blank" rel="noopener">${clean}</a>${punct}`;
+  });
+}
 })();
