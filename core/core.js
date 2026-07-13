@@ -635,13 +635,17 @@ function renderWeeklyReport(json){
       if(rows[end].every(v => !v.trim())) break;
     }
 
-    // заметки — ищем ячейку с переносом строки (только у абзаца заметок
-    // бывают переносы; названия кампаний всегда однострочные, даже длинные)
-    let notes = '';
+    // заметки — просто самый длинный текст во всём блоке.
+    // Реальный абзац выводов всегда на порядок длиннее любого
+    // названия кампании, поэтому это надёжнее любых порогов/признаков.
+    let notes = '', bestLen = 0;
     for(let k = i+1; k < end; k++){
-      const cell = rows[k].find(v => v.includes('\n') || v.trim().length > 80);
-      if(cell){ notes = cell; break; }
+      for(const v of rows[k]){
+        const t = v.trim();
+        if(t.length > bestLen){ bestLen = t.length; notes = t; }
+      }
     }
+    if(bestLen < 60) notes = ''; // слишком коротко — вряд ли это абзац заметок
 
     if(notes) blocks.push({title, notes});
     i = end;
@@ -660,15 +664,20 @@ function renderWeeklyReport(json){
 /* ---------- креативный бриф: секции (Статика/Видео) -> карточки идей ---------- */
 
 function renderCreativeBrief(json){
+  const cols = (json.table && json.table.cols) || [];
   const rows = ((json.table && json.table.rows) || []).map(rawRow);
-  const headerIdx = rows.findIndex(r => /гипотез/i.test((r[1]||'').trim()));
-  if(headerIdx === -1){ gShow('gError'); return; }
 
   const groups = [];
+  // Google Sheets иногда утаскивает самую первую метку раздела в подпись
+  // колонки A (это видно по parsedNumHeaders > 1) — восстанавливаем её оттуда
+  const firstLabel = (cols[0] && cols[0].label || '').trim();
   let current = null;
+  if(firstLabel && !/^(топик|campaign|гипотез|анализ)/i.test(firstLabel)){
+    current = {name: firstLabel, items: []};
+    groups.push(current);
+  }
 
-  for(let i = headerIdx+1; i < rows.length; i++){
-    const r = rows[i];
+  for(const r of rows){
     const label = (r[0]||'').trim();
     const hyp = (r[1]||'').trim();
     const restEmpty = r.slice(1).every(v => !v.trim());
