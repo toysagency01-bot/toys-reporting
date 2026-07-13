@@ -82,10 +82,12 @@ border-bottom:2px solid transparent;margin-bottom:-1px}
 .pbar{flex:1;height:8px;background:var(--panel-2);border-radius:99px;overflow:hidden}
 .pfill{height:100%;background:var(--accent);border-radius:99px;transition:width .4s ease}
 .ppct{font-weight:800;font-size:18px;font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
-.ptopic{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
-.ptopic .tname{flex:0 0 240px;font-size:14px}
-.ptopic .pbar{height:6px}
-.ptopic .tcount{color:var(--muted);font-size:12px;min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
+.ptopic{display:grid;grid-template-columns:1fr auto;column-gap:12px;row-gap:7px;
+padding:11px 0;border-top:1px solid var(--line)}
+.ptopic .tname{grid-column:1;grid-row:1;font-size:14px;align-self:center}
+.ptopic .tcount{grid-column:2;grid-row:1;color:var(--muted);font-size:12px;
+font-variant-numeric:tabular-nums;align-self:center;white-space:nowrap}
+.ptopic .pbar{grid-column:1 / -1;grid-row:2;height:6px}
 .badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
 .b-done{background:var(--accent-dim);color:var(--accent)}
 .b-progress{background:rgba(255,180,84,.12);color:#ffb454}
@@ -95,7 +97,27 @@ border-bottom:2px solid transparent;margin-bottom:-1px}
 .wait:last-child{margin-bottom:0}
 .wait .wtask{font-size:14px;line-height:1.5}
 .wait .wmeta{color:var(--muted);font-size:12px;margin-top:3px}
+.task-group{margin-top:18px}
+.task-group:first-child{margin-top:0}
+.task-group-title{font-size:13px;font-weight:600;color:var(--accent);
+margin-bottom:8px;letter-spacing:.02em}
+.task-row{display:flex;align-items:center;gap:12px;padding:10px 0;
+border-top:1px solid var(--line)}
+.task-group .task-row:first-of-type{border-top:none}
+.task-main{flex:1;min-width:0}
+.task-name{font-size:14px;line-height:1.4}
+.task-meta{color:var(--muted);font-size:12px;margin-top:2px}
 @media (max-width: 640px){
+  .task-row{flex-wrap:wrap;gap:4px 0;padding:11px 0}
+  .task-main{flex:1 1 100%}
+  .badge{margin-left:0}
+}
+@media (max-width: 640px){
+  .cards{grid-template-columns:repeat(2,1fr);gap:8px}
+  .card{padding:14px 14px 12px}
+  .card .label{font-size:11px;margin-bottom:6px}
+  .card .value{font-size:19px}
+  .card .value small{font-size:13px}
   .table-wrap{overflow-x:visible}
   .table-wrap table{min-width:0}
   .table-wrap thead{display:none}
@@ -191,10 +213,7 @@ ${HAS_PROJECT ? `
       </div>
       <div class="panel">
         <h2>Все задачи</h2>
-        <div class="table-wrap"><table>
-          <thead><tr><th>Этап</th><th>Задача</th><th>Дедлайн</th><th>Ответственный</th><th>Статус</th></tr></thead>
-          <tbody id="pTbody"></tbody>
-        </table></div>
+        <div id="pTaskList"></div>
       </div>
     </div>
   </div>
@@ -603,14 +622,25 @@ function renderProject(tasks){
   }
 
   // все задачи
-  el('pTbody').innerHTML = tasks.map(t=>`
-    <tr>
-      <td data-label="Этап">${esc(t.topic)}</td>
-      <td class="camp" data-label="Задача" title="${esc(t.task)}">${esc(t.task)}</td>
-      <td data-label="Дедлайн">${esc(t.deadline)}</td>
-      <td data-label="Ответственный">${esc(t.owner)}</td>
-      <td data-label="Статус"><span class="badge b-${t.status}">${STATUS_LABEL[t.status]}</span></td>
-    </tr>`).join('');
+  // все задачи, сгруппированные по этапу — название этапа не повторяем на каждой строке
+  const groups = [];
+  const gseen = {};
+  tasks.forEach(t=>{
+    if(!gseen[t.topic]){ gseen[t.topic] = {topic:t.topic, items:[]}; groups.push(gseen[t.topic]); }
+    gseen[t.topic].items.push(t);
+  });
+  el('pTaskList').innerHTML = groups.map(g => `
+    <div class="task-group">
+      <div class="task-group-title">${esc(g.topic)}</div>
+      ${g.items.map(t => `
+        <div class="task-row">
+          <div class="task-main">
+            <div class="task-name">${esc(t.task)}</div>
+            <div class="task-meta">${t.deadline ? 'до ' + esc(t.deadline) : ''}${t.deadline && t.owner ? ' · ' : ''}${esc(t.owner)}</div>
+          </div>
+          <span class="badge b-${t.status}">${STATUS_LABEL[t.status]}</span>
+        </div>`).join('')}
+    </div>`).join('');
 }
 
 function pShow(id){
