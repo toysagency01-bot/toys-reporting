@@ -91,7 +91,7 @@ document.body.innerHTML = `
     <button data-platform="Google Ads">Google</button>
     <button data-platform="Meta Ads">Meta</button>
   </div>
-  <div class="seg" role="group" aria-label="Период">
+  <div class="seg" role="group" aria-label="Период" id="periodSeg">
     <button data-days="1">Вчера</button>
     <button data-days="7" class="active">7 дней</button>
     <button data-days="30">30 дней</button>
@@ -168,9 +168,9 @@ function start(){
       });
     });
   }
-  document.querySelectorAll('.seg button').forEach(b=>{
+  document.querySelectorAll('#periodSeg button').forEach(b=>{
     b.addEventListener('click',()=>{
-      document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('#periodSeg button').forEach(x=>x.classList.remove('active'));
       b.classList.add('active'); period = +b.dataset.days; render();
     });
   });
