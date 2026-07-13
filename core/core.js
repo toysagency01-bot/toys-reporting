@@ -72,18 +72,48 @@ tr:last-child td{border-bottom:none}
 .state{padding:60px 20px;text-align:center;color:var(--muted);font-size:14px;line-height:1.7}
 .state b{color:var(--text)}
 .hidden{display:none}
+.tabs{display:flex;gap:4px;margin-bottom:22px;border-bottom:1px solid var(--line)}
+.tabs button{background:none;border:none;color:var(--muted);cursor:pointer;
+padding:10px 18px 12px;font:600 14px 'Golos Text',sans-serif;
+border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.ptotal{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+.pbar{flex:1;height:8px;background:var(--panel-2);border-radius:99px;overflow:hidden}
+.pfill{height:100%;background:var(--accent);border-radius:99px;transition:width .4s ease}
+.ppct{font-weight:800;font-size:18px;font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+.ptopic{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+.ptopic .tname{flex:0 0 240px;font-size:14px}
+.ptopic .pbar{height:6px}
+.ptopic .tcount{color:var(--muted);font-size:12px;min-width:44px;text-align:right;font-variant-numeric:tabular-nums}
+.badge{display:inline-block;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.b-done{background:var(--accent-dim);color:var(--accent)}
+.b-progress{background:rgba(255,180,84,.12);color:#ffb454}
+.b-plan{background:var(--panel-2);color:var(--muted)}
+.b-na{background:none;color:var(--muted);opacity:.6}
+.wait{border-left:2px solid #ffb454;padding:4px 0 4px 16px;margin-bottom:14px}
+.wait:last-child{margin-bottom:0}
+.wait .wtask{font-size:14px;line-height:1.5}
+.wait .wmeta{color:var(--muted);font-size:12px;margin-top:3px}
 @media (prefers-reduced-motion:no-preference){
 .card,.panel{animation:rise .35s ease both}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}}
 </style>`);
 
 /* ---------- markup ---------- */
+const HAS_PROJECT = !!C.projectSheetId;
 document.body.innerHTML = `
 <header>
   <div class="logo">TOYS<b>.</b></div>
   <div class="sub">${esc(TITLE)}</div>
   <div class="updated" id="updated"></div>
 </header>
+${HAS_PROJECT ? `
+<nav class="tabs" id="viewTabs">
+  <button data-view="metrics" class="active">Показатели</button>
+  <button data-view="project">Проект</button>
+</nav>` : ''}
+<div id="metricsView">
 <div class="controls hidden" id="controls">
   ${LOCKED ? '' : '<select id="accountSelect" aria-label="Аккаунт"></select>'}
   <div class="seg hidden" role="group" aria-label="Канал" id="platformSeg">
@@ -127,7 +157,33 @@ document.body.innerHTML = `
       <tbody id="tbody"></tbody>
     </table></div>
   </div>
-</div>`;
+</div>
+</div>
+${HAS_PROJECT ? `
+<div id="projectView" class="hidden">
+  <div class="state" id="pLoading">Загружаю план проекта…</div>
+  <div class="state hidden" id="pError"><b>Не удалось загрузить план проекта.</b><br>
+  Проверь доступ к проектной таблице: «Все, у кого есть ссылка — Читатель».</div>
+  <div id="pContent" class="hidden">
+    <div class="panel">
+      <h2>Прогресс проекта</h2>
+      <div class="ptotal"><div class="pbar"><div class="pfill" id="pTotalFill"></div></div>
+      <div class="ppct" id="pTotalPct"></div></div>
+      <div id="pTopics"></div>
+    </div>
+    <div class="panel hidden" id="pWaitPanel">
+      <h2>Ждём от вас</h2>
+      <div id="pWaitList"></div>
+    </div>
+    <div class="panel">
+      <h2>Все задачи</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Этап</th><th>Задача</th><th>Дедлайн</th><th>Ответственный</th><th>Статус</th></tr></thead>
+        <tbody id="pTbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>` : ''}`;
 
 /* ---------- state ---------- */
 const CUR = {USD:'$',EUR:'€',GBP:'£',PLN:'zł',CZK:'Kč',GEL:'₾',UAH:'₴',CHF:'CHF'};
@@ -179,11 +235,14 @@ function start(){
   const last = DATA.reduce((m,r)=> r.date>m? r.date:m, '');
   document.getElementById('updated').textContent = 'данные по ' + last;
   render();
+
+  if(HAS_PROJECT) initProject();
 }
 
 /* ---------- загрузка (JSONP: работает с file:// и с хостинга) ---------- */
 let cbSeq = 0;
-function gviz(sheetName, ok, fail){
+function gviz(sheetName, ok, fail){ gvizFrom(SHEET_ID, sheetName, ok, fail); }
+function gvizFrom(spreadsheetId, sheetName, ok, fail){
   const cb = '__gvizCb' + (++cbSeq);
   const timer = setTimeout(()=>{ cleanup(); fail(); }, 12000);
   window[cb] = json => {
@@ -191,7 +250,7 @@ function gviz(sheetName, ok, fail){
     if(json && json.status === 'error') fail(); else ok(json);
   };
   const s = document.createElement('script');
-  s.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler%3A${cb}&sheet=${encodeURIComponent(sheetName)}`;
+  s.src = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=responseHandler%3A${cb}&sheet=${encodeURIComponent(sheetName)}`;
   s.onerror = ()=>{ cleanup(); fail(); };
   document.head.appendChild(s);
   function cleanup(){ clearTimeout(timer); delete window[cb]; s.remove(); }
@@ -355,6 +414,120 @@ function buildAccountSelect(){
   const names = [...new Set(DATA.map(r=>r.account))].sort();
   sel.innerHTML = '<option value="__all">Все аккаунты</option>' +
     names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+}
+
+/* ---------- проект ---------- */
+
+const PROJECT_TAB = C.projectTab || 'План работ META ADS';
+
+function initProject(){
+  const tabs = el('viewTabs');
+  tabs.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      tabs.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      const isProject = b.dataset.view === 'project';
+      el('metricsView').classList.toggle('hidden', isProject);
+      el('projectView').classList.toggle('hidden', !isProject);
+    });
+  });
+
+  gvizFrom(C.projectSheetId, PROJECT_TAB,
+    j => { renderProject(parseProject(j)); },
+    () => { pShow('pError'); });
+}
+
+function normStatus(s){
+  const t = String(s||'').toLowerCase().trim();
+  if(t.startsWith('готов')) return 'done';
+  if(t.startsWith('в процесс')) return 'progress';
+  if(t.startsWith('план')) return 'plan';
+  if(t.startsWith('не исполь')) return 'na';
+  return '';
+}
+const STATUS_LABEL = {done:'Готово', progress:'В процессе', plan:'План', na:'Не используется'};
+
+function parseProject(json){
+  const rows = (json && json.table && json.table.rows) || [];
+  const out = [];
+  let topic = '';
+  for(const r of rows){
+    const c = r.c || [];
+    const t = str(c[0]).trim();
+    const task = str(c[1]).trim();
+    if(t) topic = t;
+    if(!task) continue;                       // пустые строки-разделители
+    const status = normStatus(str(c[4]));
+    if(!status) continue;
+    out.push({
+      topic, task,
+      deadline: c[2] && c[2].f ? c[2].f : str(c[2]).trim(),
+      owner: str(c[3]).trim(),
+      status,
+      comment: str(c[6]).trim(),
+    });
+  }
+  return out;
+}
+
+function renderProject(tasks){
+  if(!tasks.length){ pShow('pError'); return; }
+  pShow('pContent');
+
+  // прогресс: "Не используется" не считаем ни в числитель, ни в знаменатель
+  const counted = tasks.filter(t=>t.status!=='na');
+  const doneAll = counted.filter(t=>t.status==='done').length;
+  const pctAll = counted.length ? Math.round(doneAll/counted.length*100) : 0;
+  el('pTotalFill').style.width = pctAll + '%';
+  el('pTotalPct').textContent = pctAll + '%';
+
+  // по этапам
+  const topics = [];
+  const seen = {};
+  counted.forEach(t=>{
+    if(!seen[t.topic]){ seen[t.topic] = {name:t.topic, done:0, total:0}; topics.push(seen[t.topic]); }
+    seen[t.topic].total++;
+    if(t.status==='done') seen[t.topic].done++;
+  });
+  el('pTopics').innerHTML = topics.map(t=>{
+    const p = t.total ? Math.round(t.done/t.total*100) : 0;
+    return `<div class="ptopic">
+      <div class="tname">${esc(t.name)}</div>
+      <div class="pbar"><div class="pfill" style="width:${p}%"></div></div>
+      <div class="tcount">${t.done}/${t.total}</div>
+    </div>`;
+  }).join('');
+
+  // ждём от клиента: не готовые задачи с ответственным Client
+  const wait = tasks.filter(t =>
+    t.status !== 'done' && t.status !== 'na' &&
+    /client|клиент/i.test(t.owner));
+  const wp = el('pWaitPanel');
+  if(wait.length){
+    wp.classList.remove('hidden');
+    el('pWaitList').innerHTML = wait.map(t=>`
+      <div class="wait">
+        <div class="wtask">${esc(t.task)}</div>
+        <div class="wmeta">${esc(t.topic)}${t.deadline ? ' · до ' + esc(t.deadline) : ''}${t.comment ? ' · ' + esc(t.comment) : ''}</div>
+      </div>`).join('');
+  } else {
+    wp.classList.add('hidden');
+  }
+
+  // все задачи
+  el('pTbody').innerHTML = tasks.map(t=>`
+    <tr>
+      <td>${esc(t.topic)}</td>
+      <td class="camp" title="${esc(t.task)}">${esc(t.task)}</td>
+      <td>${esc(t.deadline)}</td>
+      <td>${esc(t.owner)}</td>
+      <td><span class="badge b-${t.status}">${STATUS_LABEL[t.status]}</span></td>
+    </tr>`).join('');
+}
+
+function pShow(id){
+  ['pLoading','pError','pContent'].forEach(x=>
+    el(x).classList.toggle('hidden', x!==id));
 }
 
 function show(id){
