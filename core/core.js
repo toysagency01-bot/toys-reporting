@@ -635,11 +635,11 @@ function renderWeeklyReport(json){
       if(rows[end].every(v => !v.trim())) break;
     }
 
-    // заметки — первая достаточно длинная текстовая ячейка внутри блока
-    // (не привязываемся к формату итоговой строки — он может отличаться)
+    // заметки — ищем ячейку с переносом строки (только у абзаца заметок
+    // бывают переносы; названия кампаний всегда однострочные, даже длинные)
     let notes = '';
     for(let k = i+1; k < end; k++){
-      const cell = rows[k].find(v => v.trim().length > 40);
+      const cell = rows[k].find(v => v.includes('\n') || v.trim().length > 80);
       if(cell){ notes = cell; break; }
     }
 
@@ -661,7 +661,7 @@ function renderWeeklyReport(json){
 
 function renderCreativeBrief(json){
   const rows = ((json.table && json.table.rows) || []).map(rawRow);
-  const headerIdx = rows.findIndex(r => (r[1]||'').trim() === 'Гипотеза');
+  const headerIdx = rows.findIndex(r => /гипотез/i.test((r[1]||'').trim()));
   if(headerIdx === -1){ gShow('gError'); return; }
 
   const groups = [];
