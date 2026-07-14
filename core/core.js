@@ -55,6 +55,13 @@ overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 font:500 14px 'Golos Text',sans-serif;white-space:nowrap;flex:0 0 auto}
 .seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .seg button.active{background:var(--accent-dim);color:var(--accent)}
+.daterange{display:flex;align-items:center;gap:6px;background:var(--panel);
+border:1px solid var(--line);border-radius:10px;padding:4px 10px}
+.daterange input[type=date]{background:none;border:none;color:var(--text);
+font:500 13px 'Golos Text',sans-serif;padding:6px 2px;outline:none;
+color-scheme:dark;cursor:pointer}
+.daterange input[type=date]:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:4px}
+.dr-sep{color:var(--muted);font-size:13px}
 .cards{display:grid;gap:12px;margin-bottom:22px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 18px 16px}
 .card .label{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px}
@@ -218,6 +225,12 @@ ${HAS_PROJECT ? `
     <button data-days="1">Вчера</button>
     <button data-days="7" class="active">7 дней</button>
     <button data-days="30">30 дней</button>
+    <button data-days="max">Максимум</button>
+  </div>
+  <div class="daterange" id="dateRange">
+    <input type="date" id="dateFrom" aria-label="С">
+    <span class="dr-sep">–</span>
+    <input type="date" id="dateTo" aria-label="По">
   </div>
 </div>
 <div class="state" id="loading">Загружаю данные…</div>
@@ -325,9 +338,33 @@ function start(){
   document.querySelectorAll('#periodSeg button').forEach(b=>{
     b.addEventListener('click',()=>{
       document.querySelectorAll('#periodSeg button').forEach(x=>x.classList.remove('active'));
-      b.classList.add('active'); period = +b.dataset.days; render();
+      b.classList.add('active');
+      period = b.dataset.days === 'max' ? 'max' : +b.dataset.days;
+      dFrom.value = ''; dTo.value = '';
+      render();
     });
   });
+
+  // произвольный диапазон дат — при выборе обеих дат снимаем активность
+  // с кнопок-заготовок и переключаемся на кастомный период
+  const dFrom = el('dateFrom'), dTo = el('dateTo');
+  function applyCustomRange(){
+    if(dFrom.value && dTo.value){
+      document.querySelectorAll('#periodSeg button').forEach(x=>x.classList.remove('active'));
+      period = {from: dFrom.value, to: dTo.value};
+      render();
+    }
+  }
+  dFrom.addEventListener('change', applyCustomRange);
+  dTo.addEventListener('change', applyCustomRange);
+
+  // ограничиваем календарь реальным диапазоном дат в данных
+  const allDates = DATA.map(r=>r.date).filter(Boolean).sort();
+  if(allDates.length){
+    dFrom.min = dTo.min = allDates[0];
+    dFrom.max = dTo.max = allDates[allDates.length-1];
+  }
+
   const sel = document.getElementById('accountSelect');
   if(sel) sel.addEventListener('change', e=>{ account = e.target.value; render(); });
   const last = DATA.reduce((m,r)=> r.date>m? r.date:m, '');
@@ -409,11 +446,31 @@ function parseInsights(json){
 
 /* ---------- рендер ---------- */
 function periodDates(){
+  if(period === 'max'){
+    const allDates = DATA.map(r=>r.date).filter(Boolean).sort();
+    if(!allDates.length) return [];
+    return dateRangeArray(allDates[0], allDates[allDates.length-1]);
+  }
+  if(typeof period === 'object' && period !== null){
+    return dateRangeArray(period.from, period.to);
+  }
   const dates = [];
   const end = new Date(); end.setDate(end.getDate()-1);
   for(let i=period-1;i>=0;i--){
     const d = new Date(end); d.setDate(end.getDate()-i);
     dates.push(d.toISOString().slice(0,10));
+  }
+  return dates;
+}
+
+function dateRangeArray(fromStr, toStr){
+  const dates = [];
+  let d = new Date(fromStr + 'T00:00:00');
+  const to = new Date(toStr + 'T00:00:00');
+  if(isNaN(d) || isNaN(to) || d > to) return [];
+  while(d <= to){
+    dates.push(d.toISOString().slice(0,10));
+    d.setDate(d.getDate()+1);
   }
   return dates;
 }
