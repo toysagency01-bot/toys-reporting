@@ -56,10 +56,10 @@ font:500 14px 'Golos Text',sans-serif;white-space:nowrap;flex:0 0 auto}
 .seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .seg button.active{background:var(--accent-dim);color:var(--accent)}
 .daterange{display:flex;align-items:center;gap:6px;background:var(--panel);
-border:1px solid var(--line);border-radius:10px;padding:4px 10px}
+border:1px solid var(--line);border-radius:10px;padding:4px 6px;cursor:pointer}
 .daterange input[type=date]{background:none;border:none;color:var(--text);
-font:500 13px 'Golos Text',sans-serif;padding:6px 2px;outline:none;
-color-scheme:dark;cursor:pointer}
+font:500 13px 'Golos Text',sans-serif;padding:6px 8px;outline:none;
+color-scheme:dark;cursor:pointer;min-width:108px}
 .daterange input[type=date]:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:4px}
 .dr-sep{color:var(--muted);font-size:13px}
 .cards{display:grid;gap:12px;margin-bottom:22px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
@@ -358,6 +358,13 @@ function start(){
   dFrom.addEventListener('change', applyCustomRange);
   dTo.addEventListener('change', applyCustomRange);
 
+  // клик в любом месте поля открывает календарь, не только по иконке
+  [dFrom, dTo].forEach(inp => {
+    inp.addEventListener('click', () => {
+      try{ inp.showPicker(); }catch(e){}
+    });
+  });
+
   // ограничиваем календарь реальным диапазоном дат в данных
   const allDates = DATA.map(r=>r.date).filter(Boolean).sort();
   if(allDates.length){
@@ -465,12 +472,14 @@ function periodDates(){
 
 function dateRangeArray(fromStr, toStr){
   const dates = [];
-  let d = new Date(fromStr + 'T00:00:00');
-  const to = new Date(toStr + 'T00:00:00');
-  if(isNaN(d) || isNaN(to) || d > to) return [];
-  while(d <= to){
-    dates.push(d.toISOString().slice(0,10));
-    d.setDate(d.getDate()+1);
+  const f = fromStr.split('-').map(Number);
+  const t = toStr.split('-').map(Number);
+  let cur = Date.UTC(f[0], f[1]-1, f[2]);
+  const end = Date.UTC(t[0], t[1]-1, t[2]);
+  if(!isFinite(cur) || !isFinite(end) || cur > end) return [];
+  while(cur <= end){
+    dates.push(new Date(cur).toISOString().slice(0,10));
+    cur += 86400000; // +1 день в мс — безопасно в UTC, без сдвигов часовых поясов
   }
   return dates;
 }
