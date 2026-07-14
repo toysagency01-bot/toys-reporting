@@ -172,8 +172,7 @@ a:hover{opacity:.8}
 .delta-neutral{color:var(--muted)}
 
 /* воронка + каналы бок о бок */
-.cards-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px}
-@media (max-width:760px){.cards-row{grid-template-columns:1fr}}
+.cards-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:22px}
 .funnel-step{margin-bottom:16px}
 .funnel-step:last-child{margin-bottom:0}
 .funnel-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
@@ -192,6 +191,20 @@ a:hover{opacity:.8}
 .seg-google{background:var(--accent)}
 .seg-meta{background:#8f7bff}
 .chan-caption{font-size:11px;color:var(--muted)}
+
+/* по дням недели: три мини-графика, каждый в своём масштабе */
+.wd-metric{margin-bottom:16px}
+.wd-metric:last-child{margin-bottom:0}
+.wd-metric-label{font-size:11px;color:var(--muted);text-transform:uppercase;
+letter-spacing:.04em;margin-bottom:6px}
+.wd-days{display:flex;align-items:flex-end;gap:5px;height:48px}
+.wd-day{flex:1;display:flex;flex-direction:column;align-items:center;
+justify-content:flex-end;height:100%}
+.wd-bar{width:100%;border-radius:3px 3px 0 0;min-height:2px;transition:height .3s ease}
+.wd-spend{background:var(--accent)}
+.wd-impr{background:#8f7bff}
+.wd-conv{background:#ffb454}
+.wd-daylabel{font-size:10px;color:var(--muted);margin-top:4px}
 
 /* переключатель графика Объём/Эффективность */
 .panel-head{display:flex;align-items:center;justify-content:space-between;
@@ -289,6 +302,10 @@ ${HAS_PROJECT ? `
     <div class="panel">
       <h2>Воронка</h2>
       <div id="funnel"></div>
+    </div>
+    <div class="panel">
+      <h2>По дням недели</h2>
+      <div id="weekdayBreakdown"></div>
     </div>
     <div class="panel hidden" id="channelPanel">
       <h2>Каналы</h2>
@@ -596,6 +613,7 @@ function render(){
 
   drawInsights();
   renderFunnel(impr, clicks, conv);
+  renderWeekdays(rows);
   renderChannels(rows, curs);
   drawChart(dates, rows, curs);
   drawTable(rows);
@@ -657,6 +675,39 @@ function renderFunnel(impr, clicks, conv){
         ${rate!=null ? `<div class="funnel-rate">${rate.toFixed(2)}% от предыдущего шага</div>` : ''}
       </div>`;
   }).join('');
+}
+
+function renderWeekdays(rows){
+  // 0=Пн ... 6=Вс
+  const buckets = Array.from({length:7}, () => ({cost:0, impr:0, conv:0}));
+  rows.forEach(r=>{
+    const p = r.date.split('-').map(Number);
+    const utcDay = new Date(Date.UTC(p[0], p[1]-1, p[2])).getUTCDay(); // 0=Вс..6=Сб
+    const idx = (utcDay + 6) % 7; // переводим в 0=Пн..6=Вс
+    buckets[idx].cost += r.cost;
+    buckets[idx].impr += r.impr;
+    buckets[idx].conv += r.conv;
+  });
+  const labels = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+
+  function metricRow(key, label, cls){
+    const max = Math.max(...buckets.map(b=>b[key]), 0) || 1;
+    return `<div class="wd-metric">
+      <div class="wd-metric-label">${label}</div>
+      <div class="wd-days">
+        ${buckets.map((b,i)=>`
+          <div class="wd-day" title="${labels[i]}: ${fmtM(b[key])}">
+            <div class="wd-bar ${cls}" style="height:${b[key]/max*100}%"></div>
+            <span class="wd-daylabel">${labels[i]}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  el('weekdayBreakdown').innerHTML =
+    metricRow('cost', 'Расход', 'wd-spend') +
+    metricRow('impr', 'Показы', 'wd-impr') +
+    metricRow('conv', 'Лиды', 'wd-conv');
 }
 
 function renderChannels(rows, curs){
