@@ -164,6 +164,40 @@ text-transform:uppercase;margin-bottom:1px}
 .comp-summary p:last-child{margin-bottom:0}
 a{color:var(--accent);text-decoration:underline;word-break:break-all}
 a:hover{opacity:.8}
+
+/* дельты период-к-периоду на KPI-карточках */
+.delta{font-size:12px;font-weight:600;margin-left:6px;white-space:nowrap;vertical-align:middle}
+.delta-good{color:var(--accent)}
+.delta-bad{color:#ff6b81}
+.delta-neutral{color:var(--muted)}
+
+/* воронка + каналы бок о бок */
+.cards-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px}
+@media (max-width:760px){.cards-row{grid-template-columns:1fr}}
+.funnel-step{margin-bottom:16px}
+.funnel-step:last-child{margin-bottom:0}
+.funnel-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.funnel-label{font-size:13px;color:var(--muted)}
+.funnel-value{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
+.funnel-bar-wrap{height:10px;background:var(--panel-2);border-radius:99px;overflow:hidden}
+.funnel-bar{height:100%;background:var(--accent);border-radius:99px;transition:width .4s ease}
+.funnel-rate{margin-top:4px;font-size:11px;color:var(--muted)}
+
+/* разбивка по каналам */
+.chan-block{margin-bottom:0}
+.chan-legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-bottom:6px}
+.chan-legend b{color:var(--text)}
+.chan-split{display:flex;height:18px;border-radius:6px;overflow:hidden;margin-bottom:5px}
+.chan-split div{height:100%;transition:width .4s ease}
+.seg-google{background:var(--accent)}
+.seg-meta{background:#8f7bff}
+.chan-caption{font-size:11px;color:var(--muted)}
+
+/* переключатель графика Объём/Эффективность */
+.panel-head{display:flex;align-items:center;justify-content:space-between;
+flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.panel-head h2{margin-bottom:0}
+.seg-sm button{padding:7px 12px;font-size:12px}
 .cb-card{margin-top:14px;padding:12px 0;border-top:1px solid var(--line)}
 .task-group .cb-card:first-of-type{margin-top:0;padding-top:0;border-top:none}
 .cb-label{font-size:13px;font-weight:700;color:var(--text);margin-bottom:5px}
@@ -251,8 +285,24 @@ ${HAS_PROJECT ? `
     <h2>Выводы и план</h2>
     <div id="insightsList"></div>
   </div>
+  <div class="cards-row">
+    <div class="panel">
+      <h2>Воронка</h2>
+      <div id="funnel"></div>
+    </div>
+    <div class="panel hidden" id="channelPanel">
+      <h2>Каналы</h2>
+      <div id="channelBreakdown"></div>
+    </div>
+  </div>
   <div class="panel">
-    <h2>Динамика по дням</h2>
+    <div class="panel-head">
+      <h2>Динамика по дням</h2>
+      <div class="seg seg-sm" id="chartModeSeg">
+        <button data-mode="volume" class="active">Объём</button>
+        <button data-mode="efficiency">Эффективность</button>
+      </div>
+    </div>
     <div class="chart-wrap"><canvas id="chart"></canvas></div>
   </div>
   <div class="panel">
@@ -303,7 +353,7 @@ const fmtN = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).forma
 const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}).format(n);
 
 let DATA = [], INSIGHTS = [];
-let period = 7, account = '__all', platform = '__all', chart = null;
+let period = 7, account = '__all', platform = '__all', chart = null, chartMode = 'volume';
 
 /* ---------- boot: Chart.js -> данные (оба канала) -> insights ---------- */
 loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
@@ -349,6 +399,10 @@ function start(){
   // с кнопок-заготовок и переключаемся на кастомный период
   const dFrom = el('dateFrom'), dTo = el('dateTo');
   function applyCustomRange(){
+    // подстраховка: не даём диапазону уехать позже вчера, даже если
+    // виджет браузера не полностью соблюдает атрибут max
+    if(dFrom.value > dFrom.max) dFrom.value = dFrom.max;
+    if(dTo.value > dTo.max) dTo.value = dTo.max;
     if(dFrom.value && dTo.value){
       document.querySelectorAll('#periodSeg button').forEach(x=>x.classList.remove('active'));
       period = {from: dFrom.value, to: dTo.value};
@@ -365,13 +419,24 @@ function start(){
     });
   });
 
-  // ограничиваем календарь реальным диапазоном дат в данных
+  // переключатель графика: объём (расход/конверсии) vs эффективность (CPA/CTR)
+  document.querySelectorAll('#chartModeSeg button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('#chartModeSeg button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); chartMode = b.dataset.mode; render();
+    });
+  });
+
+  // ограничиваем календарь реальным диапазоном: снизу — по данным,
+  // сверху — жёстко вчера (данные позже вчера появиться не могут)
   const allDates = DATA.map(r=>r.date)
     .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  const y = new Date(); y.setDate(y.getDate()-1);
+  const yesterday = y.toISOString().slice(0,10);
   if(allDates.length){
     dFrom.min = dTo.min = allDates[0];
-    dFrom.max = dTo.max = allDates[allDates.length-1];
   }
+  dFrom.max = dTo.max = yesterday;
 
   const sel = document.getElementById('accountSelect');
   if(sel) sel.addEventListener('change', e=>{ account = e.target.value; render(); });
@@ -502,21 +567,136 @@ function render(){
   rows.forEach(r=>{ byCur[r.currency]=(byCur[r.currency]||0)+r.cost; });
   const curs = Object.keys(byCur).sort();
 
-  el('kSpend').innerHTML = curs.map(c=>`<small>${fmtM(byCur[c])} ${sym(c)}</small>`).join('');
-  el('kImpr').textContent = fmtN(impr);
-  el('kClicks').textContent = fmtN(clicks);
-  el('kCtr').textContent = impr? (clicks/impr*100).toFixed(2)+'%' : '—';
-  el('kConv').textContent = fmtM(conv);
-  el('kCpa').innerHTML = conv
+  // прошлый период той же длины — для сравнения (недоступно для "Максимум")
+  const prevDates = previousPeriodDates(dates);
+  const prevSet = new Set(prevDates);
+  const prevRows = prevDates.length ? DATA.filter(r => prevSet.has(r.date)
+    && (account==='__all' || r.account===account)
+    && (platform==='__all' || r.platform===platform)) : [];
+  const pImpr = prevRows.reduce((s,r)=>s+r.impr,0);
+  const pClicks = prevRows.reduce((s,r)=>s+r.clicks,0);
+  const pConv = prevRows.reduce((s,r)=>s+r.conv,0);
+  const pCtr = pImpr ? pClicks/pImpr*100 : null;
+  const pCost = prevRows.reduce((s,r)=>s+r.cost,0);
+  const pCpa = pConv ? pCost/pConv : null;
+
+  el('kSpend').innerHTML = curs.map(c=>`<small>${fmtM(byCur[c])} ${sym(c)}</small>`).join('')
+    + (curs.length===1 ? deltaBadge(byCur[curs[0]], pCost, {neutral:true}) : '');
+  el('kImpr').innerHTML = fmtN(impr) + deltaBadge(impr, pImpr, {});
+  el('kClicks').innerHTML = fmtN(clicks) + deltaBadge(clicks, pClicks, {});
+  const ctr = impr ? clicks/impr*100 : null;
+  el('kCtr').innerHTML = (ctr!=null ? ctr.toFixed(2)+'%' : '—') + deltaBadge(ctr, pCtr, {});
+  el('kConv').innerHTML = fmtM(conv) + deltaBadge(conv, pConv, {});
+  el('kCpa').innerHTML = (conv
     ? curs.map(c=>{
         const cc = rows.filter(r=>r.currency===c).reduce((s,r)=>s+r.conv,0);
         return cc? `<small>${fmtM(byCur[c]/cc)} ${sym(c)}</small>` : '';
       }).join('')
-    : '—';
+    : '—') + (conv && curs.length===1 ? deltaBadge(byCur[curs[0]]/conv, pCpa, {invert:true}) : '');
 
   drawInsights();
+  renderFunnel(impr, clicks, conv);
+  renderChannels(rows, curs);
   drawChart(dates, rows, curs);
   drawTable(rows);
+}
+
+// вычисляет % изменения и рисует стрелку-бейдж рядом со значением карточки.
+// opts.invert: true — если "меньше" считается лучше (например, CPA)
+// opts.neutral: true — не красим (например, расход сам по себе не хорош/плох)
+function pctChange(cur, prev){
+  if(prev == null || !isFinite(prev) || prev === 0) return null;
+  if(cur == null || !isFinite(cur)) return null;
+  return (cur - prev) / prev * 100;
+}
+function deltaBadge(cur, prev, opts={}){
+  const d = pctChange(cur, prev);
+  if(d == null) return '';
+  const up = d >= 0;
+  const arrow = up ? '▲' : '▼';
+  let cls = 'delta-neutral';
+  if(!opts.neutral){
+    const good = opts.invert ? !up : up;
+    cls = good ? 'delta-good' : 'delta-bad';
+  }
+  return `<span class="delta ${cls}">${arrow} ${Math.abs(d).toFixed(0)}%</span>`;
+}
+
+// диапазон дат той же длины, что и текущий, сразу перед его началом.
+// для периода "Максимум" сравнивать не с чем — возвращаем пусто.
+function previousPeriodDates(currentDates){
+  if(!currentDates.length || period === 'max') return [];
+  const len = currentDates.length;
+  const f = currentDates[0].split('-').map(Number);
+  let cur = Date.UTC(f[0], f[1]-1, f[2]) - 86400000;
+  const dates = [];
+  for(let i=0; i<len; i++){
+    dates.unshift(new Date(cur).toISOString().slice(0,10));
+    cur -= 86400000;
+  }
+  return dates;
+}
+
+function renderFunnel(impr, clicks, conv){
+  const steps = [
+    {label:'Показы', value: impr},
+    {label:'Клики', value: clicks},
+    {label:'Конверсии', value: conv},
+  ];
+  const max = steps[0].value || 1;
+  el('funnel').innerHTML = steps.map((s,i)=>{
+    const pct = max ? (s.value/max*100) : 0;
+    const rate = i>0 && steps[i-1].value ? (s.value/steps[i-1].value*100) : null;
+    return `
+      <div class="funnel-step">
+        <div class="funnel-row">
+          <div class="funnel-label">${s.label}</div>
+          <div class="funnel-value">${fmtN(s.value)}</div>
+        </div>
+        <div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${pct}%"></div></div>
+        ${rate!=null ? `<div class="funnel-rate">${rate.toFixed(2)}% от предыдущего шага</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function renderChannels(rows, curs){
+  const panel = el('channelPanel');
+  const platforms = [...new Set(rows.map(r=>r.platform))];
+  if(platforms.length < 2){ panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+
+  const byPlat = {};
+  rows.forEach(r=>{
+    byPlat[r.platform] = byPlat[r.platform] || {conv:0, cost:0};
+    byPlat[r.platform].conv += r.conv;
+    byPlat[r.platform].cost += r.cost;
+  });
+  const gConv = (byPlat['Google Ads']||{}).conv || 0;
+  const mConv = (byPlat['Meta Ads']||{}).conv || 0;
+  const gCost = (byPlat['Google Ads']||{}).cost || 0;
+  const mCost = (byPlat['Meta Ads']||{}).cost || 0;
+  const totalConv = gConv + mConv;
+  const totalCost = gCost + mCost;
+
+  function splitBar(g, m, total){
+    const pg = total ? g/total*100 : 50;
+    return `<div class="chan-split"><div class="seg-google" style="width:${pg}%"></div><div class="seg-meta" style="width:${100-pg}%"></div></div>`;
+  }
+
+  let html = `<div class="chan-block">
+    <div class="chan-legend"><span>Google: <b>${fmtM(gConv)}</b></span><span>Meta: <b>${fmtM(mConv)}</b></span></div>
+    ${splitBar(gConv, mConv, totalConv)}
+    <div class="chan-caption">Доля конверсий</div>
+  </div>`;
+
+  if(curs.length === 1){
+    html += `<div class="chan-block" style="margin-top:16px">
+      <div class="chan-legend"><span>Google: <b>${fmtM(gCost)} ${sym(curs[0])}</b></span><span>Meta: <b>${fmtM(mCost)} ${sym(curs[0])}</b></span></div>
+      ${splitBar(gCost, mCost, totalCost)}
+      <div class="chan-caption">Доля расхода</div>
+    </div>`;
+  }
+  el('channelBreakdown').innerHTML = html;
 }
 
 function drawInsights(){
@@ -533,6 +713,11 @@ function drawInsights(){
 }
 
 function drawChart(dates, rows, curs){
+  if(chartMode === 'efficiency') return drawEfficiencyChart(dates, rows, curs);
+  return drawVolumeChart(dates, rows, curs);
+}
+
+function drawVolumeChart(dates, rows, curs){
   const convByDay = dates.map(d => rows.filter(r=>r.date===d).reduce((s,r)=>s+r.conv,0));
   const palette = ['#25ddcc','#8f7bff','#ffb454','#ff6b81'];
   const spendSets = curs.map((c,i)=>({
@@ -553,6 +738,42 @@ function drawChart(dates, rows, curs){
         x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}},
         y1:{position:'left',grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}},
         y2:{position:'right',grid:{display:false},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}}
+      }}};
+  if(chart) chart.destroy();
+  chart = new Chart(el('chart'), cfg);
+}
+
+function drawEfficiencyChart(dates, rows, curs){
+  const palette = ['#25ddcc','#8f7bff','#ffb454','#ff6b81'];
+  const cpaSets = curs.map((c,i)=>({
+    type:'line', label:'CPA, '+c, yAxisID:'y1',
+    data: dates.map(d=>{
+      const dayRows = rows.filter(r=>r.date===d && r.currency===c);
+      const cost = dayRows.reduce((s,r)=>s+r.cost,0);
+      const conv = dayRows.reduce((s,r)=>s+r.conv,0);
+      return conv ? +(cost/conv).toFixed(2) : null;
+    }),
+    borderColor: palette[i] || '#aaa', backgroundColor:'transparent',
+    tension:.3, pointRadius:2, borderWidth:2, spanGaps:true,
+  }));
+  const ctrByDay = dates.map(d=>{
+    const dayRows = rows.filter(r=>r.date===d);
+    const impr = dayRows.reduce((s,r)=>s+r.impr,0);
+    const clicks = dayRows.reduce((s,r)=>s+r.clicks,0);
+    return impr ? +(clicks/impr*100).toFixed(2) : 0;
+  });
+  const cfg = {
+    data:{ labels: dates.map(d=>d.slice(5)), datasets:[
+      {type:'bar', label:'CTR, %', yAxisID:'y2', data:ctrByDay,
+       backgroundColor:'rgba(255,255,255,.10)', borderRadius:4},
+      ...cpaSets ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#87878f',font:{family:'Golos Text',size:12},boxWidth:12}}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}},
+        y1:{position:'left',grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}},
+        y2:{position:'right',grid:{display:false},ticks:{color:'#87878f',font:{family:'Golos Text',size:11},callback:v=>v+'%'}}
       }}};
   if(chart) chart.destroy();
   chart = new Chart(el('chart'), cfg);
