@@ -199,7 +199,14 @@ a:hover{opacity:.8}
 letter-spacing:.04em;margin-bottom:6px}
 .wd-days{display:flex;align-items:flex-end;gap:5px;height:48px}
 .wd-day{flex:1;display:flex;flex-direction:column;align-items:center;
-justify-content:flex-end;height:100%}
+justify-content:flex-end;height:100%;position:relative}
+.wd-day[data-tip]:hover::after{
+  content:attr(data-tip);position:absolute;bottom:100%;left:50%;
+  transform:translateX(-50%);margin-bottom:6px;background:var(--panel-2);
+  color:var(--text);font-size:11px;font-weight:600;padding:4px 9px;
+  border-radius:6px;white-space:nowrap;border:1px solid var(--line);
+  pointer-events:none;z-index:10;
+}
 .wd-bar{width:100%;border-radius:3px 3px 0 0;min-height:2px;transition:height .3s ease}
 .wd-spend{background:var(--accent)}
 .wd-impr{background:#8f7bff}
@@ -696,7 +703,7 @@ function renderWeekdays(rows){
       <div class="wd-metric-label">${label}</div>
       <div class="wd-days">
         ${buckets.map((b,i)=>`
-          <div class="wd-day" title="${labels[i]}: ${fmtM(b[key])}">
+          <div class="wd-day" data-tip="${labels[i]}: ${fmtM(b[key])}">
             <div class="wd-bar ${cls}" style="height:${b[key]/max*100}%"></div>
             <span class="wd-daylabel">${labels[i]}</span>
           </div>`).join('')}
