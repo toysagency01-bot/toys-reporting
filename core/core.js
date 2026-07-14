@@ -366,7 +366,8 @@ function start(){
   });
 
   // ограничиваем календарь реальным диапазоном дат в данных
-  const allDates = DATA.map(r=>r.date).filter(Boolean).sort();
+  const allDates = DATA.map(r=>r.date)
+    .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
   if(allDates.length){
     dFrom.min = dTo.min = allDates[0];
     dFrom.max = dTo.max = allDates[allDates.length-1];
@@ -454,7 +455,8 @@ function parseInsights(json){
 /* ---------- рендер ---------- */
 function periodDates(){
   if(period === 'max'){
-    const allDates = DATA.map(r=>r.date).filter(Boolean).sort();
+    const allDates = DATA.map(r=>r.date)
+      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
     if(!allDates.length) return [];
     return dateRangeArray(allDates[0], allDates[allDates.length-1]);
   }
