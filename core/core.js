@@ -978,13 +978,13 @@ function rawRow(r){ return (r.c || []).map(rawCell); }
 function renderWeeklyReport(json){
   const rows = ((json.table && json.table.rows) || []).map(rawRow);
 
-  // находим ВСЕ шапки таблиц кампаний — каждая начинает новый период.
-  // Между периодами может не быть пустых строк вообще (проверено на
-  // реальных данных), поэтому границей блока служит начало СЛЕДУЮЩЕЙ
-  // шапки, а не поиск пустой строки.
+  // ищем ВСЕ шапки таблиц по периодам. Разные отчёты бывают на уровне
+  // кампаний ("Campaign Name") или на уровне групп объявлений
+  // ("Ad Set Name") — ловим оба варианта, дальше нам всё равно нужен
+  // только текст заметок внутри блока, не сама таблица метрик.
   const headerIdxs = [];
   for(let i = 0; i < rows.length; i++){
-    if(rows[i].some(v => v.trim() === 'Campaign Name')) headerIdxs.push(i);
+    if(rows[i].some(v => v.trim() === 'Campaign Name' || v.trim() === 'Ad Set Name')) headerIdxs.push(i);
   }
   if(!headerIdxs.length){ gShow('gError'); return; }
 
