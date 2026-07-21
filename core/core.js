@@ -636,19 +636,29 @@ function render(){
   const pCost = prevRows.reduce((s,r)=>s+r.cost,0);
   const pCpa = pConv ? pCost/pConv : null;
 
-  el('kSpend').innerHTML = curs.map(c=>`<small>${fmtM(byCur[c])} ${sym(c)}</small>`).join('')
+  el('kSpend').innerHTML = (curs.length===1
+      ? `${fmtM(byCur[curs[0]])} ${sym(curs[0])}`
+      : curs.map(c=>`<small>${fmtM(byCur[c])} ${sym(c)}</small>`).join(''))
     + (curs.length===1 ? deltaBadge(byCur[curs[0]], pCost, {neutral:true}) : '');
   el('kImpr').innerHTML = fmtN(impr) + deltaBadge(impr, pImpr, {});
   el('kClicks').innerHTML = fmtN(clicks) + deltaBadge(clicks, pClicks, {});
   const ctr = impr ? clicks/impr*100 : null;
   el('kCtr').innerHTML = (ctr!=null ? ctr.toFixed(2)+'%' : '—') + deltaBadge(ctr, pCtr, {});
   el('kConv').innerHTML = fmtM(conv) + deltaBadge(conv, pConv, {});
-  el('kCpa').innerHTML = (conv
-    ? curs.map(c=>{
+
+  let kCpaHtml = '—';
+  if (conv) {
+    if (curs.length === 1) {
+      const cc = rows.filter(r=>r.currency===curs[0]).reduce((s,r)=>s+r.conv,0);
+      kCpaHtml = cc ? `${fmtM(byCur[curs[0]]/cc)} ${sym(curs[0])}` : '—';
+    } else {
+      kCpaHtml = curs.map(c=>{
         const cc = rows.filter(r=>r.currency===c).reduce((s,r)=>s+r.conv,0);
-        return cc? `<small>${fmtM(byCur[c]/cc)} ${sym(c)}</small>` : '';
-      }).join('')
-    : '—') + (conv && curs.length===1 ? deltaBadge(byCur[curs[0]]/conv, pCpa, {invert:true}) : '');
+        return cc ? `<small>${fmtM(byCur[c]/cc)} ${sym(c)}</small>` : '';
+      }).join('');
+    }
+  }
+  el('kCpa').innerHTML = kCpaHtml + (conv && curs.length===1 ? deltaBadge(byCur[curs[0]]/conv, pCpa, {invert:true}) : '');
 
   // квал-лиды (Zoho) — показываем только если у клиента включён флаг
   // и по выбранному периоду реально есть данные
@@ -660,7 +670,7 @@ function render(){
       el('kQual').textContent = fmtN(qualTotal);
       if (curs.length === 1) {
         el('kQualCpaCard').classList.remove('hidden');
-        el('kQualCpa').innerHTML = `<small>${fmtM(byCur[curs[0]]/qualTotal)} ${sym(curs[0])}</small>`;
+        el('kQualCpa').textContent = `${fmtM(byCur[curs[0]]/qualTotal)} ${sym(curs[0])}`;
       } else {
         el('kQualCpaCard').classList.add('hidden');
       }
