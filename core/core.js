@@ -669,6 +669,7 @@ function render(){
       el('kQualCpaCard').classList.add('hidden');
     }
   }
+  layoutCardsGrid();
 
   drawInsights();
   renderFunnel(impr, clicks, conv);
@@ -681,6 +682,23 @@ function render(){
 // вычисляет % изменения и рисует стрелку-бейдж рядом со значением карточки.
 // opts.invert: true — если "меньше" считается лучше (например, CPA)
 // opts.neutral: true — не красим (например, расход сам по себе не хорош/плох)
+// считает столбцы так, чтобы видимые KPI-карточки всегда ложились
+// ровно в 2 параллельных ряда — вместо того чтобы жадно переливаться
+// и оставлять одну карточку одиноко висеть на второй строке
+function layoutCardsGrid(){
+  const wrap = document.querySelector('.cards');
+  if (!wrap) return;
+  const visible = Array.from(wrap.children).filter(c => !c.classList.contains('hidden'));
+  const n = visible.length;
+  if (window.innerWidth < 640) {
+    wrap.style.gridTemplateColumns = 'repeat(2, 1fr)'; // мобильный: просто по 2 в ряд, рядов может быть больше 2
+  } else {
+    const cols = Math.max(1, Math.ceil(n / 2));
+    wrap.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  }
+}
+window.addEventListener('resize', () => { if (document.querySelector('.cards')) layoutCardsGrid(); });
+
 function pctChange(cur, prev){
   if(prev == null || !isFinite(prev) || prev === 0) return null;
   if(cur == null || !isFinite(cur)) return null;
