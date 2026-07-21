@@ -395,20 +395,34 @@ loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.
   gviz('MetaAds',  j => { meta   = parseData(j, 'Meta Ads');   finish(); }, finish);
 });
 
-/* лист "QualifiedLeads" читаем только если у клиента включён флаг showQualified —
-   для остальных не тратим лишний запрос впустую */
+/* Лист "QualifiedLeads" общий на всех клиентов и живёт в мастер-таблице
+   (не в таблице конкретного клиента) — читаем оттуда явно по ID и
+   фильтруем по клиенту через C.showQualified (строка-ключ, а не просто true/false) */
+const QUALIFIED_MASTER_SHEET_ID = '1UlIKi-mlH86zMjrczRgZzzPPHP0AcAaQCjLtuYZDi0g';
 function loadQualified(){
   if (!C.showQualified) { start(); return; }
-  gviz('QualifiedLeads', j => { QUALIFIED = parseQualified(j); start(); },
+  gvizFrom(QUALIFIED_MASTER_SHEET_ID, 'QualifiedLeads',
+       j => { QUALIFIED = parseQualified(j); start(); },
        () => { QUALIFIED = []; start(); });
 }
 
-/* строки вида: date (ГГГГ-ММ-ДД) | qualified_count (число) */
+/* строки вида: date (ГГГГ-ММ-ДД) | client | qualified_count (число).
+   ВАЖНО: Google Sheets может сам превратить записанную текстом дату
+   в настоящий тип "дата" — используем тот же безопасный разбор, что
+   и для остальных дат в файле (cellDate), а не наивное сравнение строк.
+   Фильтруем сразу по клиенту (C.showQualified — это его ключ, например "MyPulse"). */
 function parseQualified(json){
-  const rows = ((json.table && json.table.rows) || []).map(rawRow);
-  return rows
-    .filter(r => /^\d{4}-\d{2}-\d{2}$/.test((r[0]||'').trim()))
-    .map(r => ({ date: r[0].trim(), count: Number(r[1]) || 0 }));
+  const rawRows = ((json.table && json.table.rows) || []);
+  const out = [];
+  rawRows.forEach(r => {
+    const cells = r.c || [];
+    const d = cellDate(cells[0]);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return; // строка заголовка или мусор — пропускаем
+    const client = cells[1] && cells[1].v != null ? String(cells[1].v).trim() : '';
+    if (client !== C.showQualified) return; // не наш клиент — пропускаем
+    out.push({ date: d, count: num(cells[2]) });
+  });
+  return out;
 }
 
 function start(){
