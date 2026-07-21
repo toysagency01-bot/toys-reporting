@@ -579,7 +579,13 @@ function periodDates(){
     const allDates = DATA.map(r=>r.date)
       .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
     if(!allDates.length) return [];
-    return dateRangeArray(allDates[0], allDates[allDates.length-1]);
+    // верхняя граница — не последняя дата в рекламных данных (синк может
+    // немного отставать), а вчера по календарю: иначе "Максимум" может
+    // оказаться УЖЕ, чем "30 дней", и потерять свежие квал-лиды из CRM
+    const y = new Date(); y.setDate(y.getDate()-1);
+    const yesterday = y.toISOString().slice(0,10);
+    const upper = allDates[allDates.length-1] > yesterday ? allDates[allDates.length-1] : yesterday;
+    return dateRangeArray(allDates[0], upper);
   }
   if(typeof period === 'object' && period !== null){
     return dateRangeArray(period.from, period.to);
