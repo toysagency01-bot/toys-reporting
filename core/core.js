@@ -300,6 +300,8 @@ ${HAS_PROJECT ? `
     <div class="card"><div class="label">CTR</div><div class="value" id="kCtr">—</div></div>
     <div class="card"><div class="label">Конверсии</div><div class="value" id="kConv">—</div></div>
     <div class="card"><div class="label">CPA</div><div class="value" id="kCpa">—</div></div>
+    <div class="card hidden" id="kQualCard"><div class="label">Квал-лидов</div><div class="value" id="kQual">—</div></div>
+    <div class="card hidden" id="kQualCpaCard"><div class="label">Цена квала</div><div class="value" id="kQualCpa">—</div></div>
   </div>
   <div class="panel hidden" id="insightsPanel">
     <h2>Выводы и план</h2>
@@ -376,22 +378,38 @@ const sym = c => CUR[c] || (c ? c+' ' : '');
 const fmtN = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(n);
 const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}).format(n);
 
-let DATA = [], INSIGHTS = [];
+let DATA = [], INSIGHTS = [], QUALIFIED = [];
 let period = 7, account = '__all', platform = '__all', chart = null, chartMode = 'volume';
 
-/* ---------- boot: Chart.js -> данные (оба канала) -> insights ---------- */
+/* ---------- boot: Chart.js -> данные (оба канала) -> insights -> квал-лиды (опционально) ---------- */
 loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
   let google = null, meta = null, done = 0;
   const finish = () => {
     if (++done < 2) return;
     DATA = [...(google || []), ...(meta || [])];
     if (!DATA.length) { show('errorState'); return; }
-    gviz('Insights', j2 => { INSIGHTS = parseInsights(j2); start(); },
-         () => { INSIGHTS = []; start(); });
+    gviz('Insights', j2 => { INSIGHTS = parseInsights(j2); loadQualified(); },
+         () => { INSIGHTS = []; loadQualified(); });
   };
   gviz('GoogleAds', j => { google = parseData(j, 'Google Ads'); finish(); }, finish);
   gviz('MetaAds',  j => { meta   = parseData(j, 'Meta Ads');   finish(); }, finish);
 });
+
+/* лист "ZohoQualified" читаем только если у клиента включён флаг showQualified —
+   для остальных не тратим лишний запрос впустую */
+function loadQualified(){
+  if (!C.showQualified) { start(); return; }
+  gviz('ZohoQualified', j => { QUALIFIED = parseQualified(j); start(); },
+       () => { QUALIFIED = []; start(); });
+}
+
+/* строки вида: date (ГГГГ-ММ-ДД) | qualified_count (число) */
+function parseQualified(json){
+  const rows = ((json.table && json.table.rows) || []).map(rawRow);
+  return rows
+    .filter(r => /^\d{4}-\d{2}-\d{2}$/.test((r[0]||'').trim()))
+    .map(r => ({ date: r[0].trim(), count: Number(r[1]) || 0 }));
+}
 
 function start(){
   if(!LOCKED) buildAccountSelect();
@@ -617,6 +635,26 @@ function render(){
         return cc? `<small>${fmtM(byCur[c]/cc)} ${sym(c)}</small>` : '';
       }).join('')
     : '—') + (conv && curs.length===1 ? deltaBadge(byCur[curs[0]]/conv, pCpa, {invert:true}) : '');
+
+  // квал-лиды (Zoho) — показываем только если у клиента включён флаг
+  // и по выбранному периоду реально есть данные
+  if (C.showQualified) {
+    const qualRows = QUALIFIED.filter(q => set.has(q.date));
+    const qualTotal = qualRows.reduce((s,q)=>s+q.count, 0);
+    if (qualTotal > 0) {
+      el('kQualCard').classList.remove('hidden');
+      el('kQual').textContent = fmtN(qualTotal);
+      if (curs.length === 1) {
+        el('kQualCpaCard').classList.remove('hidden');
+        el('kQualCpa').innerHTML = `<small>${fmtM(byCur[curs[0]]/qualTotal)} ${sym(curs[0])}</small>`;
+      } else {
+        el('kQualCpaCard').classList.add('hidden');
+      }
+    } else {
+      el('kQualCard').classList.add('hidden');
+      el('kQualCpaCard').classList.add('hidden');
+    }
+  }
 
   drawInsights();
   renderFunnel(impr, clicks, conv);
