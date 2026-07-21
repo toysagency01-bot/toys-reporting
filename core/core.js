@@ -395,11 +395,11 @@ loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.
   gviz('MetaAds',  j => { meta   = parseData(j, 'Meta Ads');   finish(); }, finish);
 });
 
-/* лист "ZohoQualified" читаем только если у клиента включён флаг showQualified —
+/* лист "QualifiedLeads" читаем только если у клиента включён флаг showQualified —
    для остальных не тратим лишний запрос впустую */
 function loadQualified(){
   if (!C.showQualified) { start(); return; }
-  gviz('ZohoQualified', j => { QUALIFIED = parseQualified(j); start(); },
+  gviz('QualifiedLeads', j => { QUALIFIED = parseQualified(j); start(); },
        () => { QUALIFIED = []; start(); });
 }
 
