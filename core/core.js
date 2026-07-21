@@ -576,12 +576,16 @@ function parseInsights(json){
 /* ---------- рендер ---------- */
 function periodDates(){
   if(period === 'max'){
-    const allDates = DATA.map(r=>r.date)
-      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+    const adDates = DATA.map(r=>r.date).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    // квал-лиды из CRM могут уходить дальше в прошлое, чем рекламные данные
+    // (например, клиент недавно подключил трекинг рекламы, но CRM велась
+    // давно) — учитываем обе границы, а не только рекламные даты
+    const qualDates = (C.showQualified ? QUALIFIED.map(q=>q.date) : []);
+    const allDates = adDates.concat(qualDates).sort();
     if(!allDates.length) return [];
-    // верхняя граница — не последняя дата в рекламных данных (синк может
-    // немного отставать), а вчера по календарю: иначе "Максимум" может
-    // оказаться УЖЕ, чем "30 дней", и потерять свежие квал-лиды из CRM
+    // верхняя граница — не последняя дата в данных (синк может немного
+    // отставать), а вчера по календарю: иначе "Максимум" может оказаться
+    // уже, чем "30 дней", и потерять свежие записи
     const y = new Date(); y.setDate(y.getDate()-1);
     const yesterday = y.toISOString().slice(0,10);
     const upper = allDates[allDates.length-1] > yesterday ? allDates[allDates.length-1] : yesterday;
