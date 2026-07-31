@@ -1044,7 +1044,7 @@ function loadGenericTab(tabDef){
 
 function renderGenericByMode(tabDef, json){
   try{
-    if(tabDef.mode === 'weekly-report') return renderWeeklyReport(json);
+    if(tabDef.mode === 'weekly-report') return renderWeeklyReport(json, tabDef.tab);
     if(tabDef.mode === 'competitors') return renderCompetitors(json);
     if(tabDef.mode === 'creative-brief') return renderCreativeBrief(json);
     return renderGeneric(json);
@@ -1064,7 +1064,7 @@ function rawRow(r){ return (r.c || []).map(rawCell); }
 
 /* ---------- еженедельная/месячная сводка: период -> таблица -> итого -> заметки ---------- */
 
-function renderWeeklyReport(json){
+function renderWeeklyReport(json, tabName){
   const rows = ((json.table && json.table.rows) || []).map(rawRow);
 
   // ищем ВСЕ шапки таблиц по периодам. Разные отчёты бывают на уровне
@@ -1105,9 +1105,9 @@ function renderWeeklyReport(json){
   if(!blocks.length){ gShow('gError'); return; }
 
   // необязательный крючок для клиент-специфичных блоков (например,
-  // воронка CRM у MyPulse) — живёт в ОТДЕЛЬНОМ файле, который подключает
-  // только конкретный клиент в своём index.html, а не в общем core.js
-  const pluginHtml = (typeof window.renderWeeklyReportExtra === 'function')
+  // воронка CRM у MyPulse) — только на вкладке "Еженедельная сводка",
+  // не на "Месячная сводка" (они делят один и тот же рендер)
+  const pluginHtml = (tabName === 'Еженедельная сводка' && typeof window.renderWeeklyReportExtra === 'function')
     ? (window.renderWeeklyReportExtra(json, headerIdxs[0]) || '') : '';
 
   el('gWrap').innerHTML = pluginHtml + blocks.map(b => `
