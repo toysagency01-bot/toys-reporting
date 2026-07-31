@@ -192,7 +192,6 @@ a:hover{opacity:.8}
 .seg-meta{background:#8f7bff}
 .chan-caption{font-size:11px;color:var(--muted)}
 
-/* по дням недели: три мини-графика, каждый в своём масштабе */
 .wd-metric{margin-bottom:16px}
 .wd-metric:last-child{margin-bottom:0}
 .wd-metric-label{font-size:11px;color:var(--muted);text-transform:uppercase;
@@ -1105,7 +1104,13 @@ function renderWeeklyReport(json){
 
   if(!blocks.length){ gShow('gError'); return; }
 
-  el('gWrap').innerHTML = blocks.map(b => `
+  // необязательный крючок для клиент-специфичных блоков (например,
+  // воронка CRM у MyPulse) — живёт в ОТДЕЛЬНОМ файле, который подключает
+  // только конкретный клиент в своём index.html, а не в общем core.js
+  const pluginHtml = (typeof window.renderWeeklyReportExtra === 'function')
+    ? (window.renderWeeklyReportExtra(json, headerIdxs[0]) || '') : '';
+
+  el('gWrap').innerHTML = pluginHtml + blocks.map(b => `
     <div class="wk-block">
       <div class="wk-title">${esc(b.title)}</div>
       <div class="wk-notes">${linkify(b.notes).split('\n').filter(Boolean).map(l=>`<p>${l}</p>`).join('')}</div>
