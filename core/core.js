@@ -192,6 +192,14 @@ a:hover{opacity:.8}
 .seg-meta{background:#8f7bff}
 .chan-caption{font-size:11px;color:var(--muted)}
 
+.fmt-table{width:100%;border-collapse:collapse;font-size:13px}
+.fmt-table th,.fmt-table td{padding:10px 14px;text-align:right;border-bottom:1px solid var(--line)}
+.fmt-table th:first-child,.fmt-table td:first-child{text-align:left;color:var(--muted)}
+.fmt-table th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em}
+.fmt-table tr:last-child td{border-bottom:none}
+.fmt-table td:first-child{font-weight:700;color:var(--text)}
+@media (max-width:760px){.fmt-table{font-size:12px}.fmt-table th,.fmt-table td{padding:8px 6px}}
+
 .wd-metric{margin-bottom:16px}
 .wd-metric:last-child{margin-bottom:0}
 .wd-metric-label{font-size:11px;color:var(--muted);text-transform:uppercase;
@@ -320,6 +328,10 @@ ${HAS_PROJECT ? `
       <div id="channelBreakdown"></div>
     </div>
   </div>
+  <div class="panel hidden" id="formatPanel">
+    <h2>Форматы креативов</h2>
+    <div id="formatTable"></div>
+  </div>
   <div class="panel">
     <div class="panel-head">
       <h2>Динамика по дням</h2>
@@ -382,16 +394,27 @@ let period = 7, account = '__all', platform = '__all', chart = null, chartMode =
 
 /* ---------- boot: Chart.js -> данные (оба канала) -> insights -> квал-лиды (опционально) ---------- */
 loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
-  let google = null, meta = null, done = 0;
-  const finish = () => {
-    if (++done < 2) return;
+  const finish = (google, meta) => {
     DATA = [...(google || []), ...(meta || [])];
-    if (!DATA.length) { show('errorState'); return; }
+    // Рекламных данных пока может не быть (новый клиент без кабинетов) —
+    // это не ошибка. Раздел "Показатели" сам покажет обычное "данных нет"
+    // при рендере, а "Проект" как обычно работает независимо от этого.
+    if(!SHEET_ID){ INSIGHTS = []; loadQualified(); return; }
     gviz('Insights', j2 => { INSIGHTS = parseInsights(j2); loadQualified(); },
          () => { INSIGHTS = []; loadQualified(); });
   };
-  gviz('GoogleAds', j => { google = parseData(j, 'Google Ads'); finish(); }, finish);
-  gviz('MetaAds',  j => { meta   = parseData(j, 'Meta Ads');   finish(); }, finish);
+
+  if(!SHEET_ID){
+    // sheetId ещё не задан (кабинетов нет вообще) — не тратим 12 секунд
+    // на заведомо обречённый запрос, сразу идём дальше с пустыми данными
+    finish(null, null);
+    return;
+  }
+
+  let google = null, meta = null, done = 0;
+  const onOne = () => { if (++done >= 2) finish(google, meta); };
+  gviz('GoogleAds', j => { google = parseData(j, 'Google Ads'); onOne(); }, onOne);
+  gviz('MetaAds',  j => { meta   = parseData(j, 'Meta Ads');   onOne(); }, onOne);
 });
 
 /* Лист "QualifiedLeads" общий на всех клиентов и живёт в мастер-таблице
@@ -399,10 +422,39 @@ loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.
    фильтруем по клиенту через C.showQualified (строка-ключ, а не просто true/false) */
 const QUALIFIED_MASTER_SHEET_ID = '1UlIKi-mlH86zMjrczRgZzzPPHP0AcAaQCjLtuYZDi0g';
 function loadQualified(){
-  if (!C.showQualified) { start(); return; }
+  if (!C.showQualified) { loadFormats(); return; }
   gvizFrom(QUALIFIED_MASTER_SHEET_ID, 'QualifiedLeads',
-       j => { QUALIFIED = parseQualified(j); start(); },
-       () => { QUALIFIED = []; start(); });
+       j => { QUALIFIED = parseQualified(j); loadFormats(); },
+       () => { QUALIFIED = []; loadFormats(); });
+}
+
+/* Лист "MetaAdsFormat" — формат креативов (видео/статика/карусель) по
+   дням, живёт в СВОЕЙ таблице клиента (не в мастере), как GoogleAds/MetaAds.
+   Читаем всегда: у клиентов без Meta или без данных панель просто скроется. */
+let FORMATS = [];
+function loadFormats(){
+  if(!SHEET_ID){ FORMATS = []; start(); return; }
+  gviz('MetaAdsFormat', j => { FORMATS = parseFormats(j); start(); },
+       () => { FORMATS = []; start(); });
+}
+
+function parseFormats(json){
+  const rawRows = ((json.table && json.table.rows) || []);
+  const out = [];
+  rawRows.forEach(r => {
+    const cells = r.c || [];
+    const d = cellDate(cells[0]);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    const client = cells[1] && cells[1].v != null ? String(cells[1].v).trim() : '';
+    const format = cells[2] && cells[2].v != null ? String(cells[2].v).trim() : '';
+    const currency = cells[3] && cells[3].v != null ? String(cells[3].v).trim() : '';
+    if (!format) return;
+    out.push({
+      date: d, client, format, currency,
+      impr: num(cells[4]), clicks: num(cells[5]), cost: num(cells[6]), conv: num(cells[7])
+    });
+  });
+  return out;
 }
 
 /* строки вида: date (ГГГГ-ММ-ДД) | client | qualified_count (число).
@@ -496,7 +548,7 @@ function start(){
   const sel = document.getElementById('accountSelect');
   if(sel) sel.addEventListener('change', e=>{ account = e.target.value; render(); });
   const last = DATA.reduce((m,r)=> r.date>m? r.date:m, '');
-  document.getElementById('updated').textContent = 'данные по ' + last;
+  document.getElementById('updated').textContent = last ? ('данные по ' + last) : 'реклама ещё не подключена';
   render();
 
   if(HAS_PROJECT) initProject();
@@ -546,8 +598,14 @@ function parseData(json, defaultPlatform){
   for(const r of rows){
     const c = r.c;
     if(!c || !c[0]) continue;
+    // берём строку, только если в первой колонке реальная дата.
+    // Если листа GoogleAds/MetaAds в таблице нет, Google молча отдаёт
+    // ПЕРВЫЙ лист вместо ошибки — без этой проверки его содержимое
+    // распарсилось бы как рекламные данные и показало мусор.
+    const d = cellDate(c[0]);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
     out.push({
-      date: cellDate(c[0]), platform: str(c[1]) || defaultPlatform,
+      date: d, platform: str(c[1]) || defaultPlatform,
       account: str(c[2]), currency: str(c[4]),
       campaign: str(c[5]), impr: num(c[6]), clicks: num(c[7]),
       cost: num(c[8]), conv: num(c[9]),
@@ -694,6 +752,7 @@ function render(){
   renderFunnel(impr, clicks, conv);
   renderWeekdays(rows);
   renderChannels(rows, curs);
+  renderFormatPanel();
   drawChart(dates, rows, curs);
   drawTable(rows);
 }
@@ -804,6 +863,43 @@ function renderWeekdays(rows){
     metricRow('cost', 'Расход', 'wd-spend') +
     metricRow('impr', 'Показы', 'wd-impr') +
     metricRow('conv', 'Лиды', 'wd-conv');
+}
+
+function renderFormatPanel(){
+  const panel = el('formatPanel');
+  if(!panel) return;
+
+  const dates = periodDates();
+  const set = new Set(dates);
+  const rows = FORMATS.filter(f => set.has(f.date) && (account==='__all' || f.client===account));
+  if(!rows.length){ panel.classList.add('hidden'); return; }
+
+  const byFmt = {};
+  rows.forEach(r=>{
+    if(!byFmt[r.format]) byFmt[r.format] = { cost:0, conv:0, impr:0, clicks:0, curs:new Set() };
+    byFmt[r.format].cost += r.cost;
+    byFmt[r.format].conv += r.conv;
+    byFmt[r.format].impr += r.impr;
+    byFmt[r.format].clicks += r.clicks;
+    if(r.currency) byFmt[r.format].curs.add(r.currency);
+  });
+
+  const order = ['Видео','Статика','Карусель','Другое'];
+  const fmts = Object.keys(byFmt).sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+  if(!fmts.length){ panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+
+  el('formatTable').innerHTML = `
+    <table class="fmt-table">
+      <thead><tr><th>Формат</th><th>Расход</th><th>Показы</th><th>Конверсии</th><th>CPA</th></tr></thead>
+      <tbody>${fmts.map(f=>{
+        const d = byFmt[f];
+        const curLabel = d.curs.size===1 ? [...d.curs][0] : '';
+        const curSuffix = curLabel ? ' '+sym(curLabel) : '';
+        const cpa = d.conv ? fmtM(d.cost/d.conv)+curSuffix : '—';
+        return `<tr><td>${esc(f)}</td><td>${fmtM(d.cost)}${curSuffix}</td><td>${fmtN(d.impr)}</td><td>${fmtN(d.conv)}</td><td>${cpa}</td></tr>`;
+      }).join('')}</tbody>
+    </table>`;
 }
 
 function renderChannels(rows, curs){
