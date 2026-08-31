@@ -1087,13 +1087,7 @@ const genericCache = {};
 function initProject(){
   const tabs = el('viewTabs');
   tabs.querySelectorAll('button').forEach(b=>{
-    b.addEventListener('click',()=>{
-      tabs.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
-      b.classList.add('active');
-      const isProject = b.dataset.view === 'project';
-      el('metricsView').classList.toggle('hidden', isProject);
-      el('projectView').classList.toggle('hidden', !isProject);
-    });
+    b.addEventListener('click',()=>{ activateView(b.dataset.view); updateHash(); });
   });
 
   if(EXTRA_TABS.length){
@@ -1102,25 +1096,71 @@ function initProject(){
     nav.innerHTML = `<button data-sub="__plan" class="active">План работ</button>` +
       EXTRA_TABS.map((t,i)=>`<button data-sub="${i}">${esc(t.label)}</button>`).join('');
     nav.querySelectorAll('button').forEach(b=>{
-      b.addEventListener('click',()=>{
-        nav.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
-        b.classList.add('active');
-        const sub = b.dataset.sub;
-        if(sub === '__plan'){
-          el('planSection').classList.remove('hidden');
-          el('genericSection').classList.add('hidden');
-        } else {
-          el('planSection').classList.add('hidden');
-          el('genericSection').classList.remove('hidden');
-          loadGenericTab(EXTRA_TABS[+sub]);
-        }
-      });
+      b.addEventListener('click',()=>{ activateProjectSub(b.dataset.sub); updateHash(); });
     });
   }
 
   gvizFrom(C.projectSheetId, PROJECT_TAB,
     j => { renderProject(parseProject(j)); },
     () => { pShow('pError'); });
+
+  // ссылка вида #project или #project/Название-раздела открывает сразу
+  // нужную вкладку — без хэша ведёт себя как раньше (по умолчанию "Показатели")
+  applyHashRoute();
+  window.addEventListener('hashchange', applyHashRoute);
+}
+
+// переключает верхний уровень (Показатели / Проект), без побочных эффектов на URL —
+// сам URL обновляет updateHash(), вызываемый отдельно из клика и из роутера
+function activateView(view){
+  const tabs = el('viewTabs');
+  tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('active', x.dataset.view===view));
+  const isProject = view === 'project';
+  el('metricsView').classList.toggle('hidden', isProject);
+  el('projectView').classList.toggle('hidden', !isProject);
+}
+
+// переключает подвкладку внутри "Проекта" (План работ / Сводки / Бриф и т.д.)
+function activateProjectSub(sub){
+  const nav = el('projectSubNav');
+  if(!nav) return;
+  nav.querySelectorAll('button').forEach(x=>x.classList.toggle('active', x.dataset.sub===sub));
+  if(sub === '__plan'){
+    el('planSection').classList.remove('hidden');
+    el('genericSection').classList.add('hidden');
+  } else {
+    el('planSection').classList.add('hidden');
+    el('genericSection').classList.remove('hidden');
+    if(EXTRA_TABS[+sub]) loadGenericTab(EXTRA_TABS[+sub]);
+  }
+}
+
+// текущее состояние вкладок -> #project или #project/Название-раздела
+function updateHash(){
+  const isProject = !el('projectView').classList.contains('hidden');
+  if(!isProject){ history.replaceState(null, '', '#metrics'); return; }
+  const nav = el('projectSubNav');
+  const activeBtn = nav && nav.querySelector('button.active');
+  const sub = activeBtn ? activeBtn.dataset.sub : '__plan';
+  if(!sub || sub === '__plan'){ history.replaceState(null, '', '#project'); return; }
+  const label = EXTRA_TABS[+sub] ? EXTRA_TABS[+sub].label : '';
+  history.replaceState(null, '', '#project/' + encodeURIComponent(label));
+}
+
+// разбирает текущий #хэш и ставит дашборд в нужное состояние —
+// вызывается один раз при загрузке и при любом ручном изменении хэша
+function applyHashRoute(){
+  const raw = location.hash.replace(/^#/, '');
+  if(!raw) return; // без хэша — поведение по умолчанию (Показатели)
+  const [view, subRaw] = raw.split('/');
+  if(view !== 'project') return; // 'metrics' и так активна по умолчанию
+
+  activateView('project');
+  if(subRaw){
+    const subLabel = decodeURIComponent(subRaw);
+    const idx = EXTRA_TABS.findIndex(t => t.label === subLabel);
+    if(idx !== -1) activateProjectSub(String(idx));
+  }
 }
 
 // показывает произвольную вкладку таблицы. Три режима:
