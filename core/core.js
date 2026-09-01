@@ -1087,25 +1087,31 @@ const DEFAULT_EXTRA_TABS = [
 const EXTRA_TABS = C.projectExtraTabs || DEFAULT_EXTRA_TABS;
 const genericCache = {};
 
+// список планов-по-каналам — опционально задаётся в конфиге клиента:
+// projectPlanTabs: [{tab:'План работы (SMM)', label:'SMM'}, ...]
+// Если не задан — поведение точно как раньше: одна вкладка "План работ".
+const PLAN_TABS = (C.projectPlanTabs && C.projectPlanTabs.length)
+  ? C.projectPlanTabs
+  : [{ tab: PROJECT_TAB, label: 'План работ' }];
+const planCache = {};
+
 function initProject(){
   const tabs = el('viewTabs');
   tabs.querySelectorAll('button').forEach(b=>{
     b.addEventListener('click',()=>{ activateView(b.dataset.view); updateHash(); });
   });
 
-  if(EXTRA_TABS.length){
+  if(EXTRA_TABS.length || PLAN_TABS.length > 1){
     const nav = el('projectSubNav');
     nav.classList.remove('hidden');
-    nav.innerHTML = `<button data-sub="__plan" class="active">План работ</button>` +
+    nav.innerHTML = PLAN_TABS.map((p,i)=>`<button data-sub="__plan${i}" class="${i===0?'active':''}">${esc(p.label)}</button>`).join('') +
       EXTRA_TABS.map((t,i)=>`<button data-sub="${i}">${esc(t.label)}</button>`).join('');
     nav.querySelectorAll('button').forEach(b=>{
       b.addEventListener('click',()=>{ activateProjectSub(b.dataset.sub); updateHash(); });
     });
   }
 
-  gvizFrom(C.projectSheetId, PROJECT_TAB,
-    j => { renderProject(parseProject(j)); },
-    () => { pShow('pError'); });
+  loadPlanTab(PLAN_TABS[0].tab);
 
   // ссылка вида #project или #project/Название-раздела открывает сразу
   // нужную вкладку — без хэша ведёт себя как раньше (по умолчанию "Показатели")
@@ -1123,14 +1129,26 @@ function activateView(view){
   el('projectView').classList.toggle('hidden', !isProject);
 }
 
-// переключает подвкладку внутри "Проекта" (План работ / Сводки / Бриф и т.д.)
+// грузит один из "план"-листов (обычный План работ, либо один из
+// каналов — SMM/Meta/Google и т.д.) в общую секцию planSection.
+// Кэшируется по имени листа — переключение туда-обратно не бьёт лишний раз в таблицу.
+function loadPlanTab(tabName){
+  if(planCache[tabName]){ renderProject(planCache[tabName]); return; }
+  gvizFrom(C.projectSheetId, tabName,
+    j => { const parsed = parseProject(j); planCache[tabName] = parsed; renderProject(parsed); },
+    () => { pShow('pError'); });
+}
+
+// переключает подвкладку внутри "Проекта" (План работ / каналы / Сводки / Бриф и т.д.)
 function activateProjectSub(sub){
   const nav = el('projectSubNav');
   if(!nav) return;
   nav.querySelectorAll('button').forEach(x=>x.classList.toggle('active', x.dataset.sub===sub));
-  if(sub === '__plan'){
+  if(sub.indexOf('__plan') === 0){
     el('planSection').classList.remove('hidden');
     el('genericSection').classList.add('hidden');
+    const idx = +sub.slice(6) || 0; // "__plan" -> 0, "__plan2" -> 2
+    if(PLAN_TABS[idx]) loadPlanTab(PLAN_TABS[idx].tab);
   } else {
     el('planSection').classList.add('hidden');
     el('genericSection').classList.remove('hidden');
@@ -1138,16 +1156,18 @@ function activateProjectSub(sub){
   }
 }
 
-// текущее состояние вкладок -> #project или #project/Название-раздела
+// текущее состояние вкладок -> #project или #project/Название-раздела.
+// Работает для любой подвкладки (план-канал или общая) по её видимой подписи,
+// а не только для списка EXTRA_TABS.
 function updateHash(){
   const isProject = !el('projectView').classList.contains('hidden');
   if(!isProject){ history.replaceState(null, '', '#metrics'); return; }
   const nav = el('projectSubNav');
   const activeBtn = nav && nav.querySelector('button.active');
-  const sub = activeBtn ? activeBtn.dataset.sub : '__plan';
-  if(!sub || sub === '__plan'){ history.replaceState(null, '', '#project'); return; }
-  const label = EXTRA_TABS[+sub] ? EXTRA_TABS[+sub].label : '';
-  history.replaceState(null, '', '#project/' + encodeURIComponent(label));
+  if(!activeBtn){ history.replaceState(null, '', '#project'); return; }
+  const isSinglePlan = activeBtn.dataset.sub === '__plan0' && PLAN_TABS.length === 1;
+  if(isSinglePlan){ history.replaceState(null, '', '#project'); return; }
+  history.replaceState(null, '', '#project/' + encodeURIComponent(activeBtn.textContent.trim()));
 }
 
 // разбирает текущий #хэш и ставит дашборд в нужное состояние —
@@ -1160,9 +1180,10 @@ function applyHashRoute(){
 
   activateView('project');
   if(subRaw){
-    const subLabel = decodeURIComponent(subRaw);
-    const idx = EXTRA_TABS.findIndex(t => t.label === subLabel);
-    if(idx !== -1) activateProjectSub(String(idx));
+    const label = decodeURIComponent(subRaw);
+    const nav = el('projectSubNav');
+    const btn = nav && Array.from(nav.querySelectorAll('button')).find(b => b.textContent.trim() === label);
+    if(btn) activateProjectSub(btn.dataset.sub);
   }
 }
 
