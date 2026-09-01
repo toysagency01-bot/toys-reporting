@@ -565,7 +565,11 @@ function start(){
 /* ---------- загрузка (JSONP: работает с file:// и с хостинга) ---------- */
 let cbSeq = 0;
 function gviz(sheetName, ok, fail){ gvizFrom(SHEET_ID, sheetName, ok, fail); }
-function gvizFrom(spreadsheetId, sheetName, ok, fail){
+// raw=true просит Google не угадывать самому, где шапка (headers=0) —
+// для листов с нестандартной раскладкой (пустые первые колонки, шапка не
+// в первой строке) автоопределение Google иногда промахивается и отдаёт
+// пустые заголовки; тогда шапку ищем сами в renderGeneric
+function gvizFrom(spreadsheetId, sheetName, ok, fail, raw){
   const cb = '__gvizCb' + (++cbSeq);
   const timer = setTimeout(()=>{ cleanup(); fail(); }, 12000);
   window[cb] = json => {
@@ -573,7 +577,8 @@ function gvizFrom(spreadsheetId, sheetName, ok, fail){
     if(json && json.status === 'error') fail(); else ok(json);
   };
   const s = document.createElement('script');
-  s.src = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=responseHandler%3A${cb}&sheet=${encodeURIComponent(sheetName)}`;
+  s.src = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=responseHandler%3A${cb}&sheet=${encodeURIComponent(sheetName)}` +
+    (raw ? '&headers=0' : '');
   s.onerror = ()=>{ cleanup(); fail(); };
   document.head.appendChild(s);
   function cleanup(){ clearTimeout(timer); delete window[cb]; s.remove(); }
@@ -1336,9 +1341,12 @@ function loadGenericTab(tabDef){
 
   if(genericCache[tabDef.tab]){ renderGenericByMode(tabDef, genericCache[tabDef.tab]); return; }
 
+  // обычная таблица (без спецрежима) сама ищет свою шапку — остальные
+  // режимы (weekly-report/competitors/creative-brief) полагаются на
+  // автоопределение Google как и раньше, их не трогаем
   gvizFrom(C.projectSheetId, tabDef.tab,
     j => { genericCache[tabDef.tab] = j; renderGenericByMode(tabDef, j); },
-    () => gShow('gError'));
+    () => gShow('gError'), !tabDef.mode);
 }
 
 function renderGenericByMode(tabDef, json){
@@ -1533,24 +1541,24 @@ function renderCompetitors(json){
   gShow('gPanel');
 }
 
+// запрошен с headers=0 (см. gvizFrom) — Google отдаёт все строки как есть,
+// без попытки самому угадать шапку, поэтому шапку ищем сами: первая строка
+// хотя бы с одной заполненной ячейкой (некоторые листы держат пустую первую
+// строку и/или начинают данные не с колонки A)
 function renderGeneric(json){
-  const cols = (json.table && json.table.cols) || [];
-  const rows = (json.table && json.table.rows) || [];
-  // берём только колонки с заголовком — пустые служебные столбцы пропускаем
-  const idxs = cols.map((c,i)=>c.label ? i : -1).filter(i=>i!==-1);
-  if(!idxs.length || !rows.length){ gShow('gError'); return; }
+  const allRows = ((json.table && json.table.rows) || []).map(rawRow);
+  const headerIdx = allRows.findIndex(r => r.some(v => v.trim()));
+  if(headerIdx === -1){ gShow('gError'); return; }
 
-  const thead = '<thead><tr>' + idxs.map(i=>`<th>${esc(cols[i].label)}</th>`).join('') + '</tr></thead>';
-  const tbody = '<tbody>' + rows.map(r=>{
-    const c = r.c || [];
-    // пропускаем полностью пустые строки
-    if(idxs.every(i => !c[i] || (c[i].f==null && c[i].v==null))) return '';
-    return '<tr>' + idxs.map(i=>{
-      const cell = c[i];
-      const val = cell ? (cell.f != null ? cell.f : (cell.v != null ? cell.v : '')) : '';
-      return `<td data-label="${esc(cols[i].label)}">${linkify(String(val))}</td>`;
-    }).join('') + '</tr>';
-  }).join('') + '</tbody>';
+  const header = allRows[headerIdx];
+  const idxs = header.map((v,i)=> v.trim() ? i : -1).filter(i=>i!==-1);
+  const rows = allRows.slice(headerIdx + 1).filter(r => idxs.some(i => (r[i]||'').trim()));
+  if(!rows.length){ gShow('gError'); return; }
+
+  const thead = '<thead><tr>' + idxs.map(i=>`<th>${esc(header[i])}</th>`).join('') + '</tr></thead>';
+  const tbody = '<tbody>' + rows.map(r =>
+    '<tr>' + idxs.map(i=>`<td data-label="${esc(header[i])}">${linkify(r[i]||'')}</td>`).join('') + '</tr>'
+  ).join('') + '</tbody>';
 
   el('gWrap').innerHTML = `<div class="table-wrap"><table>${thead}${tbody}</table></div>`;
   gShow('gPanel');
