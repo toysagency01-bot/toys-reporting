@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Тест: встроенная таблица</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0d0d0d;color:#eee;font:14px/1.55 -apple-system,'Golos Text',Arial,sans-serif}
+  header{padding:20px 24px;border-bottom:1px solid #222}
+  header h1{font-size:18px;margin:0 0 8px}
+  header p{margin:0 0 6px;color:#999;font-size:13px;max-width:760px}
+  .checklist{margin:14px 0 0;padding:0;list-style:none;font-size:13px;color:#bbb;max-width:760px}
+  .checklist li{padding:4px 0 4px 20px;position:relative}
+  .checklist li::before{content:"□";position:absolute;left:0;color:#666}
+  .frame-block{padding:24px}
+  .frame-block h2{font-size:14px;color:#999;margin:0 0 10px;font-weight:600}
+  iframe{width:100%;height:70vh;border:1px solid #222;border-radius:8px;background:#fff;display:block}
+  .frame-block + .frame-block{border-top:1px solid #1a1a1a}
+</style>
+</head>
+<body>
+<header>
+  <h1>Тест: родная Google-таблица внутри дашборда</h1>
+  <p>Ниже — настоящий лист "Месячная сводка (Google)" из проектной таблицы Karlovarska Sul,
+     встроен как есть через iframe — это НЕ наш рендер, это сам Google Sheets со всем родным
+     интерфейсом (комментарии, редактирование, фильтры, форматирование).</p>
+  <ul class="checklist">
+    <li>Открывается ли таблица вообще (не блокирует ли Google встраивание)?</li>
+    <li>Можно ли кликнуть по ячейке и оставить комментарий (Ctrl+Alt+M) прямо здесь?</li>
+    <li>Можно ли редактировать значения прямо здесь (если есть права)?</li>
+    <li>Насколько мешает/не мешает белый фон Google Sheets на фоне тёмного дашборда?</li>
+    <li>Удобно ли пользоваться на телефоне (задай узкое окно браузера)?</li>
+  </ul>
+</header>
+<div class="frame-block">
+  <h2>Месячная сводка (Google)</h2>
+  <iframe src="https://docs.google.com/spreadsheets/d/1lTO2Lkon14FBLPxNQ39L9xpku8HIFQjQBPu4p4e8JMc/edit?rm=minimal&gid=1413680168" allowfullscreen></iframe>
+</div>
+</body>
+</html>
