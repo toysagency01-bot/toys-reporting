@@ -1201,20 +1201,67 @@ function applyHashRoute(){
 
 let activeChannel = null;
 
-function initChannels(){
-  const tabs = el('viewTabs');
-  tabs.querySelectorAll('button').forEach(b=>{
-    b.addEventListener('click',()=>{
-      activateView(b.dataset.view);
-      if(b.dataset.view !== 'metrics') activateChannel(b.dataset.view);
-      updateChannelHash();
-    });
-  });
+// по "базовому" имени листа (без суффикса канала) — как его рендерить.
+// Неизвестные имена (новые листы вроде "Контент-план") просто попадают
+// в обычную таблицу — renderGeneric.
+const CHANNEL_TAB_MODES = {
+  'План работы':        { kind: 'plan' },
+  'Еженедельная сводка': { mode: 'weekly-report' },
+  'Месячная сводка':     { mode: 'weekly-report' },
+  'Анализ конкурентов':  { mode: 'competitors' },
+  'Креативный бриф':     { mode: 'creative-brief' },
+};
 
-  // ссылка вида #smm или #smm/Название-раздела открывает сразу нужный
-  // канал+раздел — без хэша ведёт себя как раньше (по умолчанию "Показатели")
-  applyChannelHashRoute();
-  window.addEventListener('hashchange', applyChannelHashRoute);
+// строит список под-вкладок канала из РЕАЛЬНОГО списка листов таблицы —
+// берёт только те, чьё имя оканчивается на " (Label)" этого канала
+// (например "Контент-план (SMM)" -> канал SMM, подпись "Контент-план")
+function buildChannelTabs(sheetTitles, label){
+  const suffix = ' (' + label + ')';
+  return sheetTitles
+    .filter(t => t.endsWith(suffix))
+    .map(t => {
+      const base = t.slice(0, -suffix.length);
+      return Object.assign({ tab: t, label: base }, CHANNEL_TAB_MODES[base] || {});
+    })
+    // "План работы" всегда первой вкладкой, остальное — как в самой таблице
+    .sort((a, b) => (b.kind === 'plan') - (a.kind === 'plan'));
+}
+
+// спрашивает у Google Sheets API реальный список листов таблицы (нужен
+// C.projectApiKey — публичный ключ, ограниченный по домену и Sheets API)
+// и раскладывает их по каналам согласно суффиксу "(Label)" в имени листа
+function discoverChannelTabs(done){
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${C.projectSheetId}` +
+    `?key=${encodeURIComponent(C.projectApiKey)}&fields=sheets.properties.title`;
+  fetch(url).then(r => r.json()).then(json => {
+    const titles = ((json.sheets) || []).map(s => s.properties.title);
+    CHANNELS.forEach(ch => { ch.tabs = buildChannelTabs(titles, ch.label); });
+    done();
+  }).catch(() => done());
+}
+
+function initChannels(){
+  const bootReady = () => {
+    const tabs = el('viewTabs');
+    tabs.querySelectorAll('button').forEach(b=>{
+      b.addEventListener('click',()=>{
+        activateView(b.dataset.view);
+        if(b.dataset.view !== 'metrics') activateChannel(b.dataset.view);
+        updateChannelHash();
+      });
+    });
+
+    // ссылка вида #smm или #smm/Название-раздела открывает сразу нужный
+    // канал+раздел — без хэша ведёт себя как раньше (по умолчанию "Показатели")
+    applyChannelHashRoute();
+    window.addEventListener('hashchange', applyChannelHashRoute);
+  };
+
+  // список под-вкладок каждого канала либо уже задан статично в конфиге
+  // (C.projectChannels[i].tabs), либо — если указан projectApiKey —
+  // выясняется на лету из реального списка листов таблицы
+  if(C.projectApiKey) discoverChannelTabs(bootReady);
+  else bootReady();
 }
 
 // переключает активный канал и перестраивает под-вкладки проекта под него
@@ -1224,7 +1271,15 @@ function activateChannel(key){
   activeChannel = ch;
   const nav = el('projectSubNav');
   nav.classList.remove('hidden');
-  nav.innerHTML = ch.tabs.map((t,i)=>`<button data-sub="${i}" class="${i===0?'active':''}">${esc(t.label)}</button>`).join('');
+  const chTabs = ch.tabs || [];
+  if(!chTabs.length){
+    nav.innerHTML = '';
+    el('planSection').classList.add('hidden');
+    el('genericSection').classList.remove('hidden');
+    gShow('gError');
+    return;
+  }
+  nav.innerHTML = chTabs.map((t,i)=>`<button data-sub="${i}" class="${i===0?'active':''}">${esc(t.label)}</button>`).join('');
   nav.querySelectorAll('button').forEach(b=>{
     b.addEventListener('click',()=>{ activateChannelSub(+b.dataset.sub); updateChannelHash(); });
   });
@@ -1264,7 +1319,7 @@ function applyChannelHashRoute(){
 
   activateView(view);
   activateChannel(view);
-  if(subRaw){
+  if(subRaw && ch.tabs && ch.tabs.length){
     const label = decodeURIComponent(subRaw);
     const idx = ch.tabs.findIndex(t => t.label === label);
     if(idx >= 0) activateChannelSub(idx);

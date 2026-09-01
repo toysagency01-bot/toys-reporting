@@ -14,39 +14,14 @@ window.DASH_CONFIG = {
   locked:  true,
   showDrafts: false,
   projectSheetId: '1lTO2Lkon14FBLPxNQ39L9xpku8HIFQjQBPu4p4e8JMc',
-  // ВРЕМЕННО: "ОС по лидам"/"Анализ конкурентов"/"Стратегия"/"Креативный бриф"
-  // в реальной таблице пока существуют только как ОДИН общий лист (без
-  // приписки канала) — указываем это явно, поэтому показываем один и тот же
-  // раздел во всех трёх каналах, а не гадаем несуществующее имя листа.
-  // Заменится на настоящую динамическую подгрузку по мере готовности.
+  // список под-вкладок каждого канала подтягивается на лету из реального
+  // списка листов таблицы (через Google Sheets API + ключ ниже) — берутся
+  // только листы, чьё имя оканчивается на " (SMM)" / " (Meta)" / " (Google)"
+  projectApiKey: 'AIzaSyDNyWsZHHweeCSqnEe0-2ls4tlDvmCOstg',
   projectChannels: [
-    { key: 'smm', label: 'SMM', tabs: [
-      { tab: 'План работы (SMM)',         label: 'План работы',    kind: 'plan' },
-      { tab: 'ОС по лидам',               label: 'ОС по лидам' },
-      { tab: 'Еженедельная сводка (SMM)', label: 'Сводка (неделя)', mode: 'weekly-report' },
-      { tab: 'Месячная сводка (SMM)',     label: 'Сводка (месяц)',  mode: 'weekly-report' },
-      { tab: 'Анализ конкурентов',        label: 'Конкуренты',      mode: 'competitors' },
-      { tab: 'Стратегия',                 label: 'Стратегия' },
-      { tab: 'Креативный бриф',           label: 'Креативный бриф', mode: 'creative-brief' }
-    ]},
-    { key: 'meta', label: 'Meta', tabs: [
-      { tab: 'План работы (Meta)',         label: 'План работы',    kind: 'plan' },
-      { tab: 'ОС по лидам',                label: 'ОС по лидам' },
-      { tab: 'Еженедельная сводка (Meta)', label: 'Сводка (неделя)', mode: 'weekly-report' },
-      { tab: 'Месячная сводка (Meta)',     label: 'Сводка (месяц)',  mode: 'weekly-report' },
-      { tab: 'Анализ конкурентов',         label: 'Конкуренты',      mode: 'competitors' },
-      { tab: 'Стратегия',                  label: 'Стратегия' },
-      { tab: 'Креативный бриф',            label: 'Креативный бриф', mode: 'creative-brief' }
-    ]},
-    { key: 'google', label: 'Google', tabs: [
-      { tab: 'План работы (Google)',         label: 'План работы',    kind: 'plan' },
-      { tab: 'ОС по лидам',                  label: 'ОС по лидам' },
-      { tab: 'Еженедельная сводка (Google)', label: 'Сводка (неделя)', mode: 'weekly-report' },
-      { tab: 'Месячная сводка (Google)',     label: 'Сводка (месяц)',  mode: 'weekly-report' },
-      { tab: 'Анализ конкурентов',           label: 'Конкуренты',      mode: 'competitors' },
-      { tab: 'Стратегия',                    label: 'Стратегия' },
-      { tab: 'Креативный бриф',              label: 'Креативный бриф', mode: 'creative-brief' }
-    ]}
+    { key: 'smm', label: 'SMM' },
+    { key: 'meta', label: 'Meta' },
+    { key: 'google', label: 'Google' }
   ]
 };
 </script>
