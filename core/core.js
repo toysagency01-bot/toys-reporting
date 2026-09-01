@@ -239,7 +239,7 @@ flex-wrap:wrap;gap:10px;margin-bottom:16px}
   .card .value{font-size:19px}
   .card .value small{font-size:13px}
   .table-wrap{overflow-x:visible}
-  .table-wrap table{min-width:0}
+  .table-wrap table{min-width:0;table-layout:auto}
   .table-wrap thead{display:none}
   .table-wrap tr{display:block;border-bottom:1px solid var(--line);padding:12px 0}
   .table-wrap tr:last-child{border-bottom:none}
