@@ -75,12 +75,10 @@ color-scheme:dark;cursor:pointer;min-width:108px}
 .table-wrap td,.table-wrap th{white-space:normal}
 .table-wrap td{max-width:320px}
 table{width:100%;border-collapse:collapse;font-size:14px;min-width:760px}
-th{text-align:right;color:var(--muted);font-weight:500;font-size:12px;letter-spacing:.04em;
+th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;letter-spacing:.04em;
 text-transform:uppercase;padding:0 12px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
-th:first-child,th:nth-child(2){text-align:left}
-td{padding:12px;border-bottom:1px solid var(--line);text-align:right;
+td{padding:12px;border-bottom:1px solid var(--line);text-align:left;
 font-variant-numeric:tabular-nums;white-space:nowrap}
-td:first-child,td:nth-child(2){text-align:left}
 td.camp{max-width:340px;overflow:hidden;text-overflow:ellipsis}
 tr:hover td{background:var(--panel-2)}
 tr:last-child td{border-bottom:none}
