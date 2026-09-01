@@ -71,6 +71,9 @@ color-scheme:dark;cursor:pointer;min-width:108px}
 .panel h2{font-size:14px;font-weight:600;color:var(--muted);margin-bottom:16px;letter-spacing:.04em;text-transform:uppercase}
 .chart-wrap{position:relative;height:280px}
 .table-wrap{overflow-x:auto}
+.table-wrap table{min-width:auto}
+.table-wrap td,.table-wrap th{white-space:normal}
+.table-wrap td{max-width:320px}
 table{width:100%;border-collapse:collapse;font-size:14px;min-width:760px}
 th{text-align:right;color:var(--muted);font-weight:500;font-size:12px;letter-spacing:.04em;
 text-transform:uppercase;padding:0 12px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -243,8 +246,8 @@ flex-wrap:wrap;gap:10px;margin-bottom:16px}
   .table-wrap thead{display:none}
   .table-wrap tr{display:block;border-bottom:1px solid var(--line);padding:12px 0}
   .table-wrap tr:last-child{border-bottom:none}
-  .table-wrap td{display:block;width:auto;text-align:left;border:none;
-    padding:3px 0;white-space:normal;word-break:break-word}
+  .table-wrap td{display:block;width:auto;max-width:none;text-align:left;border:none;
+    padding:3px 0;white-space:normal}
   .table-wrap td.camp{max-width:none}
   .table-wrap td::before{content:attr(data-label);display:block;color:var(--muted);
     font-size:11px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:1px}
