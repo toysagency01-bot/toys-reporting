@@ -71,9 +71,8 @@ color-scheme:dark;cursor:pointer;min-width:108px}
 .panel h2{font-size:14px;font-weight:600;color:var(--muted);margin-bottom:16px;letter-spacing:.04em;text-transform:uppercase}
 .chart-wrap{position:relative;height:280px}
 .table-wrap{overflow-x:auto}
-.table-wrap table{min-width:auto}
-.table-wrap td,.table-wrap th{white-space:normal}
-.table-wrap td{max-width:320px}
+.table-wrap table{min-width:auto;table-layout:fixed}
+.table-wrap td,.table-wrap th{white-space:normal;overflow-wrap:break-word}
 table{width:100%;border-collapse:collapse;font-size:14px;min-width:760px}
 th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;letter-spacing:.04em;
 text-transform:uppercase;padding:0 12px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -1553,12 +1552,23 @@ function renderGeneric(json){
   const rows = allRows.slice(headerIdx + 1).filter(r => idxs.some(i => (r[i]||'').trim()));
   if(!rows.length){ gShow('gError'); return; }
 
+  // ширина колонок — по содержимому, а не поровну: короткая подпись вроде
+  // "Направление" не должна растягиваться на треть таблицы, если рядом
+  // колонка с абзацами текста
+  const weights = idxs.map(i => Math.min(
+    Math.max(header[i].length, ...rows.map(r => (r[i]||'').length)), 80));
+  const totalW = weights.reduce((a,b)=>a+b, 0) || 1;
+  const minPct = 16;
+  const rawPct = weights.map(w => Math.max(minPct, w / totalW * 100));
+  const scale = 100 / rawPct.reduce((a,b)=>a+b, 0);
+  const colgroup = '<colgroup>' + rawPct.map(p=>`<col style="width:${(p*scale).toFixed(2)}%">`).join('') + '</colgroup>';
+
   const thead = '<thead><tr>' + idxs.map(i=>`<th>${esc(header[i])}</th>`).join('') + '</tr></thead>';
   const tbody = '<tbody>' + rows.map(r =>
     '<tr>' + idxs.map(i=>`<td data-label="${esc(header[i])}">${linkify(r[i]||'')}</td>`).join('') + '</tr>'
   ).join('') + '</tbody>';
 
-  el('gWrap').innerHTML = `<div class="table-wrap"><table>${thead}${tbody}</table></div>`;
+  el('gWrap').innerHTML = `<div class="table-wrap"><table>${colgroup}${thead}${tbody}</table></div>`;
   gShow('gPanel');
 }
 
