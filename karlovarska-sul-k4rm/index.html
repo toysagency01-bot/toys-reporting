@@ -14,10 +14,34 @@ window.DASH_CONFIG = {
   locked:  true,
   showDrafts: false,
   projectSheetId: '1lTO2Lkon14FBLPxNQ39L9xpku8HIFQjQBPu4p4e8JMc',
-  projectPlanTabs: [
-    { tab: 'План работы (SMM)',    label: 'План работы (SMM)' },
-    { tab: 'План работы (Meta)',   label: 'План работы (Meta)' },
-    { tab: 'План работы (Google)', label: 'План работы (Google)' }
+  projectChannels: [
+    { key: 'smm', label: 'SMM', tabs: [
+      { tab: 'План работы (SMM)',         label: 'План работы',    kind: 'plan' },
+      { tab: 'ОС по лидам (SMM)',         label: 'ОС по лидам' },
+      { tab: 'Еженедельная сводка (SMM)', label: 'Сводка (неделя)', mode: 'weekly-report' },
+      { tab: 'Месячная сводка (SMM)',     label: 'Сводка (месяц)',  mode: 'weekly-report' },
+      { tab: 'Анализ конкурентов (SMM)',  label: 'Конкуренты',      mode: 'competitors' },
+      { tab: 'Стратегия (SMM)',           label: 'Стратегия' },
+      { tab: 'Креативный бриф (SMM)',     label: 'Креативный бриф', mode: 'creative-brief' }
+    ]},
+    { key: 'meta', label: 'Meta', tabs: [
+      { tab: 'План работы (Meta)',         label: 'План работы',    kind: 'plan' },
+      { tab: 'ОС по лидам (Meta)',         label: 'ОС по лидам' },
+      { tab: 'Еженедельная сводка (Meta)', label: 'Сводка (неделя)', mode: 'weekly-report' },
+      { tab: 'Месячная сводка (Meta)',     label: 'Сводка (месяц)',  mode: 'weekly-report' },
+      { tab: 'Анализ конкурентов (Meta)',  label: 'Конкуренты',      mode: 'competitors' },
+      { tab: 'Стратегия (Meta)',           label: 'Стратегия' },
+      { tab: 'Креативный бриф (Meta)',     label: 'Креативный бриф', mode: 'creative-brief' }
+    ]},
+    { key: 'google', label: 'Google', tabs: [
+      { tab: 'План работы (Google)',         label: 'План работы',    kind: 'plan' },
+      { tab: 'ОС по лидам (Google)',         label: 'ОС по лидам' },
+      { tab: 'Еженедельная сводка (Google)', label: 'Сводка (неделя)', mode: 'weekly-report' },
+      { tab: 'Месячная сводка (Google)',     label: 'Сводка (месяц)',  mode: 'weekly-report' },
+      { tab: 'Анализ конкурентов (Google)',  label: 'Конкуренты',      mode: 'competitors' },
+      { tab: 'Стратегия (Google)',           label: 'Стратегия' },
+      { tab: 'Креативный бриф (Google)',     label: 'Креативный бриф', mode: 'creative-brief' }
+    ]}
   ]
 };
 </script>

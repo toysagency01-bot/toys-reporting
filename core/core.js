@@ -259,6 +259,8 @@ flex-wrap:wrap;gap:10px;margin-bottom:16px}
 
 /* ---------- markup ---------- */
 const HAS_PROJECT = !!C.projectSheetId;
+const CHANNELS = C.projectChannels || null;
+const HAS_CHANNELS = HAS_PROJECT && !!(CHANNELS && CHANNELS.length);
 document.body.innerHTML = `
 <header>
   <div class="logo-row">
@@ -275,7 +277,9 @@ document.body.innerHTML = `
 ${HAS_PROJECT ? `
 <nav class="tabs" id="viewTabs">
   <button data-view="metrics" class="active">Показатели</button>
-  <button data-view="project">Проект</button>
+  ${HAS_CHANNELS
+    ? CHANNELS.map(ch=>`<button data-view="${esc(ch.key)}">${esc(ch.label)}</button>`).join('')
+    : '<button data-view="project">Проект</button>'}
 </nav>` : ''}
 <div id="metricsView">
 <div class="controls hidden" id="controls">
@@ -554,7 +558,8 @@ function start(){
   document.getElementById('updated').textContent = last ? ('данные по ' + last) : 'реклама ещё не подключена';
   render();
 
-  if(HAS_PROJECT) initProject();
+  if(HAS_CHANNELS) initChannels();
+  else if(HAS_PROJECT) initProject();
 }
 
 /* ---------- загрузка (JSONP: работает с file:// и с хостинга) ---------- */
@@ -1119,14 +1124,15 @@ function initProject(){
   window.addEventListener('hashchange', applyHashRoute);
 }
 
-// переключает верхний уровень (Показатели / Проект), без побочных эффектов на URL —
-// сам URL обновляет updateHash(), вызываемый отдельно из клика и из роутера
+// переключает верхний уровень (Показатели / Проект или Показатели / каналы),
+// без побочных эффектов на URL — сам URL обновляет updateHash(), вызываемый
+// отдельно из клика и из роутера
 function activateView(view){
   const tabs = el('viewTabs');
   tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('active', x.dataset.view===view));
-  const isProject = view === 'project';
-  el('metricsView').classList.toggle('hidden', isProject);
-  el('projectView').classList.toggle('hidden', !isProject);
+  const isMetrics = view === 'metrics';
+  el('metricsView').classList.toggle('hidden', !isMetrics);
+  el('projectView').classList.toggle('hidden', isMetrics);
 }
 
 // грузит один из "план"-листов (обычный План работ, либо один из
@@ -1184,6 +1190,84 @@ function applyHashRoute(){
     const nav = el('projectSubNav');
     const btn = nav && Array.from(nav.querySelectorAll('button')).find(b => b.textContent.trim() === label);
     if(btn) activateProjectSub(btn.dataset.sub);
+  }
+}
+
+/* ---------- проект по каналам (SMM/Meta/Google и т.п.) ----------
+   Отдельная от initProject()/activateProjectSub() ветка — включается,
+   только если у клиента задан projectChannels. Переиспользует без
+   изменений loadPlanTab/loadGenericTab/renderGenericByMode и их кэши —
+   имена листов уже уникальны между каналами (несут суффикс канала). */
+
+let activeChannel = null;
+
+function initChannels(){
+  const tabs = el('viewTabs');
+  tabs.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      activateView(b.dataset.view);
+      if(b.dataset.view !== 'metrics') activateChannel(b.dataset.view);
+      updateChannelHash();
+    });
+  });
+
+  // ссылка вида #smm или #smm/Название-раздела открывает сразу нужный
+  // канал+раздел — без хэша ведёт себя как раньше (по умолчанию "Показатели")
+  applyChannelHashRoute();
+  window.addEventListener('hashchange', applyChannelHashRoute);
+}
+
+// переключает активный канал и перестраивает под-вкладки проекта под него
+function activateChannel(key){
+  const ch = CHANNELS.find(c => c.key === key);
+  if(!ch) return;
+  activeChannel = ch;
+  const nav = el('projectSubNav');
+  nav.classList.remove('hidden');
+  nav.innerHTML = ch.tabs.map((t,i)=>`<button data-sub="${i}" class="${i===0?'active':''}">${esc(t.label)}</button>`).join('');
+  nav.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click',()=>{ activateChannelSub(+b.dataset.sub); updateChannelHash(); });
+  });
+  activateChannelSub(0);
+}
+
+// переключает под-вкладку внутри активного канала
+function activateChannelSub(idx){
+  if(!activeChannel) return;
+  const tabDef = activeChannel.tabs[idx];
+  if(!tabDef) return;
+  el('projectSubNav').querySelectorAll('button').forEach((x,i)=>x.classList.toggle('active', i===idx));
+  const isPlan = tabDef.kind === 'plan';
+  el('planSection').classList.toggle('hidden', !isPlan);
+  el('genericSection').classList.toggle('hidden', isPlan);
+  if(isPlan) loadPlanTab(tabDef.tab); else loadGenericTab(tabDef);
+}
+
+// текущее состояние вкладок -> #metrics, #<канал> или #<канал>/Название-раздела
+function updateChannelHash(){
+  const activeBtn = el('viewTabs').querySelector('button.active');
+  const view = activeBtn ? activeBtn.dataset.view : 'metrics';
+  if(view === 'metrics'){ history.replaceState(null, '', '#metrics'); return; }
+  const subBtn = el('projectSubNav').querySelector('button.active');
+  if(!subBtn){ history.replaceState(null, '', '#' + view); return; }
+  history.replaceState(null, '', '#' + view + '/' + encodeURIComponent(subBtn.textContent.trim()));
+}
+
+// разбирает текущий #хэш и ставит дашборд в нужное состояние —
+// вызывается один раз при загрузке и при любом ручном изменении хэша
+function applyChannelHashRoute(){
+  const raw = location.hash.replace(/^#/, '');
+  if(!raw) return; // без хэша — поведение по умолчанию (Показатели)
+  const [view, subRaw] = raw.split('/');
+  const ch = CHANNELS.find(c => c.key === view);
+  if(!ch) return; // 'metrics' и так активна по умолчанию
+
+  activateView(view);
+  activateChannel(view);
+  if(subRaw){
+    const label = decodeURIComponent(subRaw);
+    const idx = ch.tabs.findIndex(t => t.label === label);
+    if(idx >= 0) activateChannelSub(idx);
   }
 }
 
