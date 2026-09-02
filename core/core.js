@@ -1142,9 +1142,13 @@ function activateView(view){
 // Кэшируется по имени листа — переключение туда-обратно не бьёт лишний раз в таблицу.
 function loadPlanTab(tabName){
   if(planCache[tabName]){ renderProject(planCache[tabName]); return; }
+  // raw=true — не полагаемся на автоопределение шапки Google (см. renderGeneric):
+  // на листах с пустой первой колонкой оно иногда сдвигает столбцы, ломая
+  // дедлайн/статус. parseProject сама отфильтровывает строку-шапку и
+  // строки-разделители по смыслу (пустая задача / нераспознанный статус).
   gvizFrom(C.projectSheetId, tabName,
     j => { const parsed = parseProject(j); planCache[tabName] = parsed; renderProject(parsed); },
-    () => { pShow('pError'); });
+    () => { pShow('pError'); }, true);
 }
 
 // переключает подвкладку внутри "Проекта" (План работ / каналы / Сводки / Бриф и т.д.)
