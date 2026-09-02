@@ -1208,6 +1208,7 @@ let activeChannel = null;
 // в обычную таблицу — renderGeneric.
 const CHANNEL_TAB_MODES = {
   'План работы':        { kind: 'plan' },
+  'План работ':          { kind: 'plan' },
   'Еженедельная сводка': { mode: 'weekly-report' },
   'Месячная сводка':     { mode: 'weekly-report' },
   'Анализ конкурентов':  { mode: 'competitors' },
