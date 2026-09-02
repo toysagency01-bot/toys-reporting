@@ -378,8 +378,8 @@ ${HAS_PROJECT ? `
   </div>
   <div id="genericSection" class="hidden">
     <div class="state" id="gLoading">Загружаю…</div>
-    <div class="state hidden" id="gError"><b>Не удалось загрузить раздел.</b><br>
-    Проверь доступ к проектной таблице.</div>
+    <div class="state hidden" id="gError"><b>Недостаточно данных для отображения.</b><br>
+    Если раздел должен быть заполнен — проверь доступ к проектной таблице и название листа.</div>
     <div class="panel hidden" id="gPanel">
       <h2 id="gTitle"></h2>
       <div id="gWrap"></div>
