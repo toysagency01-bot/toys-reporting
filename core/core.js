@@ -1490,39 +1490,40 @@ function renderCreativeBrief(json){
 function renderCompetitors(json){
   const rows = ((json.table && json.table.rows) || []).map(rawRow);
   const cards = [];
+  const byLabel = {};
   let summary = '';
-  let i = 0;
+  let current = null;
 
-  while(i < rows.length){
-    if((rows[i][1]||'').trim() === 'Анализ'){
-      i++;
-      if(i >= rows.length) break;
-      const label = (rows[i][0]||'').trim() || `Конкурент ${cards.length+1}`;
-      const items = [];
-      while(i < rows.length && (rows[i][1]||'').trim() && (rows[i][1]||'').trim() !== 'Анализ'){
-        items.push({
-          attr: rows[i][1].trim(),
-          result: (rows[i][4]||'').trim(),
-          notes: (rows[i][8]||'').trim(),
-        });
-        i++;
-      }
-      cards.push({label, items});
-      continue;
-    }
+  // Колонка A — объединённая ячейка "Конкурент N" на весь его блок (значение
+  // стоит только в первой строке блока, дальше пусто до следующего блока) —
+  // группируем так же, как темы в parseProject, а не по шапке "Анализ",
+  // которая в реальных листах стоит один раз сверху, а не перед каждым блоком.
+  for(let i = 0; i < rows.length; i++){
+    const label = (rows[i][0]||'').trim();
+    const attr = (rows[i][1]||'').trim();
+
     // общий вывод в конце документа
-    if(/общие выводы/i.test(rows[i][0]||'')){
+    if(/(общие\s+)?вывод/i.test(label)){
       const parts = [];
-      let k = i+1;
-      for(; k < rows.length; k++){
+      for(let k = i+1; k < rows.length; k++){
         const cell = rows[k].find(v=>v.trim().length>20);
         if(cell) parts.push(cell); else if(parts.length) break;
       }
       summary = parts.join('\n');
-      i = k;
-      continue;
+      break;
     }
-    i++;
+
+    if(label){
+      current = byLabel[label];
+      if(!current){ current = {label, items: []}; byLabel[label] = current; cards.push(current); }
+    }
+
+    if(!current || !attr || attr === 'Анализ') continue; // шапка / пустая строка-разделитель
+    current.items.push({
+      attr,
+      result: (rows[i][4]||'').trim(),
+      notes: (rows[i][8]||'').trim(),
+    });
   }
 
   if(!cards.length){ gShow('gError'); return; }
