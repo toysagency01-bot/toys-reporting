@@ -1448,13 +1448,22 @@ function renderCreativeBrief(json){
     }
     return -1;
   };
-  const idxLabel        = ((i)=> i>=0?i:0)(findCol('идея', 'месседж'));
-  const idxHyp           = ((i)=> i>=0?i:1)(findCol('гипотез'));
-  const idxRef            = ((i)=> i>=0?i:2)(findCol('референ', 'вдохновен', 'ссылк'));
-  const idxCount           = ((i)=> i>=0?i:3)(findCol('кол-во', 'количество'));
-  const idxAudience         = ((i)=> i>=0?i:4)(findCol('аудитор'));
-  const idxStatusTeam        = ((i)=> i>=0?i:5)(findCol('команд'));
-  const idxStatusClient       = ((i)=> i>=0?i:6)(findCol('клиент'));
+  // Заголовки распознаны — доверяем этому полностью: если конкретной
+  // колонки (например, "аудитория") среди них нет, значит у этого клиента
+  // её просто нет, и поле не показываем. Откат на старую фиксированную
+  // позицию — только если заголовки вообще не распознались (иначе
+  // ненайденная "аудитория" откатывалась на позицию, которая на самом деле
+  // уже занята реально найденной колонкой "Референсы" — и ссылка
+  // дублировалась второй раз как нераспознанный, некликабельный текст).
+  const hasHeaders = cols.some(c => (c && c.label || '').trim());
+  const resolve = (found, fallback) => found >= 0 ? found : (hasHeaders ? -1 : fallback);
+  const idxLabel        = resolve(findCol('идея', 'месседж'), 0);
+  const idxHyp           = resolve(findCol('гипотез'), 1);
+  const idxRef            = resolve(findCol('референ', 'вдохновен', 'ссылк'), 2);
+  const idxCount           = resolve(findCol('кол-во', 'количество'), 3);
+  const idxAudience         = resolve(findCol('аудитор'), 4);
+  const idxStatusTeam        = resolve(findCol('команд'), 5);
+  const idxStatusClient       = resolve(findCol('клиент'), 6);
 
   const groups = [];
   // Google Sheets иногда утаскивает самую первую метку раздела в подпись
