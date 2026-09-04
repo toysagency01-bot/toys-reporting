@@ -1433,6 +1433,29 @@ function renderCreativeBrief(json){
   const cols = (json.table && json.table.cols) || [];
   const rows = ((json.table && json.table.rows) || []).map(rawRow);
 
+  // Реальные таблицы клиентов не совпадают по составу/порядку колонок
+  // (сверено напрямую: у HOUSEVIP нет колонки "аудитория", у Taycher есть,
+  // и порядок "Референс"/"Кол-во" отличается) — определяем нужную колонку
+  // по названию шапки, а не по фиксированной позиции. Раньше фиксированные
+  // индексы приводили к тому, что реальный "Референс" (ссылка) попадал в
+  // поле audience и рендерился через esc() вместо linkify() — отсюда
+  // некликабельные ссылки на сайте.
+  const norm = s => (s || '').toLowerCase();
+  const findCol = (...kws) => {
+    for(let i = 0; i < cols.length; i++){
+      const l = norm(cols[i] && cols[i].label);
+      if(l && kws.some(k => l.includes(k))) return i;
+    }
+    return -1;
+  };
+  const idxLabel        = ((i)=> i>=0?i:0)(findCol('идея', 'месседж'));
+  const idxHyp           = ((i)=> i>=0?i:1)(findCol('гипотез'));
+  const idxRef            = ((i)=> i>=0?i:2)(findCol('референ', 'вдохновен', 'ссылк'));
+  const idxCount           = ((i)=> i>=0?i:3)(findCol('кол-во', 'количество'));
+  const idxAudience         = ((i)=> i>=0?i:4)(findCol('аудитор'));
+  const idxStatusTeam        = ((i)=> i>=0?i:5)(findCol('команд'));
+  const idxStatusClient       = ((i)=> i>=0?i:6)(findCol('клиент'));
+
   const groups = [];
   // Google Sheets иногда утаскивает самую первую метку раздела в подпись
   // колонки A (это видно по parsedNumHeaders > 1) — восстанавливаем её оттуда
@@ -1444,8 +1467,8 @@ function renderCreativeBrief(json){
   }
 
   for(const r of rows){
-    const label = (r[0]||'').trim();
-    const hyp = (r[1]||'').trim();
+    const label = (r[idxLabel]||'').trim();
+    const hyp = (r[idxHyp]||'').trim();
     const restEmpty = r.slice(1).every(v => !v.trim());
 
     if(label && restEmpty){ current = {name: label, items: []}; groups.push(current); continue; }
@@ -1455,11 +1478,11 @@ function renderCreativeBrief(json){
     current.items.push({
       label,
       hypothesis: hyp,
-      reference: (r[2]||'').trim(),
-      count: (r[3]||'').trim(),
-      audience: (r[4]||'').trim(),
-      statusTeam: (r[5]||'').trim(),
-      statusClient: (r[6]||'').trim(),
+      reference: (r[idxRef]||'').trim(),
+      count: (r[idxCount]||'').trim(),
+      audience: (r[idxAudience]||'').trim(),
+      statusTeam: (r[idxStatusTeam]||'').trim(),
+      statusClient: (r[idxStatusClient]||'').trim(),
     });
   }
 
