@@ -1504,7 +1504,10 @@ function renderCompetitors(json){
 
     // общий вывод в конце документа
     if(/(общие\s+)?вывод/i.test(label)){
-      const parts = [];
+      // текст вывода бывает либо в этой же объединённой ячейке сразу после
+      // слова "ВЫВОД:", либо отдельными строками ниже — проверяем оба места
+      const inline = label.replace(/^(общие\s+)?вывод[ыа]?:?\s*/i, '').trim();
+      const parts = inline.length > 20 ? [inline] : [];
       for(let k = i+1; k < rows.length; k++){
         const cell = rows[k].find(v=>v.trim().length>20);
         if(cell) parts.push(cell); else if(parts.length) break;
