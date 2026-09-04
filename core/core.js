@@ -93,6 +93,18 @@ tr:last-child td{border-bottom:none}
 .tabs{display:flex;gap:4px;margin-bottom:22px;border-bottom:1px solid var(--line);
 overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
+/* фейд-индикатор скролла у .tabs/.seg — см. .fade-edge ниже (не псевдоэлементы
+   самого контейнера: у абсолютного позиционирования внутри overflow-скролла
+   левый и правый край ведут себя асимметрично — left уезжает вместе с
+   контентом при скролле, а не остаётся у видимого края, как right) */
+.fade-edge{position:sticky;top:0;align-self:stretch;width:0;flex:none;pointer-events:none;z-index:2}
+.fade-edge.l{left:0}
+.fade-edge.r{right:0}
+.fade-edge::before{content:'';position:absolute;top:0;bottom:0;width:24px;
+opacity:0;transition:opacity .15s ease}
+.fade-edge.l::before{left:0;background:linear-gradient(to right,rgba(0,0,0,.55),transparent)}
+.fade-edge.r::before{right:0;background:linear-gradient(to left,rgba(0,0,0,.55),transparent)}
+.fade-l .fade-edge.l::before,.fade-r .fade-edge.r::before{opacity:1}
 .tabs button{background:none;border:none;color:var(--muted);cursor:pointer;
 padding:10px 18px 12px;font:600 14px 'Golos Text',sans-serif;
 border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;flex:0 0 auto}
@@ -386,6 +398,40 @@ ${HAS_PROJECT ? `
     </div>
   </div>
 </div>` : ''}`;
+
+/* ---------- фейд по краям горизонтально скроллящихся вкладок ----------
+   .tabs (верхнее меню) и .seg (под-вкладки проекта, период, канал) прячут
+   нативный скроллбар — без него не видно, что список обрезан и надо
+   скроллить вбок. Подсвечиваем это градиентом с той стороны, куда ещё
+   можно проскроллить; список кнопок у #projectSubNav строится позже
+   динамически, поэтому дополнительно следим за изменениями через
+   MutationObserver, а не только один раз при загрузке. */
+function ensureFadeEdges(elx){
+  if(!elx.querySelector(':scope > .fade-edge.l')){
+    elx.insertAdjacentHTML('afterbegin', '<span class="fade-edge l" aria-hidden="true"></span>');
+  }
+  if(!elx.querySelector(':scope > .fade-edge.r')){
+    elx.insertAdjacentHTML('beforeend', '<span class="fade-edge r" aria-hidden="true"></span>');
+  }
+}
+function updateScrollFade(elx){
+  if(!elx) return;
+  ensureFadeEdges(elx);
+  const scrollable = elx.scrollWidth > elx.clientWidth + 1;
+  elx.classList.toggle('fade-l', scrollable && elx.scrollLeft > 1);
+  elx.classList.toggle('fade-r', scrollable && elx.scrollLeft < elx.scrollWidth - elx.clientWidth - 1);
+}
+function updateAllScrollFades(){
+  document.querySelectorAll('.tabs, .seg').forEach(updateScrollFade);
+}
+document.addEventListener('scroll', e => {
+  if(e.target.classList && (e.target.classList.contains('tabs') || e.target.classList.contains('seg'))){
+    updateScrollFade(e.target);
+  }
+}, true);
+window.addEventListener('resize', updateAllScrollFades);
+new MutationObserver(updateAllScrollFades).observe(document.body, {childList: true, subtree: true});
+updateAllScrollFades();
 
 /* ---------- state ---------- */
 const CUR = {USD:'$',EUR:'€',GBP:'£',PLN:'zł',CZK:'Kč',GEL:'₾',UAH:'₴',CHF:'CHF'};
