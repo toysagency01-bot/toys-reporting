@@ -1059,7 +1059,7 @@ function renderEcomFunnelPanel(rows){
       ${showTitles ? `<div class="ecom-channel-title">${esc(name)}</div>` : ''}
       <div class="cards">
         ${stageCard('Добавили в корзину', d.addToCart, d.cost, curLabel)}
-        ${stageCard('Оформили заказ', d.checkout, d.cost, curLabel)}
+        ${stageCard('Начали оформление заказа', d.checkout, d.cost, curLabel)}
         ${stageCard('Купили' + (d.purchaseValue ? ` · ${fmtM(d.purchaseValue)} ${curLabel}` : ''), d.purchase, d.cost, curLabel)}
         <div class="card">
           <div class="label">ROAS</div>
