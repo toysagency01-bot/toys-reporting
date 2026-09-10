@@ -589,7 +589,6 @@ function start(){
       document.querySelectorAll('#periodSeg button').forEach(x=>x.classList.remove('active'));
       b.classList.add('active');
       period = b.dataset.days === 'max' ? 'max' : +b.dataset.days;
-      dFrom.value = ''; dTo.value = '';
       render();
     });
   });
@@ -772,8 +771,19 @@ function dateRangeArray(fromStr, toStr){
   return dates;
 }
 
+// держит поля "С"/"По" в синхроне с выбранным периодом — включая пресеты
+// Вчера/7 дней/30 дней/Максимум, а не только произвольный диапазон:
+// иначе непонятно, какой именно диапазон дат стоит за словом "неделя"
+function syncDateInputs(dates){
+  const dFrom = el('dateFrom'), dTo = el('dateTo');
+  if(!dFrom || !dTo) return;
+  dFrom.value = dates[0] || '';
+  dTo.value = dates[dates.length-1] || '';
+}
+
 function render(){
   const dates = periodDates();
+  syncDateInputs(dates);
   const set = new Set(dates);
   const rows = DATA.filter(r => set.has(r.date)
     && (account==='__all' || r.account===account)
