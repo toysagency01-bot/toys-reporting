@@ -348,6 +348,10 @@ ${HAS_PROJECT ? `
     <h2>Форматы креативов</h2>
     <div id="formatTable"></div>
   </div>
+  <div class="panel hidden" id="ecomFunnelPanel">
+    <h2>Воронка e-commerce</h2>
+    <div class="cards" id="ecomFunnelCards"></div>
+  </div>
   <div class="panel">
     <div class="panel-head">
       <h2>Динамика по дням</h2>
@@ -483,9 +487,42 @@ function loadQualified(){
    Читаем всегда: у клиентов без Meta или без данных панель просто скроется. */
 let FORMATS = [];
 function loadFormats(){
-  if(!SHEET_ID){ FORMATS = []; start(); return; }
-  gviz('MetaAdsFormat', j => { FORMATS = parseFormats(j); start(); },
-       () => { FORMATS = []; start(); });
+  if(!SHEET_ID){ FORMATS = []; loadEcomFunnel(); return; }
+  gviz('MetaAdsFormat', j => { FORMATS = parseFormats(j); loadEcomFunnel(); },
+       () => { FORMATS = []; loadEcomFunnel(); });
+}
+
+/* Лист "EcomFunnel" — опциональная воронка e-commerce (добавления в
+   корзину / оформленные заказы / покупки), живёт в таблице клиента, как
+   MetaAdsFormat. Читаем всегда: у клиентов без ecom-воронки панель просто
+   скрывается. Формат строки: date, platform, account_name, account_id,
+   currency, add_to_cart, add_to_cart_value, checkout, checkout_value,
+   purchase, purchase_value — по одной строке в день на канал. */
+let ECOM = [];
+function loadEcomFunnel(){
+  if(!SHEET_ID){ ECOM = []; start(); return; }
+  gviz('EcomFunnel', j => { ECOM = parseEcomFunnel(j); start(); },
+       () => { ECOM = []; start(); });
+}
+
+function parseEcomFunnel(json){
+  const rawRows = ((json.table && json.table.rows) || []);
+  const out = [];
+  rawRows.forEach(r => {
+    const cells = r.c || [];
+    const d = cellDate(cells[0]);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    const platform = cells[1] && cells[1].v != null ? String(cells[1].v).trim() : '';
+    if (!platform) return;
+    out.push({
+      date: d, platform,
+      currency: cells[4] && cells[4].v != null ? String(cells[4].v).trim() : '',
+      addToCart: num(cells[5]), addToCartValue: num(cells[6]),
+      checkout: num(cells[7]), checkoutValue: num(cells[8]),
+      purchase: num(cells[9]), purchaseValue: num(cells[10]),
+    });
+  });
+  return out;
 }
 
 function parseFormats(json){
@@ -809,6 +846,7 @@ function render(){
   renderWeekdays(rows);
   renderChannels(rows, curs);
   renderFormatPanel();
+  renderEcomFunnelPanel(rows);
   drawChart(dates, rows, curs);
   drawTable(rows);
 }
@@ -956,6 +994,63 @@ function renderFormatPanel(){
         return `<tr><td>${esc(f)}</td><td>${fmtM(d.cost)}${curSuffix}</td><td>${fmtN(d.impr)}</td><td>${fmtN(d.conv)}</td><td>${cpa}</td></tr>`;
       }).join('')}</tbody>
     </table>`;
+}
+
+/* Воронка e-commerce (добавления в корзину / оформленные заказы / покупки).
+   Цена за событие считается по той же логике, что и CPA в KPI-карточках
+   выше: по каждой валюте отдельно (валюта тут = канал — у Karlovarska Sul
+   Meta платит в CZK, Google в EUR — делить общую сумму на общее число
+   событий без учёта валюты дало бы бессмысленное число). */
+function renderEcomFunnelPanel(rows){
+  const panel = el('ecomFunnelPanel');
+  if(!panel) return;
+
+  const dates = periodDates();
+  const set = new Set(dates);
+  const eRows = ECOM.filter(e => set.has(e.date) && (platform==='__all' || e.platform===platform));
+
+  const addToCart = eRows.reduce((s,r)=>s+r.addToCart,0);
+  const checkout = eRows.reduce((s,r)=>s+r.checkout,0);
+  const purchase = eRows.reduce((s,r)=>s+r.purchase,0);
+
+  if(!addToCart && !checkout && !purchase){ panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+
+  const purchaseValueByCur = {};
+  eRows.forEach(r=>{ if(r.purchase) purchaseValueByCur[r.currency] = (purchaseValueByCur[r.currency]||0) + r.purchaseValue; });
+  const revenueLabel = Object.keys(purchaseValueByCur).sort()
+    .map(c => `${fmtM(purchaseValueByCur[c])} ${sym(c)}`).join(' + ');
+
+  const costByCur = {};
+  rows.forEach(r=>{ costByCur[r.currency] = (costByCur[r.currency]||0) + r.cost; });
+
+  const countsByCur = {};
+  eRows.forEach(r=>{
+    if(!countsByCur[r.currency]) countsByCur[r.currency] = {addToCart:0, checkout:0, purchase:0};
+    countsByCur[r.currency].addToCart += r.addToCart;
+    countsByCur[r.currency].checkout += r.checkout;
+    countsByCur[r.currency].purchase += r.purchase;
+  });
+
+  function perEventPrice(stage){
+    const curs = Object.keys(costByCur).filter(c => countsByCur[c] && countsByCur[c][stage]);
+    if(!curs.length) return null;
+    return curs.map(c => `${fmtM(costByCur[c]/countsByCur[c][stage])} ${sym(c)}`).join(' / ');
+  }
+
+  function stageCard(label, count, price){
+    return `<div class="card">
+      <div class="label">${label}</div>
+      <div class="value">${fmtN(count)}
+        <small>${count ? (price ? 'цена: '+price : 'цена неизвестна') : 'нет данных'}</small>
+      </div>
+    </div>`;
+  }
+
+  el('ecomFunnelCards').innerHTML =
+    stageCard('Добавили в корзину', addToCart, perEventPrice('addToCart')) +
+    stageCard('Оформили заказ', checkout, perEventPrice('checkout')) +
+    stageCard('Купили' + (revenueLabel ? ` · ${esc(revenueLabel)}` : ''), purchase, perEventPrice('purchase'));
 }
 
 function renderChannels(rows, curs){
