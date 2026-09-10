@@ -212,6 +212,11 @@ a:hover{opacity:.8}
 .fmt-table td:first-child{font-weight:700;color:var(--text)}
 @media (max-width:760px){.fmt-table{font-size:12px}.fmt-table th,.fmt-table td{padding:8px 6px}}
 
+.ecom-channel{margin-bottom:16px}
+.ecom-channel:last-child{margin-bottom:0}
+.ecom-channel-title{font-size:13px;font-weight:700;color:var(--accent);
+margin-bottom:10px;letter-spacing:.02em}
+
 .wd-metric{margin-bottom:16px}
 .wd-metric:last-child{margin-bottom:0}
 .wd-metric-label{font-size:11px;color:var(--muted);text-transform:uppercase;
@@ -326,6 +331,10 @@ ${HAS_PROJECT ? `
     <div class="card hidden" id="kQualCard"><div class="label">Квал-лидов</div><div class="value" id="kQual">—</div></div>
     <div class="card hidden" id="kQualCpaCard"><div class="label">Цена квала</div><div class="value" id="kQualCpa">—</div></div>
   </div>
+  <div class="panel hidden" id="ecomFunnelPanel">
+    <h2>Воронка e-commerce</h2>
+    <div id="ecomFunnelCards"></div>
+  </div>
   <div class="panel hidden" id="insightsPanel">
     <h2>Выводы и план</h2>
     <div id="insightsList"></div>
@@ -347,10 +356,6 @@ ${HAS_PROJECT ? `
   <div class="panel hidden" id="formatPanel">
     <h2>Форматы креативов</h2>
     <div id="formatTable"></div>
-  </div>
-  <div class="panel hidden" id="ecomFunnelPanel">
-    <h2>Воронка e-commerce</h2>
-    <div class="cards" id="ecomFunnelCards"></div>
   </div>
   <div class="panel">
     <div class="panel-head">
@@ -840,13 +845,13 @@ function render(){
     }
   }
   layoutCardsGrid();
+  renderEcomFunnelPanel(rows);
 
   drawInsights();
   renderFunnel(impr, clicks, conv);
   renderWeekdays(rows);
   renderChannels(rows, curs);
   renderFormatPanel();
-  renderEcomFunnelPanel(rows);
   drawChart(dates, rows, curs);
   drawTable(rows);
 }
@@ -1001,6 +1006,12 @@ function renderFormatPanel(){
    выше: по каждой валюте отдельно (валюта тут = канал — у Karlovarska Sul
    Meta платит в CZK, Google в EUR — делить общую сумму на общее число
    событий без учёта валюты дало бы бессмысленное число). */
+/* Воронка e-commerce (добавления в корзину / оформленные заказы / покупки
+   + ROAS), разбита по каналу — не по валюте: у канала может быть своя
+   валюта (Meta CZK, Google EUR и т.п.), но делить группируем именно по
+   platform, а не совпадению "валюта=канал", чтобы не зависеть от этого
+   совпадения у будущих ecom-клиентов. Если канал один — не подписываем
+   его отдельным заголовком, незачем. */
 function renderEcomFunnelPanel(rows){
   const panel = el('ecomFunnelPanel');
   if(!panel) return;
@@ -1009,48 +1020,56 @@ function renderEcomFunnelPanel(rows){
   const set = new Set(dates);
   const eRows = ECOM.filter(e => set.has(e.date) && (platform==='__all' || e.platform===platform));
 
-  const addToCart = eRows.reduce((s,r)=>s+r.addToCart,0);
-  const checkout = eRows.reduce((s,r)=>s+r.checkout,0);
-  const purchase = eRows.reduce((s,r)=>s+r.purchase,0);
-
-  if(!addToCart && !checkout && !purchase){ panel.classList.add('hidden'); return; }
+  const totalAdd = eRows.reduce((s,r)=>s+r.addToCart,0);
+  const totalCheckout = eRows.reduce((s,r)=>s+r.checkout,0);
+  const totalPurchase = eRows.reduce((s,r)=>s+r.purchase,0);
+  if(!totalAdd && !totalCheckout && !totalPurchase){ panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
 
-  const purchaseValueByCur = {};
-  eRows.forEach(r=>{ if(r.purchase) purchaseValueByCur[r.currency] = (purchaseValueByCur[r.currency]||0) + r.purchaseValue; });
-  const revenueLabel = Object.keys(purchaseValueByCur).sort()
-    .map(c => `${fmtM(purchaseValueByCur[c])} ${sym(c)}`).join(' + ');
-
-  const costByCur = {};
-  rows.forEach(r=>{ costByCur[r.currency] = (costByCur[r.currency]||0) + r.cost; });
-
-  const countsByCur = {};
+  const byPlatform = {};
   eRows.forEach(r=>{
-    if(!countsByCur[r.currency]) countsByCur[r.currency] = {addToCart:0, checkout:0, purchase:0};
-    countsByCur[r.currency].addToCart += r.addToCart;
-    countsByCur[r.currency].checkout += r.checkout;
-    countsByCur[r.currency].purchase += r.purchase;
+    if(!byPlatform[r.platform]) byPlatform[r.platform] = { addToCart:0, checkout:0, purchase:0, purchaseValue:0, currency:'', cost:0 };
+    const p = byPlatform[r.platform];
+    p.addToCart += r.addToCart;
+    p.checkout += r.checkout;
+    p.purchase += r.purchase;
+    p.purchaseValue += r.purchaseValue;
+    if(!p.currency && r.currency) p.currency = r.currency;
   });
+  rows.forEach(r=>{ if(byPlatform[r.platform]) byPlatform[r.platform].cost += r.cost; });
 
-  function perEventPrice(stage){
-    const curs = Object.keys(costByCur).filter(c => countsByCur[c] && countsByCur[c][stage]);
-    if(!curs.length) return null;
-    return curs.map(c => `${fmtM(costByCur[c]/countsByCur[c][stage])} ${sym(c)}`).join(' / ');
-  }
+  const platforms = Object.keys(byPlatform).sort();
+  const showTitles = platforms.length > 1;
 
-  function stageCard(label, count, price){
+  function stageCard(label, count, cost, curLabel){
+    const price = count ? `${fmtM(cost/count)} ${curLabel}` : null;
     return `<div class="card">
-      <div class="label">${label}</div>
+      <div class="label">${esc(label)}</div>
       <div class="value">${fmtN(count)}
         <small>${count ? (price ? 'цена: '+price : 'цена неизвестна') : 'нет данных'}</small>
       </div>
     </div>`;
   }
 
-  el('ecomFunnelCards').innerHTML =
-    stageCard('Добавили в корзину', addToCart, perEventPrice('addToCart')) +
-    stageCard('Оформили заказ', checkout, perEventPrice('checkout')) +
-    stageCard('Купили' + (revenueLabel ? ` · ${esc(revenueLabel)}` : ''), purchase, perEventPrice('purchase'));
+  function platformBlock(name){
+    const d = byPlatform[name];
+    const curLabel = sym(d.currency);
+    const roas = d.cost ? (d.purchaseValue / d.cost) : null;
+    return `<div class="ecom-channel">
+      ${showTitles ? `<div class="ecom-channel-title">${esc(name)}</div>` : ''}
+      <div class="cards">
+        ${stageCard('Добавили в корзину', d.addToCart, d.cost, curLabel)}
+        ${stageCard('Оформили заказ', d.checkout, d.cost, curLabel)}
+        ${stageCard('Купили' + (d.purchaseValue ? ` · ${fmtM(d.purchaseValue)} ${curLabel}` : ''), d.purchase, d.cost, curLabel)}
+        <div class="card">
+          <div class="label">ROAS</div>
+          <div class="value">${roas!=null ? roas.toFixed(2)+'×' : '—'}</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  el('ecomFunnelCards').innerHTML = platforms.map(platformBlock).join('');
 }
 
 function renderChannels(rows, curs){
