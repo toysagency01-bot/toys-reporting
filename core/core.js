@@ -321,7 +321,7 @@ ${HAS_PROJECT ? `
 <div class="state hidden" id="emptyState"><b>За выбранный период данных нет.</b><br>
 Попробуй другой период.</div>
 <div id="content" class="hidden">
-  <div class="cards">
+  <div class="cards" id="mainCards">
     <div class="card"><div class="label">Расход</div><div class="value" id="kSpend">—</div></div>
     <div class="card"><div class="label">Показы</div><div class="value" id="kImpr">—</div></div>
     <div class="card"><div class="label">Клики</div><div class="value" id="kClicks">—</div></div>
@@ -331,6 +331,7 @@ ${HAS_PROJECT ? `
     <div class="card hidden" id="kQualCard"><div class="label">Квал-лидов</div><div class="value" id="kQual">—</div></div>
     <div class="card hidden" id="kQualCpaCard"><div class="label">Цена квала</div><div class="value" id="kQualCpa">—</div></div>
   </div>
+  <div class="hidden" id="ecomTopCards"></div>
   <div class="panel hidden" id="ecomFunnelPanel">
     <h2>Воронка e-commerce</h2>
     <div id="ecomFunnelCards"></div>
@@ -854,6 +855,17 @@ function render(){
       el('kQualCpaCard').classList.add('hidden');
     }
   }
+  // для ecom-клиентов (есть данные в EcomFunnel) верхняя строка карточек
+  // заменяется на разбивку по каналу без "Конверсии"/CPA — комбинированная
+  // цифра конверсий там только путает (см. ecomFunnelPanel ниже, где шаги
+  // воронки уже расписаны подробно). Квал-лидов у текущих ecom-клиентов
+  // не бывает одновременно с этим режимом, поэтому вся строка mainCards
+  // прячется целиком, а не карточка за карточкой.
+  const isEcom = ECOM.length > 0;
+  el('mainCards').classList.toggle('hidden', isEcom);
+  el('ecomTopCards').classList.toggle('hidden', !isEcom);
+  if(isEcom) renderEcomTopCards(rows);
+
   layoutCardsGrid();
   renderEcomFunnelPanel(rows);
 
@@ -1080,6 +1092,45 @@ function renderEcomFunnelPanel(rows){
   }
 
   el('ecomFunnelCards').innerHTML = platforms.map(platformBlock).join('');
+}
+
+/* Верхние KPI-карточки для ecom-клиентов — вместо общей сводной строки
+   (Расход/Показы/Клики/CTR/Конверсии/CPA) показываем блоками по каналу:
+   Конверсии/CPA убраны целиком (для ecom важна не абстрактная "конверсия",
+   а конкретный шаг воронки — см. renderEcomFunnelPanel), а
+   Расход/Показы/Клики/CTR разбиты по каналу так же, как и воронка ниже —
+   тот же порядок каналов и то же правило "не подписывать заголовком, если
+   канал один". */
+function renderEcomTopCards(rows){
+  const byPlatform = {};
+  rows.forEach(r=>{
+    if(!byPlatform[r.platform]) byPlatform[r.platform] = { cost:0, impr:0, clicks:0, currency:'' };
+    const p = byPlatform[r.platform];
+    p.cost += r.cost;
+    p.impr += r.impr;
+    p.clicks += r.clicks;
+    if(!p.currency && r.currency) p.currency = r.currency;
+  });
+
+  const platforms = Object.keys(byPlatform).sort();
+  const showTitles = platforms.length > 1;
+
+  function platformBlock(name){
+    const d = byPlatform[name];
+    const curLabel = sym(d.currency);
+    const ctr = d.impr ? d.clicks/d.impr*100 : null;
+    return `<div class="ecom-channel">
+      ${showTitles ? `<div class="ecom-channel-title">${esc(name)}</div>` : ''}
+      <div class="cards">
+        <div class="card"><div class="label">Расход</div><div class="value">${fmtM(d.cost)} ${curLabel}</div></div>
+        <div class="card"><div class="label">Показы</div><div class="value">${fmtN(d.impr)}</div></div>
+        <div class="card"><div class="label">Клики</div><div class="value">${fmtN(d.clicks)}</div></div>
+        <div class="card"><div class="label">CTR</div><div class="value">${ctr!=null ? ctr.toFixed(2)+'%' : '—'}</div></div>
+      </div>
+    </div>`;
+  }
+
+  el('ecomTopCards').innerHTML = platforms.map(platformBlock).join('');
 }
 
 function renderChannels(rows, curs){
