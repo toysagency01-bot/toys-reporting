@@ -1494,6 +1494,18 @@ function campaignKey_(r){
   return [r.account, r.campaign, r.currency, r.platform]
     .map(v => String(v || '').trim().toLowerCase()).join('||');
 }
+function campaignFunnelAccountKey_(value){
+  return String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\bs\s*\.?\s*r\s*\.?\s*o\s*\.?\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+function campaignFunnelKey_(r){
+  return [campaignFunnelAccountKey_(r.account), r.campaign, r.currency, r.platform]
+    .map(v => String(v || '').trim().toLowerCase()).join('||');
+}
 function campaignScopeKey_(r){
   return [r.account, r.platform]
     .map(v => String(v || '').trim().toLowerCase()).join('||');
@@ -1530,7 +1542,7 @@ function drawTable(rows, isEcom, ecomCampaignRows){
 
   const funnelByCampaign = {};
   (ecomCampaignRows || []).forEach(e=>{
-    const key = campaignKey_(e);
+    const key = campaignFunnelKey_(e);
     const f = funnelByCampaign[key] || (funnelByCampaign[key] = {
       addToCart:0, addToCartValue:0, checkout:0, checkoutValue:0,
       purchase:0, purchaseValue:0,
@@ -1553,7 +1565,7 @@ function drawTable(rows, isEcom, ecomCampaignRows){
     // Missing campaign rows mean zero events, not "unknown" data: the
     // account-level exporter has already loaded successfully before this
     // renderer is used.
-    item.funnel = funnelByCampaign[key] || {
+    item.funnel = funnelByCampaign[campaignFunnelKey_(item)] || {
       addToCart:0, addToCartValue:0, checkout:0, checkoutValue:0,
       purchase:0, purchaseValue:0,
     };
