@@ -152,6 +152,7 @@ border-top:1px solid var(--line)}
 .chan-tag.meta{background:rgba(143,123,255,.15);color:#8f7bff}
 .chan-tag.google{background:var(--accent-dim);color:var(--accent)}
 .camp-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 10px}
+.camp-metrics.ecom{grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:10px 14px}
 .camp-metrics .m{min-width:0}
 .camp-metrics .mlabel{display:block;color:var(--muted);font-size:10px;letter-spacing:.04em;
 text-transform:uppercase;margin-bottom:1px}
@@ -516,10 +517,21 @@ function loadFormats(){
    currency, add_to_cart, add_to_cart_value, checkout, checkout_value,
    purchase, purchase_value — по одной строке в день на канал. */
 let ECOM = [];
+let ECOM_CAMPAIGNS = [];
 function loadEcomFunnel(){
-  if(!SHEET_ID){ ECOM = []; start(); return; }
-  gviz('EcomFunnel', j => { ECOM = parseEcomFunnel(j); start(); },
-       () => { ECOM = []; start(); });
+  if(!SHEET_ID){ ECOM = []; ECOM_CAMPAIGNS = []; start(); return; }
+  gviz('EcomFunnel', j => { ECOM = parseEcomFunnel(j); loadEcomCampaignFunnel(); },
+       () => { ECOM = []; ECOM_CAMPAIGNS = []; start(); });
+}
+
+/* Детализация воронки по рекламной кампании хранится отдельно от агрегата
+   EcomFunnel. Так старые выгрузки продолжают работать, а сумма по каналу не
+   удваивается при добавлении campaign-level строк. Вкладка опциональна. */
+function loadEcomCampaignFunnel(){
+  if(!ECOM.length){ ECOM_CAMPAIGNS = []; start(); return; }
+  gviz('EcomFunnelCampaign',
+    j => { ECOM_CAMPAIGNS = parseEcomCampaignFunnel(j); start(); },
+    () => { ECOM_CAMPAIGNS = []; start(); });
 }
 
 function parseEcomFunnel(json){
@@ -544,6 +556,34 @@ function parseEcomFunnel(json){
       addToCart: num(cells[5]), addToCartValue: num(cells[6]),
       checkout: num(cells[7]), checkoutValue: num(cells[8]),
       purchase: num(cells[9]), purchaseValue: num(cells[10]),
+    });
+  });
+  return out;
+}
+
+function parseEcomCampaignFunnel(json){
+  const labels = ((json.table && json.table.cols) || []).map(c =>
+    String((c && c.label) || '').trim().toLowerCase());
+  if(labels[0] !== 'date' || labels[1] !== 'platform' ||
+     labels[5] !== 'campaign' || labels[7] !== 'add_to_cart' ||
+     labels[9] !== 'checkout' || labels[11] !== 'purchase') return [];
+  const rawRows = ((json.table && json.table.rows) || []);
+  const out = [];
+  rawRows.forEach(r => {
+    const cells = r.c || [];
+    const d = cellDate(cells[0]);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    const platform = str(cells[1]).trim();
+    const campaign = str(cells[5]).trim();
+    if (!platform || !campaign) return;
+    out.push({
+      date: d, platform,
+      account: str(cells[2]).trim(), accountId: str(cells[3]).trim(),
+      currency: str(cells[4]).trim(), campaign,
+      campaignId: str(cells[6]).trim(),
+      addToCart: num(cells[7]), addToCartValue: num(cells[8]),
+      checkout: num(cells[9]), checkoutValue: num(cells[10]),
+      purchase: num(cells[11]), purchaseValue: num(cells[12]),
     });
   });
   return out;
@@ -728,7 +768,7 @@ function parseData(json, defaultPlatform){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
     out.push({
       date: d, platform: str(c[1]) || defaultPlatform,
-      account: str(c[2]), currency: str(c[4]),
+      account: str(c[2]), accountId: str(c[3]), currency: str(c[4]),
       campaign: str(c[5]), impr: num(c[6]), clicks: num(c[7]),
       cost: num(c[8]), conv: num(c[9]),
     });
@@ -904,7 +944,7 @@ function render(){
   renderChannels(rows, curs, ecomRows, isEcom);
   renderFormatPanel();
   drawChart(dates, rows, curs, ecomRows, isEcom);
-  drawTable(rows, isEcom);
+  drawTable(rows, isEcom, isEcom ? currentEcomCampaignRows(dates) : []);
 }
 
 // Один и тот же фильтр EcomFunnel используется во всех e-commerce блоках.
@@ -914,6 +954,13 @@ function currentEcomRows(dates){
   const set = new Set(dates);
   return ECOM.filter(e => set.has(e.date)
     && (platform==='__all' || e.platform===platform));
+}
+
+function currentEcomCampaignRows(dates){
+  const set = new Set(dates);
+  return ECOM_CAMPAIGNS.filter(e => set.has(e.date)
+    && (platform==='__all' || e.platform===platform)
+    && (account==='__all' || e.account===account));
 }
 
 // вычисляет % изменения и рисует стрелку-бейдж рядом со значением карточки.
@@ -1443,14 +1490,66 @@ function drawEfficiencyChart(dates, rows, curs){
   chart = new Chart(el('chart'), cfg);
 }
 
-function drawTable(rows, isEcom){
+function campaignKey_(r){
+  return [r.account, r.campaign, r.currency, r.platform]
+    .map(v => String(v || '').trim().toLowerCase()).join('||');
+}
+function campaignScopeKey_(r){
+  return [r.account, r.platform]
+    .map(v => String(v || '').trim().toLowerCase()).join('||');
+}
+function shiftIsoDays_(date, days){
+  const d = new Date(date + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0,10);
+}
+
+function drawTable(rows, isEcom, ecomCampaignRows){
   const agg = {};
   rows.forEach(r=>{
-    const k = r.account+'||'+r.campaign+'||'+r.currency+'||'+r.platform;
+    const k = campaignKey_(r);
     agg[k] = agg[k] || {account:r.account,campaign:r.campaign,currency:r.currency,platform:r.platform,impr:0,clicks:0,cost:0,conv:0};
     agg[k].impr+=r.impr; agg[k].clicks+=r.clicks; agg[k].cost+=r.cost; agg[k].conv+=r.conv;
   });
-  const list = Object.values(agg).sort((a,b)=>b.cost-a.cost);
+
+  // Кампания считается активной, если у неё были показы, клики, расход или
+  // конверсии за последние 30 дней относительно свежей даты её аккаунта и
+  // рекламной платформы. Это не зависит от выбранного в интерфейсе периода:
+  // при просмотре недели старые нулевые кампании тоже не возвращаются.
+  const latestByScope = {};
+  const lastActiveByCampaign = {};
+  DATA.forEach(r=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(r.date)) return;
+    const scope = campaignScopeKey_(r);
+    if(!latestByScope[scope] || r.date > latestByScope[scope]) latestByScope[scope] = r.date;
+    if(r.impr > 0 || r.clicks > 0 || r.cost > 0 || r.conv > 0){
+      const key = campaignKey_(r);
+      if(!lastActiveByCampaign[key] || r.date > lastActiveByCampaign[key]) lastActiveByCampaign[key] = r.date;
+    }
+  });
+
+  const funnelByCampaign = {};
+  (ecomCampaignRows || []).forEach(e=>{
+    const key = campaignKey_(e);
+    const f = funnelByCampaign[key] || (funnelByCampaign[key] = {
+      addToCart:0, addToCartValue:0, checkout:0, checkoutValue:0,
+      purchase:0, purchaseValue:0,
+    });
+    f.addToCart += e.addToCart; f.addToCartValue += e.addToCartValue;
+    f.checkout += e.checkout; f.checkoutValue += e.checkoutValue;
+    f.purchase += e.purchase; f.purchaseValue += e.purchaseValue;
+  });
+
+  const list = Object.keys(agg).filter(key=>{
+    const item = agg[key];
+    const reference = latestByScope[campaignScopeKey_(item)];
+    const lastActive = lastActiveByCampaign[key];
+    return !!(reference && lastActive && lastActive >= shiftIsoDays_(reference, -30));
+  }).map(key=>{
+    const item = agg[key];
+    item.funnel = funnelByCampaign[key] || null;
+    return item;
+  }).sort((a,b)=>b.cost-a.cost);
 
   // группируем по аккаунту — имя аккаунта не повторяем на каждой кампании
   const groups = [];
@@ -1460,7 +1559,7 @@ function drawTable(rows, isEcom){
     seen[r.account].items.push(r);
   });
 
-  el('campList').innerHTML = groups.map(g => `
+  el('campList').innerHTML = groups.length ? groups.map(g => `
     <div class="task-group">
       ${groups.length > 1 ? `<div class="task-group-title">${esc(g.account)}</div>` : ''}
       ${g.items.map(r => `
@@ -1469,17 +1568,23 @@ function drawTable(rows, isEcom){
             <span class="camp-name" title="${esc(r.campaign)}">${esc(r.campaign)}</span>
             <span class="chan-tag ${r.platform==='Meta Ads'?'meta':'google'}">${r.platform==='Meta Ads'?'Meta':'Google'}</span>
           </div>
-          <div class="camp-metrics"${isEcom ? ' style="grid-template-columns:repeat(4,1fr)"' : ''}>
+          <div class="camp-metrics${isEcom && r.funnel ? ' ecom' : ''}">
             <div class="m"><span class="mlabel">Показы</span><span class="mval">${fmtN(r.impr)}</span></div>
             <div class="m"><span class="mlabel">Клики</span><span class="mval">${fmtN(r.clicks)}</span></div>
             <div class="m"><span class="mlabel">CTR</span><span class="mval">${r.impr?(r.clicks/r.impr*100).toFixed(2)+'%':'—'}</span></div>
             <div class="m"><span class="mlabel">Расход</span><span class="mval">${fmtM(r.cost)} ${sym(r.currency)}</span></div>
-            ${isEcom ? '' : `
+            ${isEcom && r.funnel ? `
+            <div class="m"><span class="mlabel">В корзину</span><span class="mval">${r.funnel?fmtM(r.funnel.addToCart):'—'}</span></div>
+            <div class="m"><span class="mlabel">Оформление</span><span class="mval">${r.funnel?fmtM(r.funnel.checkout):'—'}</span></div>
+            <div class="m"><span class="mlabel">Покупки</span><span class="mval">${r.funnel?fmtM(r.funnel.purchase):'—'}</span></div>
+            <div class="m"><span class="mlabel">Выручка</span><span class="mval">${r.funnel?fmtM(r.funnel.purchaseValue)+' '+sym(r.currency):'—'}</span></div>
+            <div class="m"><span class="mlabel">Цена покупки</span><span class="mval">${r.funnel&&r.funnel.purchase?fmtM(r.cost/r.funnel.purchase)+' '+sym(r.currency):'—'}</span></div>
+            <div class="m"><span class="mlabel">ROAS</span><span class="mval">${r.funnel&&r.cost?(r.funnel.purchaseValue/r.cost).toFixed(2)+'×':'—'}</span></div>` : isEcom ? '' : `
             <div class="m"><span class="mlabel">Конв.</span><span class="mval">${fmtM(r.conv)}</span></div>
             <div class="m"><span class="mlabel">CPA</span><span class="mval">${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}</span></div>`}
           </div>
         </div>`).join('')}
-    </div>`).join('');
+    </div>`).join('') : '<div class="state">Нет активных кампаний за последние 30 дней</div>';
 }
 
 function buildAccountSelect(){
