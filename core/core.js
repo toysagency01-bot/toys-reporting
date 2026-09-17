@@ -1522,7 +1522,10 @@ function drawTable(rows, isEcom, ecomCampaignRows){
   const agg = {};
   rows.forEach(r=>{
     const k = campaignKey_(r);
-    agg[k] = agg[k] || {account:r.account,campaign:r.campaign,currency:r.currency,platform:r.platform,impr:0,clicks:0,cost:0,conv:0};
+    agg[k] = agg[k] || {
+      account:r.account, accountId:r.accountId, campaign:r.campaign,
+      currency:r.currency, platform:r.platform, impr:0, clicks:0, cost:0, conv:0,
+    };
     agg[k].impr+=r.impr; agg[k].clicks+=r.clicks; agg[k].cost+=r.cost; agg[k].conv+=r.conv;
   });
 

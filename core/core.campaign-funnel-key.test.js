@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 function campaignFunnelAccountKey_(value){
   return String(value || '')
@@ -42,5 +44,8 @@ assert.notEqual(
   campaignFunnelKey_(traffic),
   campaignFunnelKey_({...funnel, campaign: 'TOYS / Sales / Graveyard'})
 );
+
+const coreSource = fs.readFileSync(path.join(__dirname, 'core.js'), 'utf8');
+assert.match(coreSource, /account\s*:\s*r\.account\s*,\s*accountId\s*:\s*r\.accountId/);
 
 console.log('PASS: ecommerce campaign keys reconcile legal suffixes and diacritics.');
