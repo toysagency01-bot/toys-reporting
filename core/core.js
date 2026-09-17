@@ -1541,6 +1541,7 @@ function drawTable(rows, isEcom, ecomCampaignRows){
   });
 
   const list = Object.keys(agg).filter(key=>{
+    if(!isEcom) return true;
     const item = agg[key];
     const reference = latestByScope[campaignScopeKey_(item)];
     const lastActive = lastActiveByCampaign[key];
