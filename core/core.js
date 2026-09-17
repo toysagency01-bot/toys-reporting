@@ -216,6 +216,16 @@ a:hover{opacity:.8}
 .ecom-channel:last-child{margin-bottom:0}
 .ecom-channel-title{font-size:13px;font-weight:700;color:var(--accent);
 margin-bottom:10px;letter-spacing:.02em}
+.chan-ecom-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.chan-ecom-card{background:var(--panel-2);border-radius:10px;padding:12px}
+.chan-ecom-title{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:9px}
+.chan-ecom-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}
+.chan-ecom-metric span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;
+letter-spacing:.04em;margin-bottom:2px}
+.chan-ecom-metric b{font-size:14px;font-variant-numeric:tabular-nums}
+.funnel-summary{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:14px;padding-top:12px;
+border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+.funnel-summary b{color:var(--text);font-size:12px}
 
 .wd-metric{margin-bottom:16px}
 .wd-metric:last-child{margin-bottom:0}
@@ -235,6 +245,7 @@ justify-content:flex-end;height:100%;position:relative}
 .wd-spend{background:var(--accent)}
 .wd-impr{background:#8f7bff}
 .wd-conv{background:#ffb454}
+.wd-purchase{background:#ff6b81}
 .wd-daylabel{font-size:10px;color:var(--muted);margin-top:4px}
 
 /* переключатель графика Объём/Эффективность */
@@ -333,7 +344,7 @@ ${HAS_PROJECT ? `
   </div>
   <div class="hidden" id="ecomTopCards"></div>
   <div class="panel hidden" id="ecomFunnelPanel">
-    <h2>Воронка e-commerce</h2>
+    <h2>Результат e-commerce по каналам</h2>
     <div id="ecomFunnelCards"></div>
   </div>
   <div class="panel hidden" id="insightsPanel">
@@ -342,15 +353,15 @@ ${HAS_PROJECT ? `
   </div>
   <div class="cards-row">
     <div class="panel">
-      <h2>Воронка</h2>
+      <h2 id="funnelTitle">Воронка</h2>
       <div id="funnel"></div>
     </div>
     <div class="panel">
-      <h2>По дням недели</h2>
+      <h2 id="weekdayTitle">По дням недели</h2>
       <div id="weekdayBreakdown"></div>
     </div>
     <div class="panel hidden" id="channelPanel">
-      <h2>Каналы</h2>
+      <h2 id="channelTitle">Каналы</h2>
       <div id="channelBreakdown"></div>
     </div>
   </div>
@@ -512,6 +523,13 @@ function loadEcomFunnel(){
 }
 
 function parseEcomFunnel(json){
+  const labels = ((json.table && json.table.cols) || []).map(c =>
+    String((c && c.label) || '').trim().toLowerCase());
+  // gviz при неверном имени вкладки иногда молча возвращает первый лист.
+  // Без проверки схемы обычный GoogleAds мог ошибочно включить e-commerce режим.
+  if(labels[0] !== 'date' || labels[1] !== 'platform' ||
+     labels[5] !== 'add_to_cart' || labels[7] !== 'checkout' ||
+     labels[9] !== 'purchase') return [];
   const rawRows = ((json.table && json.table.rows) || []);
   const out = [];
   rawRows.forEach(r => {
@@ -532,6 +550,12 @@ function parseEcomFunnel(json){
 }
 
 function parseFormats(json){
+  const labels = ((json.table && json.table.cols) || []).map(c =>
+    String((c && c.label) || '').trim().toLowerCase());
+  // Та же защита от gviz-fallback: не показываем выдуманные "форматы",
+  // если вкладки MetaAdsFormat в таблице на самом деле нет.
+  if(labels[0] !== 'date' || labels[1] !== 'client' ||
+     labels[2] !== 'format' || labels[3] !== 'currency') return [];
   const rawRows = ((json.table && json.table.rows) || []);
   const out = [];
   rawRows.forEach(r => {
@@ -862,20 +886,34 @@ function render(){
   // не бывает одновременно с этим режимом, поэтому вся строка mainCards
   // прячется целиком, а не карточка за карточкой.
   const isEcom = ECOM.length > 0;
+  const ecomRows = isEcom ? currentEcomRows(dates) : [];
   el('mainCards').classList.toggle('hidden', isEcom);
   el('ecomTopCards').classList.toggle('hidden', !isEcom);
   if(isEcom) renderEcomTopCards(rows);
+
+  el('funnelTitle').textContent = isEcom ? 'Воронка e-commerce' : 'Воронка';
+  el('weekdayTitle').textContent = isEcom ? 'E-commerce по дням недели' : 'По дням недели';
+  el('channelTitle').textContent = isEcom ? 'E-commerce по каналам' : 'Каналы';
 
   layoutCardsGrid();
   renderEcomFunnelPanel(rows);
 
   drawInsights();
-  renderFunnel(impr, clicks, conv);
-  renderWeekdays(rows);
-  renderChannels(rows, curs);
+  renderFunnel(impr, clicks, conv, ecomRows, isEcom);
+  renderWeekdays(rows, ecomRows, isEcom);
+  renderChannels(rows, curs, ecomRows, isEcom);
   renderFormatPanel();
-  drawChart(dates, rows, curs);
-  drawTable(rows);
+  drawChart(dates, rows, curs, ecomRows, isEcom);
+  drawTable(rows, isEcom);
+}
+
+// Один и тот же фильтр EcomFunnel используется во всех e-commerce блоках.
+// Так выбранный период и переключатель Google/Meta никогда не расходятся
+// между верхними карточками, воронкой, днями недели и графиком.
+function currentEcomRows(dates){
+  const set = new Set(dates);
+  return ECOM.filter(e => set.has(e.date)
+    && (platform==='__all' || e.platform===platform));
 }
 
 // вычисляет % изменения и рисует стрелку-бейдж рядом со значением карточки.
@@ -931,38 +969,65 @@ function previousPeriodDates(currentDates){
   return dates;
 }
 
-function renderFunnel(impr, clicks, conv){
-  const steps = [
-    {label:'Показы', value: impr},
-    {label:'Клики', value: clicks},
+function renderFunnel(impr, clicks, conv, ecomRows, isEcom){
+  const addToCart = (ecomRows || []).reduce((s,r)=>s+r.addToCart,0);
+  const checkout = (ecomRows || []).reduce((s,r)=>s+r.checkout,0);
+  const purchase = (ecomRows || []).reduce((s,r)=>s+r.purchase,0);
+  const steps = isEcom ? [
+    {label:'Показы', value: impr, whole:true},
+    {label:'Клики', value: clicks, whole:true},
+    {label:'Добавили в корзину', value: addToCart},
+    {label:'Начали оформление', value: checkout},
+    {label:'Покупки', value: purchase},
+  ] : [
+    {label:'Показы', value: impr, whole:true},
+    {label:'Клики', value: clicks, whole:true},
     {label:'Конверсии', value: conv},
   ];
   const max = steps[0].value || 1;
-  el('funnel').innerHTML = steps.map((s,i)=>{
-    const pct = max ? (s.value/max*100) : 0;
+  let html = steps.map((s,i)=>{
+    const pct = max ? Math.min(100, s.value/max*100) : 0;
     const rate = i>0 && steps[i-1].value ? (s.value/steps[i-1].value*100) : null;
     return `
       <div class="funnel-step">
         <div class="funnel-row">
           <div class="funnel-label">${s.label}</div>
-          <div class="funnel-value">${fmtN(s.value)}</div>
+          <div class="funnel-value">${s.whole ? fmtN(s.value) : fmtM(s.value)}</div>
         </div>
         <div class="funnel-bar-wrap"><div class="funnel-bar" style="width:${pct}%"></div></div>
         ${rate!=null ? `<div class="funnel-rate">${rate.toFixed(2)}% от предыдущего шага</div>` : ''}
       </div>`;
   }).join('');
+  if(isEcom){
+    const clickToPurchase = clicks ? purchase/clicks*100 : null;
+    const cartToPurchase = addToCart ? purchase/addToCart*100 : null;
+    html += `<div class="funnel-summary">
+      <span>Клик → покупка: <b>${clickToPurchase!=null ? clickToPurchase.toFixed(2)+'%' : '—'}</b></span>
+      <span>Корзина → покупка: <b>${cartToPurchase!=null ? cartToPurchase.toFixed(2)+'%' : '—'}</b></span>
+    </div>`;
+  }
+  el('funnel').innerHTML = html;
 }
 
-function renderWeekdays(rows){
+function renderWeekdays(rows, ecomRows, isEcom){
   // 0=Пн ... 6=Вс
-  const buckets = Array.from({length:7}, () => ({cost:0, impr:0, conv:0}));
+  const buckets = Array.from({length:7}, () => ({cost:0, impr:0, clicks:0, conv:0, addToCart:0, checkout:0, purchase:0}));
   rows.forEach(r=>{
     const p = r.date.split('-').map(Number);
     const utcDay = new Date(Date.UTC(p[0], p[1]-1, p[2])).getUTCDay(); // 0=Вс..6=Сб
     const idx = (utcDay + 6) % 7; // переводим в 0=Пн..6=Вс
     buckets[idx].cost += r.cost;
     buckets[idx].impr += r.impr;
+    buckets[idx].clicks += r.clicks;
     buckets[idx].conv += r.conv;
+  });
+  (ecomRows || []).forEach(r=>{
+    const p = r.date.split('-').map(Number);
+    const utcDay = new Date(Date.UTC(p[0], p[1]-1, p[2])).getUTCDay();
+    const idx = (utcDay + 6) % 7;
+    buckets[idx].addToCart += r.addToCart;
+    buckets[idx].checkout += r.checkout;
+    buckets[idx].purchase += r.purchase;
   });
   const labels = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 
@@ -980,10 +1045,14 @@ function renderWeekdays(rows){
     </div>`;
   }
 
-  el('weekdayBreakdown').innerHTML =
-    metricRow('cost', 'Расход', 'wd-spend') +
-    metricRow('impr', 'Показы', 'wd-impr') +
-    metricRow('conv', 'Лиды', 'wd-conv');
+  el('weekdayBreakdown').innerHTML = isEcom
+    ? metricRow('clicks', 'Клики', 'wd-impr') +
+      metricRow('addToCart', 'В корзину', 'wd-spend') +
+      metricRow('checkout', 'Оформление', 'wd-conv') +
+      metricRow('purchase', 'Покупки', 'wd-purchase')
+    : metricRow('cost', 'Расход', 'wd-spend') +
+      metricRow('impr', 'Показы', 'wd-impr') +
+      metricRow('conv', 'Лиды', 'wd-conv');
 }
 
 function renderFormatPanel(){
@@ -1010,7 +1079,18 @@ function renderFormatPanel(){
   if(!fmts.length){ panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
 
-  el('formatTable').innerHTML = `
+  const isEcom = ECOM.length > 0;
+  el('formatTable').innerHTML = isEcom ? `
+    <table class="fmt-table">
+      <thead><tr><th>Формат</th><th>Расход</th><th>Показы</th><th>Клики</th><th>CTR</th></tr></thead>
+      <tbody>${fmts.map(f=>{
+        const d = byFmt[f];
+        const curLabel = d.curs.size===1 ? [...d.curs][0] : '';
+        const curSuffix = curLabel ? ' '+sym(curLabel) : '';
+        const ctr = d.impr ? (d.clicks/d.impr*100).toFixed(2)+'%' : '—';
+        return `<tr><td>${esc(f)}</td><td>${fmtM(d.cost)}${curSuffix}</td><td>${fmtN(d.impr)}</td><td>${fmtN(d.clicks)}</td><td>${ctr}</td></tr>`;
+      }).join('')}</tbody>
+    </table>` : `
     <table class="fmt-table">
       <thead><tr><th>Формат</th><th>Расход</th><th>Показы</th><th>Конверсии</th><th>CPA</th></tr></thead>
       <tbody>${fmts.map(f=>{
@@ -1067,7 +1147,7 @@ function renderEcomFunnelPanel(rows){
     const price = count ? `${fmtM(cost/count)} ${curLabel}` : null;
     return `<div class="card">
       <div class="label">${esc(label)}</div>
-      <div class="value">${fmtN(count)}
+      <div class="value">${fmtM(count)}
         <small>${count ? (price ? 'цена: '+price : 'цена неизвестна') : 'нет данных'}</small>
       </div>
     </div>`;
@@ -1082,7 +1162,7 @@ function renderEcomFunnelPanel(rows){
       <div class="cards">
         ${stageCard('Добавили в корзину', d.addToCart, d.cost, curLabel)}
         ${stageCard('Начали оформление заказа', d.checkout, d.cost, curLabel)}
-        ${stageCard('Купили' + (d.purchaseValue ? ` · ${fmtM(d.purchaseValue)} ${curLabel}` : ''), d.purchase, d.cost, curLabel)}
+        ${stageCard('Покупки' + (d.purchaseValue ? ` · ${fmtM(d.purchaseValue)} ${curLabel}` : ''), d.purchase, d.cost, curLabel)}
         <div class="card">
           <div class="label">ROAS</div>
           <div class="value">${roas!=null ? roas.toFixed(2)+'×' : '—'}</div>
@@ -1133,11 +1213,49 @@ function renderEcomTopCards(rows){
   el('ecomTopCards').innerHTML = platforms.map(platformBlock).join('');
 }
 
-function renderChannels(rows, curs){
+function renderChannels(rows, curs, ecomRows, isEcom){
   const panel = el('channelPanel');
   const platforms = [...new Set(rows.map(r=>r.platform))];
   if(platforms.length < 2){ panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
+
+  if(isEcom){
+    const byPlatform = {};
+    platforms.forEach(name=>{ byPlatform[name] = {
+      addToCart:0, checkout:0, purchase:0, purchaseValue:0,
+      cost:0, currency:''
+    }; });
+    rows.forEach(r=>{
+      const p = byPlatform[r.platform];
+      if(!p) return;
+      p.cost += r.cost;
+      if(!p.currency && r.currency) p.currency = r.currency;
+    });
+    (ecomRows || []).forEach(r=>{
+      const p = byPlatform[r.platform];
+      if(!p) return;
+      p.addToCart += r.addToCart;
+      p.checkout += r.checkout;
+      p.purchase += r.purchase;
+      p.purchaseValue += r.purchaseValue;
+      if(!p.currency && r.currency) p.currency = r.currency;
+    });
+
+    el('channelBreakdown').innerHTML = `<div class="chan-ecom-grid">${platforms.sort().map(name=>{
+      const d = byPlatform[name];
+      const roas = d.cost ? d.purchaseValue/d.cost : null;
+      return `<div class="chan-ecom-card">
+        <div class="chan-ecom-title">${esc(name)}</div>
+        <div class="chan-ecom-metrics">
+          <div class="chan-ecom-metric"><span>В корзину</span><b>${fmtM(d.addToCart)}</b></div>
+          <div class="chan-ecom-metric"><span>Оформление</span><b>${fmtM(d.checkout)}</b></div>
+          <div class="chan-ecom-metric"><span>Покупки</span><b>${fmtM(d.purchase)}</b></div>
+          <div class="chan-ecom-metric"><span>ROAS</span><b>${roas!=null ? roas.toFixed(2)+'×' : '—'}</b></div>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+    return;
+  }
 
   const byPlat = {};
   rows.forEach(r=>{
@@ -1186,9 +1304,81 @@ function drawInsights(){
     </div>`).join('');
 }
 
-function drawChart(dates, rows, curs){
+function drawChart(dates, rows, curs, ecomRows, isEcom){
+  if(isEcom){
+    if(chartMode === 'efficiency') return drawEcomEfficiencyChart(dates, rows, ecomRows);
+    return drawEcomVolumeChart(dates, rows, ecomRows);
+  }
   if(chartMode === 'efficiency') return drawEfficiencyChart(dates, rows, curs);
   return drawVolumeChart(dates, rows, curs);
+}
+
+function drawEcomVolumeChart(dates, rows, ecomRows){
+  function ecomByDay(key){
+    return dates.map(d => ecomRows.filter(r=>r.date===d).reduce((s,r)=>s+r[key],0));
+  }
+  const clicksByDay = dates.map(d => rows.filter(r=>r.date===d).reduce((s,r)=>s+r.clicks,0));
+  const cfg = {
+    data:{ labels: dates.map(d=>d.slice(5)), datasets:[
+      {type:'line', label:'Клики', yAxisID:'y1', data:clicksByDay,
+       borderColor:'#87878f', backgroundColor:'transparent', tension:.3, pointRadius:2, borderWidth:2},
+      {type:'line', label:'В корзину', yAxisID:'y1', data:ecomByDay('addToCart'),
+       borderColor:'#25ddcc', backgroundColor:'transparent', tension:.3, pointRadius:2, borderWidth:2},
+      {type:'line', label:'Оформление', yAxisID:'y1', data:ecomByDay('checkout'),
+       borderColor:'#8f7bff', backgroundColor:'transparent', tension:.3, pointRadius:2, borderWidth:2},
+      {type:'bar', label:'Покупки', yAxisID:'y1', data:ecomByDay('purchase'),
+       backgroundColor:'rgba(255,180,84,.32)', borderColor:'#ffb454', borderWidth:1, borderRadius:4}
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#87878f',font:{family:'Golos Text',size:12},boxWidth:12}}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}},
+        y1:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}}
+      }}};
+  if(chart) chart.destroy();
+  chart = new Chart(el('chart'), cfg);
+}
+
+function drawEcomEfficiencyChart(dates, rows, ecomRows){
+  const palette = ['#25ddcc','#8f7bff','#ffb454','#ff6b81'];
+  const platforms = [...new Set(ecomRows.map(r=>r.platform))].sort();
+  const roasSets = platforms.map((name,i)=>(
+    {type:'line', label:'ROAS · '+name.replace(' Ads',''), yAxisID:'y1',
+      data:dates.map(d=>{
+        const cost = rows.filter(r=>r.date===d && r.platform===name).reduce((s,r)=>s+r.cost,0);
+        const value = ecomRows.filter(r=>r.date===d && r.platform===name).reduce((s,r)=>s+r.purchaseValue,0);
+        return cost ? +(value/cost).toFixed(2) : null;
+      }),
+      borderColor:palette[i] || '#aaa',backgroundColor:'transparent',
+      tension:.3,pointRadius:2,borderWidth:2,spanGaps:true}
+  ));
+  function rateByDay(fromKey){
+    return dates.map(d=>{
+      const dayRows = ecomRows.filter(r=>r.date===d);
+      const from = dayRows.reduce((s,r)=>s+r[fromKey],0);
+      const purchases = dayRows.reduce((s,r)=>s+r.purchase,0);
+      return from ? +(purchases/from*100).toFixed(2) : null;
+    });
+  }
+  const cfg = {
+    data:{ labels:dates.map(d=>d.slice(5)),datasets:[
+      {type:'bar',label:'Корзина → покупка, %',yAxisID:'y2',data:rateByDay('addToCart'),
+       backgroundColor:'rgba(255,255,255,.10)',borderRadius:4},
+      {type:'bar',label:'Оформление → покупка, %',yAxisID:'y2',data:rateByDay('checkout'),
+       backgroundColor:'rgba(255,180,84,.25)',borderRadius:4},
+      ...roasSets
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#87878f',font:{family:'Golos Text',size:12},boxWidth:12}}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}},
+        y1:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}},
+        y2:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#87878f',font:{family:'Golos Text',size:11},callback:v=>v+'%'}}
+      }}};
+  if(chart) chart.destroy();
+  chart = new Chart(el('chart'), cfg);
 }
 
 function drawVolumeChart(dates, rows, curs){
@@ -1253,7 +1443,7 @@ function drawEfficiencyChart(dates, rows, curs){
   chart = new Chart(el('chart'), cfg);
 }
 
-function drawTable(rows){
+function drawTable(rows, isEcom){
   const agg = {};
   rows.forEach(r=>{
     const k = r.account+'||'+r.campaign+'||'+r.currency+'||'+r.platform;
@@ -1279,13 +1469,14 @@ function drawTable(rows){
             <span class="camp-name" title="${esc(r.campaign)}">${esc(r.campaign)}</span>
             <span class="chan-tag ${r.platform==='Meta Ads'?'meta':'google'}">${r.platform==='Meta Ads'?'Meta':'Google'}</span>
           </div>
-          <div class="camp-metrics">
+          <div class="camp-metrics"${isEcom ? ' style="grid-template-columns:repeat(4,1fr)"' : ''}>
             <div class="m"><span class="mlabel">Показы</span><span class="mval">${fmtN(r.impr)}</span></div>
             <div class="m"><span class="mlabel">Клики</span><span class="mval">${fmtN(r.clicks)}</span></div>
             <div class="m"><span class="mlabel">CTR</span><span class="mval">${r.impr?(r.clicks/r.impr*100).toFixed(2)+'%':'—'}</span></div>
             <div class="m"><span class="mlabel">Расход</span><span class="mval">${fmtM(r.cost)} ${sym(r.currency)}</span></div>
+            ${isEcom ? '' : `
             <div class="m"><span class="mlabel">Конв.</span><span class="mval">${fmtM(r.conv)}</span></div>
-            <div class="m"><span class="mlabel">CPA</span><span class="mval">${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}</span></div>
+            <div class="m"><span class="mlabel">CPA</span><span class="mval">${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}</span></div>`}
           </div>
         </div>`).join('')}
     </div>`).join('');
