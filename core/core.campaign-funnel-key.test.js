@@ -10,7 +10,9 @@ function campaignFunnelAccountKey_(value){
 }
 
 function campaignFunnelKey_(r){
-  return [campaignFunnelAccountKey_(r.account), r.campaign, r.currency, r.platform]
+  const accountKey = String(r.accountId || '').trim().toLowerCase() ||
+    campaignFunnelAccountKey_(r.account);
+  return [accountKey, r.campaign, r.currency, r.platform]
     .map(v => String(v || '').trim().toLowerCase()).join('||');
 }
 
@@ -28,6 +30,14 @@ const funnel = {
 };
 
 assert.equal(campaignFunnelKey_(traffic), campaignFunnelKey_(funnel));
+assert.equal(
+  campaignFunnelKey_({...traffic, accountId: 'act_526953126968211'}),
+  campaignFunnelKey_({...funnel, accountId: 'act_526953126968211'})
+);
+assert.notEqual(
+  campaignFunnelKey_({...traffic, accountId: 'act_1'}),
+  campaignFunnelKey_({...funnel, accountId: 'act_2'})
+);
 assert.notEqual(
   campaignFunnelKey_(traffic),
   campaignFunnelKey_({...funnel, campaign: 'TOYS / Sales / Graveyard'})

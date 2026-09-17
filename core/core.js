@@ -1503,7 +1503,9 @@ function campaignFunnelAccountKey_(value){
     .trim();
 }
 function campaignFunnelKey_(r){
-  return [campaignFunnelAccountKey_(r.account), r.campaign, r.currency, r.platform]
+  const accountKey = String(r.accountId || '').trim().toLowerCase() ||
+    campaignFunnelAccountKey_(r.account);
+  return [accountKey, r.campaign, r.currency, r.platform]
     .map(v => String(v || '').trim().toLowerCase()).join('||');
 }
 function campaignScopeKey_(r){
