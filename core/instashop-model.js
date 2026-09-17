@@ -80,6 +80,39 @@
     }).filter(Boolean);
   }
 
+  function parseWeeklyComments(json){
+    const map = labelMap(json);
+    const required = ['period_start','period_end','summary','status'];
+    if(required.some(function(key){ return map[key] == null; })) return [];
+    const rows = json && json.table && json.table.rows || [];
+    return rows.map(function(row){
+      const c = row.c || [];
+      const periodStart = cellDate(c[map.period_start]);
+      const periodEnd = cellDate(c[map.period_end]);
+      if(!periodStart || !periodEnd) return null;
+      function text(key){ return map[key] == null ? '' : String(cellValue(c[map[key]]) || '').trim(); }
+      return {
+        id: text('id') || periodEnd,
+        periodStart: periodStart,
+        periodEnd: periodEnd,
+        summary: text('summary'),
+        wins: text('wins'),
+        issues: text('issues'),
+        changes: text('changes'),
+        nextSteps: text('next_steps'),
+        status: text('status').toLowerCase(),
+        createdAt: text('created_at'),
+        updatedAt: text('updated_at'),
+      };
+    }).filter(Boolean);
+  }
+
+  function publishedWeeklyComments(comments){
+    return (comments || []).filter(function(item){ return item.status === 'published'; }).sort(function(a,b){
+      return String(b.periodEnd).localeCompare(String(a.periodEnd));
+    });
+  }
+
   function isoRange(from, to){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) return [];
     const result = [];
@@ -178,6 +211,8 @@
   return {
     parseMeta: parseMeta,
     parseSales: parseSales,
+    parseWeeklyComments: parseWeeklyComments,
+    publishedWeeklyComments: publishedWeeklyComments,
     isoRange: isoRange,
     summarize: summarize,
     aggregateCampaigns: aggregateCampaigns,

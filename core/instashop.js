@@ -9,9 +9,11 @@ const money = value => `${fmt0(value)} ₴`;
 const pct = value => value == null ? '—' : `${(value * 100).toFixed(1)}%`;
 const ratio = value => value == null ? '—' : `${value.toFixed(2)}×`;
 const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const lines = value => esc(value).replace(/\n/g, '<br>');
 
 let META = [];
 let SALES = [];
+let COMMENTS = [];
 let period = 7;
 let chart = null;
 
@@ -23,11 +25,12 @@ document.head.insertAdjacentHTML('beforeend', `
 :root{--bg:#0a0a0a;--panel:#121215;--panel2:#18181c;--line:rgba(255,255,255,.08);--text:#f3f3f5;--muted:#888891;--accent:#25ddcc;--violet:#8f7bff;--amber:#ffb454;--red:#ff6b81;--radius:14px}
 *{box-sizing:border-box;margin:0;padding:0}html{background:var(--bg)}body{background:var(--bg);color:var(--text);font-family:'Golos Text',system-ui,sans-serif;min-height:100vh;padding:28px clamp(16px,4vw,48px) 64px}
 header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:22px}.brand{display:flex;align-items:center;gap:10px}.brand img{height:26px;width:auto}.sep{color:var(--muted)}.project{color:var(--muted);font-size:13px}.updated{margin-left:auto;color:var(--muted);font-size:12px}
-.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:22px}.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}.seg button{background:none;border:0;color:var(--muted);font:600 14px 'Golos Text';padding:10px 16px;cursor:pointer}.seg button.active{background:rgba(37,221,204,.12);color:var(--accent)}.range{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 6px}.range input{background:none;border:0;color:var(--text);color-scheme:dark;font:500 13px 'Golos Text';padding:6px 8px;min-width:108px}
+.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:22px}.seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}.seg button{background:none;border:0;color:var(--muted);font:600 14px 'Golos Text';padding:10px 16px;cursor:pointer}.seg button.active{background:rgba(37,221,204,.12);color:var(--accent)}.range{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 6px}.range input{background:none;border:0;color:var(--text);color-scheme:dark;font:500 13px 'Golos Text';padding:6px 8px;min-width:108px}.weekly-open{margin-left:auto;border:1px solid rgba(37,221,204,.45);background:rgba(37,221,204,.12);color:var(--accent);border-radius:10px;padding:10px 15px;font:600 13px 'Golos Text';cursor:pointer}.weekly-open:hover{background:rgba(37,221,204,.2)}
 .state{padding:60px 20px;text-align:center;color:var(--muted);line-height:1.7}.state b{color:var(--text)}.hidden{display:none!important}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin-bottom:22px}.card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius)}.card{padding:18px}.label{color:var(--muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:9px}.value{font-size:clamp(19px,2vw,27px);font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}.value small{display:block;color:var(--muted);font-size:11px;font-weight:500;margin-top:4px;white-space:normal}.panel{padding:20px;margin-bottom:22px}.panel h2{font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .funnel-step{margin-bottom:15px}.funnel-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}.funnel-name{font-size:13px;color:var(--muted)}.funnel-number{font-size:18px;font-weight:800}.bar-bg{height:9px;background:var(--panel2);border-radius:99px;overflow:hidden}.bar{height:100%;background:var(--accent);border-radius:99px;min-width:2px}.rate{font-size:11px;color:var(--muted);margin-top:4px}.split{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.mini{background:var(--panel2);border-radius:10px;padding:14px}.mini b{display:block;font-size:20px;margin-top:5px}.mini span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.chart-wrap{height:300px;position:relative}.note{color:var(--muted);font-size:12px;line-height:1.6;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
 .campaign{padding:14px 0;border-top:1px solid var(--line)}.campaign:first-child{border-top:0;padding-top:0}.campaign:last-child{padding-bottom:0}.campaign-head{display:flex;gap:8px;align-items:center;margin-bottom:10px}.campaign-name{font-size:14px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tag{margin-left:auto;color:var(--violet);background:rgba(143,123,255,.15);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:600}.campaign-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:10px 14px}.metric span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}.metric b{font-size:13px;font-variant-numeric:tabular-nums}.source-note{border-left:2px solid var(--accent);padding-left:14px;color:var(--muted);font-size:12px;line-height:1.6}
-@media(max-width:760px){body{padding:18px 14px 48px}.grid2{grid-template-columns:1fr}.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.card{padding:14px}.value{font-size:17px}.updated{width:100%;margin-left:0}.chart-wrap{height:260px}.campaign-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.weekly-list{display:grid;gap:12px}.weekly-card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:18px}.weekly-period{color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px}.weekly-summary{font-size:16px;font-weight:600;line-height:1.45;margin-bottom:14px}.weekly-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.weekly-field{border-top:1px solid var(--line);padding-top:10px;color:#d7d7dc;font-size:13px;line-height:1.55}.weekly-field b{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}.modal{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.78);display:grid;place-items:center;padding:20px}.modal-card{position:relative;width:min(760px,100%);height:min(800px,92vh);background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.55);display:flex;flex-direction:column}.modal-help{padding:12px 56px 12px 16px;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.45}.modal-help a{color:var(--accent);font-weight:600}.modal iframe{width:100%;flex:1;border:0;background:#0a0a0a}.modal-close{position:absolute;right:12px;top:10px;z-index:2;width:34px;height:34px;border:0;border-radius:50%;background:#24242a;color:#fff;font-size:22px;cursor:pointer}
+@media(max-width:760px){body{padding:18px 14px 48px}.grid2{grid-template-columns:1fr}.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.card{padding:14px}.value{font-size:17px}.updated{width:100%;margin-left:0}.chart-wrap{height:260px}.campaign-metrics,.weekly-fields{grid-template-columns:1fr}.weekly-open{width:100%;margin-left:0}.modal{padding:0}.modal-card{height:100vh;border-radius:0}}
 </style>`);
 
 document.body.innerHTML = `
@@ -35,16 +38,18 @@ document.body.innerHTML = `
 <div id="loading" class="state">Загружаю данные…</div>
 <div id="error" class="state hidden"><b>Не удалось загрузить данные.</b><br>Проверь доступ к отчётной таблице.</div>
 <div id="content" class="hidden">
-  <div class="controls"><div class="seg" id="periodSeg"><button data-days="1">Вчера</button><button data-days="7" class="active">7 дней</button><button data-days="30">30 дней</button><button data-days="max">Максимум</button></div><div class="range"><input id="from" type="date" aria-label="С"><span>–</span><input id="to" type="date" aria-label="По"></div></div>
+  <div class="controls"><div class="seg" id="periodSeg"><button data-days="1">Вчера</button><button data-days="7" class="active">7 дней</button><button data-days="30">30 дней</button><button data-days="max">Максимум</button></div><div class="range"><input id="from" type="date" aria-label="С"><span>–</span><input id="to" type="date" aria-label="По"></div><button id="openWeekly" class="weekly-open${C.weeklyFormUrl?'':' hidden'}">Добавить итог недели</button></div>
   <div class="cards" id="cards"></div>
   <div class="grid2">
     <div class="panel"><h2>Instashop-воронка</h2><div id="funnel"></div></div>
     <div class="panel"><h2>Качество обращений</h2><div id="quality"></div><div class="note">«Заявки» — квалифицированные обращения. «Ціна» — неквалифицированные обращения.</div></div>
   </div>
+  <div class="panel"><h2>Еженедельные итоги</h2><div id="weekly"></div></div>
   <div class="panel"><h2>Динамика по дням</h2><div class="chart-wrap"><canvas id="chart"></canvas></div></div>
   <div class="panel"><h2>Кампании Meta Ads</h2><div id="campaigns"></div><div class="note">Продажи и выручка приходят общей суммой за день и не распределяются по рекламным кампаниям. В строках кампаний показаны только рекламные метрики и атрибуция Meta.</div></div>
   <div class="panel"><h2>Методика</h2><div class="source-note">Расход Meta Ads переводится из USD в UAH по официальному курсу НБУ на каждую дату. ROAS = выручка Instagram Direct в UAH / расход Meta Ads в UAH.</div></div>
 </div>`;
+document.body.insertAdjacentHTML('beforeend', `<div id="weeklyModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Недельный итог"><div class="modal-card"><button id="closeWeekly" class="modal-close" aria-label="Закрыть">×</button><div class="modal-help">Форма доступна через корпоративный Google‑аккаунт. Если она не появилась ниже, <a id="weeklyExternal" target="_blank" rel="noopener">откройте её отдельно</a>.</div><iframe id="weeklyFrame" title="Форма недельного итога"></iframe></div></div>`);
 
 function gviz(sheet, ok, fail){
   const cb = '__instashopGviz' + Math.random().toString(36).slice(2);
@@ -65,10 +70,12 @@ function loadScript(src){
 Promise.all([
   new Promise((resolve,reject)=>gviz('MetaAds', json=>resolve(M.parseMeta(json)), reject)),
   new Promise((resolve,reject)=>gviz('InstashopSales', json=>resolve(M.parseSales(json)), reject)),
+  new Promise(resolve=>gviz('WeeklyComments', json=>resolve(M.parseWeeklyComments(json)), ()=>resolve([]))),
   loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js')
-]).then(([meta,sales])=>{
+]).then(([meta,sales,comments])=>{
   META = meta;
   SALES = sales;
+  COMMENTS = comments;
   if(!SALES.length) throw new Error('No sales data');
   bind();
   el('loading').classList.add('hidden');
@@ -99,6 +106,28 @@ function bind(){
       render();
     }
   }); });
+  el('openWeekly').addEventListener('click', openWeeklyForm);
+  el('closeWeekly').addEventListener('click', closeWeeklyForm);
+  el('weeklyModal').addEventListener('click', event=>{ if(event.target === el('weeklyModal')) closeWeeklyForm(); });
+  window.addEventListener('message', event=>{
+    if(!event.data || event.data.type !== 'weekly-comment-saved') return;
+    closeWeeklyForm();
+    gviz('WeeklyComments', json=>{ COMMENTS=M.parseWeeklyComments(json); renderWeekly(); }, ()=>{});
+  });
+}
+
+function openWeeklyForm(){
+  if(!C.weeklyFormUrl) return;
+  el('weeklyExternal').href = C.weeklyFormUrl;
+  el('weeklyFrame').src = C.weeklyFormUrl + (C.weeklyFormUrl.includes('?')?'&':'?') + 'ts=' + Date.now();
+  el('weeklyModal').classList.remove('hidden');
+  document.body.style.overflow='hidden';
+}
+
+function closeWeeklyForm(){
+  el('weeklyModal').classList.add('hidden');
+  el('weeklyFrame').src='about:blank';
+  document.body.style.overflow='';
 }
 
 function selectedDates(){
@@ -140,8 +169,17 @@ function render(){
 
   const unqualRate = s.direct ? s.unqualified/s.direct : null;
   el('quality').innerHTML = `<div class="split"><div class="mini"><span>Квалы</span><b>${fmt0(s.qualified)}</b></div><div class="mini"><span>Неквалы</span><b>${fmt0(s.unqualified)}</b></div><div class="mini"><span>Доля неквалов</span><b>${pct(unqualRate)}</b></div></div><div class="note">Direct → квал.: <b>${pct(s.directToQualified)}</b> · Квал. → продажа: <b>${pct(s.qualifiedToSale)}</b></div>`;
+  renderWeekly();
   drawChart(M.dailySeries(dates, meta, sales));
   drawCampaigns(meta, dates[dates.length-1]);
+}
+
+function renderWeekly(){
+  const comments = M.publishedWeeklyComments(COMMENTS);
+  el('weekly').innerHTML = comments.length ? `<div class="weekly-list">${comments.map(item=>{
+    const fields = [['Что сработало',item.wins],['Что не сработало',item.issues],['Что изменили',item.changes],['План на следующую неделю',item.nextSteps]].filter(row=>row[1]);
+    return `<article class="weekly-card"><div class="weekly-period">${esc(item.periodStart)} — ${esc(item.periodEnd)}</div><div class="weekly-summary">${lines(item.summary)}</div>${fields.length?`<div class="weekly-fields">${fields.map(row=>`<div class="weekly-field"><b>${esc(row[0])}</b>${lines(row[1])}</div>`).join('')}</div>`:''}</article>`;
+  }).join('')}</div>` : '<div class="state">Опубликованных недельных итогов пока нет</div>';
 }
 
 function drawChart(series){

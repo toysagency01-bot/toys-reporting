@@ -25,9 +25,20 @@ const sales = model.parseSales(gviz(
     ['2026-09-11',21,16,37,27,44931],
   ]
 ));
+const weekly = model.parseWeeklyComments(gviz(
+  ['id','period_start','period_end','summary','wins','issues','changes','next_steps','status','created_at','updated_at'],
+  [
+    ['2026-09-16','2026-09-10','2026-09-16','Неделя закрыта','Рост продаж','','Снизили бюджет','Тест оффера','published','',''],
+    ['2026-09-09','2026-09-03','2026-09-09','Черновик','','','','','draft','',''],
+  ]
+));
 
 assert.equal(meta.length, 3);
 assert.equal(sales.length, 2);
+assert.equal(weekly.length, 2);
+assert.equal(weekly[0].nextSteps, 'Тест оффера');
+assert.equal(model.publishedWeeklyComments(weekly).length, 1);
+assert.equal(model.publishedWeeklyComments(weekly)[0].periodEnd, '2026-09-16');
 assert.deepEqual(model.isoRange('2026-09-10','2026-09-12'), ['2026-09-10','2026-09-11','2026-09-12']);
 
 const summary = model.summarize(meta.slice(0,2), sales);
