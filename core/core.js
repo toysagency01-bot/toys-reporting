@@ -1548,7 +1548,15 @@ function drawTable(rows, isEcom, ecomCampaignRows){
     return !!(reference && lastActive && lastActive >= shiftIsoDays_(reference, -30));
   }).map(key=>{
     const item = agg[key];
-    item.funnel = funnelByCampaign[key] || null;
+    // Keep every ecommerce campaign on the same 10-column layout, even when
+    // the ad platform returned no funnel events for the selected period.
+    // Missing campaign rows mean zero events, not "unknown" data: the
+    // account-level exporter has already loaded successfully before this
+    // renderer is used.
+    item.funnel = funnelByCampaign[key] || {
+      addToCart:0, addToCartValue:0, checkout:0, checkoutValue:0,
+      purchase:0, purchaseValue:0,
+    };
     return item;
   }).sort((a,b)=>b.cost-a.cost);
 
@@ -1569,18 +1577,18 @@ function drawTable(rows, isEcom, ecomCampaignRows){
             <span class="camp-name" title="${esc(r.campaign)}">${esc(r.campaign)}</span>
             <span class="chan-tag ${r.platform==='Meta Ads'?'meta':'google'}">${r.platform==='Meta Ads'?'Meta':'Google'}</span>
           </div>
-          <div class="camp-metrics${isEcom && r.funnel ? ' ecom' : ''}">
+          <div class="camp-metrics${isEcom ? ' ecom' : ''}">
             <div class="m"><span class="mlabel">Показы</span><span class="mval">${fmtN(r.impr)}</span></div>
             <div class="m"><span class="mlabel">Клики</span><span class="mval">${fmtN(r.clicks)}</span></div>
             <div class="m"><span class="mlabel">CTR</span><span class="mval">${r.impr?(r.clicks/r.impr*100).toFixed(2)+'%':'—'}</span></div>
             <div class="m"><span class="mlabel">Расход</span><span class="mval">${fmtM(r.cost)} ${sym(r.currency)}</span></div>
-            ${isEcom && r.funnel ? `
-            <div class="m"><span class="mlabel">В корзину</span><span class="mval">${r.funnel?fmtM(r.funnel.addToCart):'—'}</span></div>
-            <div class="m"><span class="mlabel">Оформление</span><span class="mval">${r.funnel?fmtM(r.funnel.checkout):'—'}</span></div>
-            <div class="m"><span class="mlabel">Покупки</span><span class="mval">${r.funnel?fmtM(r.funnel.purchase):'—'}</span></div>
-            <div class="m"><span class="mlabel">Выручка</span><span class="mval">${r.funnel?fmtM(r.funnel.purchaseValue)+' '+sym(r.currency):'—'}</span></div>
-            <div class="m"><span class="mlabel">Цена покупки</span><span class="mval">${r.funnel&&r.funnel.purchase?fmtM(r.cost/r.funnel.purchase)+' '+sym(r.currency):'—'}</span></div>
-            <div class="m"><span class="mlabel">ROAS</span><span class="mval">${r.funnel&&r.cost?(r.funnel.purchaseValue/r.cost).toFixed(2)+'×':'—'}</span></div>` : isEcom ? '' : `
+            ${isEcom ? `
+            <div class="m"><span class="mlabel">В корзину</span><span class="mval">${fmtM(r.funnel.addToCart)}</span></div>
+            <div class="m"><span class="mlabel">Оформление</span><span class="mval">${fmtM(r.funnel.checkout)}</span></div>
+            <div class="m"><span class="mlabel">Покупки</span><span class="mval">${fmtM(r.funnel.purchase)}</span></div>
+            <div class="m"><span class="mlabel">Выручка</span><span class="mval">${fmtM(r.funnel.purchaseValue)} ${sym(r.currency)}</span></div>
+            <div class="m"><span class="mlabel">Цена покупки</span><span class="mval">${r.funnel.purchase?fmtM(r.cost/r.funnel.purchase)+' '+sym(r.currency):'—'}</span></div>
+            <div class="m"><span class="mlabel">ROAS</span><span class="mval">${r.cost?(r.funnel.purchaseValue/r.cost).toFixed(2)+'×':'—'}</span></div>` : `
             <div class="m"><span class="mlabel">Конв.</span><span class="mval">${fmtM(r.conv)}</span></div>
             <div class="m"><span class="mlabel">CPA</span><span class="mval">${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}</span></div>`}
           </div>
