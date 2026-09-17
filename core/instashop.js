@@ -8,6 +8,7 @@ const fmt1 = value => new Intl.NumberFormat('ru-RU', {maximumFractionDigits:1}).
 const money = value => `${fmt0(value)} ₴`;
 const pct = value => value == null ? '—' : `${(value * 100).toFixed(1)}%`;
 const ratio = value => value == null ? '—' : `${value.toFixed(2)}×`;
+const WEEKLY_ACCESS_SHA256 = '0d48224e8240072cada34bddc9d80271a707827876f069132aa95055f8c93d64';
 const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const lines = value => esc(value).replace(/\n/g, '<br>');
 
@@ -16,6 +17,8 @@ let SALES = [];
 let COMMENTS = [];
 let period = 7;
 let chart = null;
+let weeklySubmitPending = false;
+let weeklySubmitTimer = null;
 
 document.head.insertAdjacentHTML('beforeend', `
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,8 +32,8 @@ header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border-bottom:1px
 .state{padding:60px 20px;text-align:center;color:var(--muted);line-height:1.7}.state b{color:var(--text)}.hidden{display:none!important}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin-bottom:22px}.card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius)}.card{padding:18px}.label{color:var(--muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:9px}.value{font-size:clamp(19px,2vw,27px);font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}.value small{display:block;color:var(--muted);font-size:11px;font-weight:500;margin-top:4px;white-space:normal}.panel{padding:20px;margin-bottom:22px}.panel h2{font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:16px}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .funnel-step{margin-bottom:15px}.funnel-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}.funnel-name{font-size:13px;color:var(--muted)}.funnel-number{font-size:18px;font-weight:800}.bar-bg{height:9px;background:var(--panel2);border-radius:99px;overflow:hidden}.bar{height:100%;background:var(--accent);border-radius:99px;min-width:2px}.rate{font-size:11px;color:var(--muted);margin-top:4px}.split{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.mini{background:var(--panel2);border-radius:10px;padding:14px}.mini b{display:block;font-size:20px;margin-top:5px}.mini span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.chart-wrap{height:300px;position:relative}.note{color:var(--muted);font-size:12px;line-height:1.6;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
 .campaign{padding:14px 0;border-top:1px solid var(--line)}.campaign:first-child{border-top:0;padding-top:0}.campaign:last-child{padding-bottom:0}.campaign-head{display:flex;gap:8px;align-items:center;margin-bottom:10px}.campaign-name{font-size:14px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tag{margin-left:auto;color:var(--violet);background:rgba(143,123,255,.15);padding:3px 9px;border-radius:99px;font-size:11px;font-weight:600}.campaign-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:10px 14px}.metric span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}.metric b{font-size:13px;font-variant-numeric:tabular-nums}.source-note{border-left:2px solid var(--accent);padding-left:14px;color:var(--muted);font-size:12px;line-height:1.6}
-.weekly-list{display:grid;gap:12px}.weekly-card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:18px}.weekly-period{color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px}.weekly-summary{font-size:16px;font-weight:600;line-height:1.45;margin-bottom:14px}.weekly-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.weekly-field{border-top:1px solid var(--line);padding-top:10px;color:#d7d7dc;font-size:13px;line-height:1.55}.weekly-field b{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}.modal{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.78);display:grid;place-items:center;padding:20px}.modal-card{position:relative;width:min(760px,100%);height:min(800px,92vh);background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.55);display:flex;flex-direction:column}.modal-help{padding:12px 56px 12px 16px;border-bottom:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.45}.modal-help a{color:var(--accent);font-weight:600}.modal iframe{width:100%;flex:1;border:0;background:#0a0a0a}.modal-close{position:absolute;right:12px;top:10px;z-index:2;width:34px;height:34px;border:0;border-radius:50%;background:#24242a;color:#fff;font-size:22px;cursor:pointer}
-@media(max-width:760px){body{padding:18px 14px 48px}.grid2{grid-template-columns:1fr}.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.card{padding:14px}.value{font-size:17px}.updated{width:100%;margin-left:0}.chart-wrap{height:260px}.campaign-metrics,.weekly-fields{grid-template-columns:1fr}.weekly-open{width:100%;margin-left:0}.modal{padding:0}.modal-card{height:100vh;border-radius:0}}
+.weekly-list{display:grid;gap:12px}.weekly-card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:18px}.weekly-period{color:var(--accent);font-size:12px;font-weight:600;margin-bottom:8px}.weekly-summary{font-size:16px;font-weight:600;line-height:1.45;margin-bottom:14px}.weekly-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.weekly-field{border-top:1px solid var(--line);padding-top:10px;color:#d7d7dc;font-size:13px;line-height:1.55}.weekly-field b{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}.modal{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.78);display:grid;place-items:center;padding:20px}.modal-card{position:relative;width:min(760px,100%);height:min(800px,92vh);background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.55);display:flex;flex-direction:column}.modal-help{color:var(--muted);font-size:12px;line-height:1.45}.modal-close{position:absolute;right:12px;top:10px;z-index:2;width:34px;height:34px;border:0;border-radius:50%;background:#24242a;color:#fff;font-size:22px;cursor:pointer}.weekly-form{overflow:auto;padding:22px;display:grid;gap:14px}.weekly-form h3{font-size:20px;padding-right:44px}.weekly-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.weekly-form label{display:grid;gap:6px;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}.weekly-form input,.weekly-form textarea,.weekly-form select{width:100%;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);font:500 13px 'Golos Text';padding:11px 12px;outline:none;color-scheme:dark}.weekly-form input:focus,.weekly-form textarea:focus,.weekly-form select:focus{border-color:rgba(37,221,204,.65)}.weekly-form textarea{min-height:82px;resize:vertical;line-height:1.5}.weekly-form textarea.summary{min-height:112px}.weekly-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.weekly-save{border:0;border-radius:9px;background:var(--accent);color:#06110f;padding:11px 18px;font:800 13px 'Golos Text';cursor:pointer}.weekly-save:disabled{opacity:.55;cursor:wait}.weekly-status{color:var(--muted);font-size:12px}.weekly-status.error{color:var(--red)}.weekly-submit-frame{display:none}
+@media(max-width:760px){body{padding:18px 14px 48px}.grid2{grid-template-columns:1fr}.split{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.card{padding:14px}.value{font-size:17px}.updated{width:100%;margin-left:0}.chart-wrap{height:260px}.campaign-metrics,.weekly-fields{grid-template-columns:1fr}.weekly-open{width:100%;margin-left:0}.modal{padding:0}.modal-card{height:100vh;border-radius:0}.weekly-form-grid{grid-template-columns:1fr}.weekly-form{padding:18px}}
 </style>`);
 
 document.body.innerHTML = `
@@ -49,7 +52,7 @@ document.body.innerHTML = `
   <div class="panel"><h2>Кампании Meta Ads</h2><div id="campaigns"></div><div class="note">Продажи и выручка приходят общей суммой за день и не распределяются по рекламным кампаниям. В строках кампаний показаны только рекламные метрики и атрибуция Meta.</div></div>
   <div class="panel"><h2>Методика</h2><div class="source-note">Расход Meta Ads переводится из USD в UAH по официальному курсу НБУ на каждую дату. ROAS = выручка Instagram Direct в UAH / расход Meta Ads в UAH.</div></div>
 </div>`;
-document.body.insertAdjacentHTML('beforeend', `<div id="weeklyModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Недельный итог"><div class="modal-card"><button id="closeWeekly" class="modal-close" aria-label="Закрыть">×</button><div class="modal-help">Форма доступна через корпоративный Google‑аккаунт. Если она не появилась ниже, <a id="weeklyExternal" target="_blank" rel="noopener">откройте её отдельно</a>.</div><iframe id="weeklyFrame" title="Форма недельного итога"></iframe></div></div>`);
+document.body.insertAdjacentHTML('beforeend', `<div id="weeklyModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Недельный итог"><div class="modal-card"><button id="closeWeekly" class="modal-close" aria-label="Закрыть">×</button><form id="weeklyForm" class="weekly-form" method="post" target="weeklySubmitFrame"><h3>Недельный итог PROFKIT</h3><div class="modal-help">Одна запись на период. Повторное сохранение обновит существующий итог.</div><input type="hidden" name="mode" value="save"><label>Код доступа<input id="weeklyAccess" name="accessCode" type="password" autocomplete="current-password" required></label><div class="weekly-form-grid"><label>Начало периода<input id="weeklyStart" name="periodStart" type="date" required></label><label>Конец периода<input id="weeklyEnd" name="periodEnd" type="date" required></label></div><label>Общий итог<textarea id="weeklySummary" name="summary" class="summary" maxlength="5000" required></textarea></label><label>Что сработало<textarea id="weeklyWins" name="wins" maxlength="5000"></textarea></label><label>Что не сработало<textarea id="weeklyIssues" name="issues" maxlength="5000"></textarea></label><label>Какие изменения внесли<textarea id="weeklyChanges" name="changes" maxlength="5000"></textarea></label><label>План на следующую неделю<textarea id="weeklyNextSteps" name="nextSteps" maxlength="5000"></textarea></label><label>Статус<select id="weeklyStatusSelect" name="status"><option value="published">Опубликовано</option><option value="draft">Черновик</option></select></label><div class="weekly-actions"><button id="weeklySave" class="weekly-save" type="submit">Сохранить итог</button><div id="weeklyFormStatus" class="weekly-status" aria-live="polite"></div></div></form><iframe id="weeklySubmitFrame" class="weekly-submit-frame" name="weeklySubmitFrame" title="Результат сохранения"></iframe></div></div>`);
 
 function gviz(sheet, ok, fail){
   const cb = '__instashopGviz' + Math.random().toString(36).slice(2);
@@ -57,7 +60,7 @@ function gviz(sheet, ok, fail){
   const timer = setTimeout(doneFail, 12000);
   window[cb] = data => { cleanup(); data && data.status !== 'error' ? ok(data) : fail(); };
   script.onerror = doneFail;
-  script.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler%3A${cb}&headers=1&sheet=${encodeURIComponent(sheet)}`;
+  script.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler%3A${cb}&headers=1&sheet=${encodeURIComponent(sheet)}&cacheBust=${Date.now()}`;
   document.head.appendChild(script);
   function doneFail(){ cleanup(); fail(); }
   function cleanup(){ clearTimeout(timer); delete window[cb]; script.remove(); }
@@ -109,25 +112,127 @@ function bind(){
   el('openWeekly').addEventListener('click', openWeeklyForm);
   el('closeWeekly').addEventListener('click', closeWeeklyForm);
   el('weeklyModal').addEventListener('click', event=>{ if(event.target === el('weeklyModal')) closeWeeklyForm(); });
+  el('weeklyEnd').addEventListener('change', ()=>{
+    el('weeklyStart').value = shiftIso(el('weeklyEnd').value, -6);
+    fillWeeklyForm();
+  });
+  el('weeklyForm').addEventListener('submit', async event=>{
+    event.preventDefault();
+    el('weeklySave').disabled = true;
+    weeklySetStatus('Проверяю код…');
+    if(!(await weeklyAccessValid(el('weeklyAccess').value))){
+      el('weeklySave').disabled = false;
+      weeklySetStatus('Неверный код доступа', true);
+      return;
+    }
+    sessionStorage.setItem('profkitWeeklyAccess', el('weeklyAccess').value);
+    weeklySubmitPending = true;
+    weeklySetStatus('Сохраняю…');
+    clearTimeout(weeklySubmitTimer);
+    weeklySubmitTimer = setTimeout(()=>{
+      if(!weeklySubmitPending) return;
+      weeklySubmitPending = false;
+      el('weeklySave').disabled = false;
+      weeklySetStatus('Сервис долго не отвечает. Попробуйте ещё раз.', true);
+    }, 20000);
+    el('weeklyForm').submit();
+  });
+  el('weeklySubmitFrame').addEventListener('load', ()=>{
+    if(weeklySubmitPending) weeklySaveSucceeded();
+  });
   window.addEventListener('message', event=>{
-    if(!event.data || event.data.type !== 'weekly-comment-saved') return;
-    closeWeeklyForm();
-    gviz('WeeklyComments', json=>{ COMMENTS=M.parseWeeklyComments(json); renderWeekly(); }, ()=>{});
+    if(!weeklySubmitPending || !event.data) return;
+    if(event.data.type === 'weekly-comment-error'){
+      weeklySubmitPending = false;
+      el('weeklySave').disabled = false;
+      weeklySetStatus(event.data.message || 'Не удалось сохранить', true);
+      return;
+    }
+    if(event.data.type !== 'weekly-comment-saved') return;
+    weeklySaveSucceeded();
   });
 }
 
 function openWeeklyForm(){
   if(!C.weeklyFormUrl) return;
-  el('weeklyExternal').href = C.weeklyFormUrl;
-  el('weeklyFrame').src = C.weeklyFormUrl + (C.weeklyFormUrl.includes('?')?'&':'?') + 'ts=' + Date.now();
+  const end = el('to').value || allDates().slice(-1)[0] || '';
+  el('weeklyForm').action = C.weeklyFormUrl;
+  el('weeklyAccess').value = sessionStorage.getItem('profkitWeeklyAccess') || '';
+  el('weeklyEnd').value = end;
+  el('weeklyStart').value = shiftIso(end, -6);
+  fillWeeklyForm();
+  weeklySetStatus('');
   el('weeklyModal').classList.remove('hidden');
   document.body.style.overflow='hidden';
+  setTimeout(()=>el(el('weeklyAccess').value ? 'weeklySummary' : 'weeklyAccess').focus(), 0);
 }
 
 function closeWeeklyForm(){
+  if(weeklySubmitPending) return;
   el('weeklyModal').classList.add('hidden');
-  el('weeklyFrame').src='about:blank';
   document.body.style.overflow='';
+}
+
+function shiftIso(value, days){
+  const date = new Date(String(value || '') + 'T00:00:00Z');
+  if(!isFinite(date.getTime())) return '';
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0,10);
+}
+
+function weeklySetStatus(text, error){
+  el('weeklyFormStatus').textContent = text;
+  el('weeklyFormStatus').classList.toggle('error', !!error);
+}
+
+async function weeklyAccessValid(value){
+  if(!window.crypto || !window.crypto.subtle) return false;
+  const bytes = new TextEncoder().encode(String(value || '').trim().toUpperCase());
+  const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(byte=>byte.toString(16).padStart(2,'0')).join('') === WEEKLY_ACCESS_SHA256;
+}
+
+function weeklySaveSucceeded(){
+  clearTimeout(weeklySubmitTimer);
+  weeklySubmitPending = false;
+  el('weeklySave').disabled = false;
+  const record = weeklyFormRecord();
+  COMMENTS = COMMENTS.filter(item=>item.periodEnd !== record.periodEnd).concat(record);
+  renderWeekly();
+  closeWeeklyForm();
+  setTimeout(()=>gviz('WeeklyComments', json=>{ COMMENTS=M.parseWeeklyComments(json); renderWeekly(); }, ()=>{}), 800);
+}
+
+function fillWeeklyForm(){
+  const item = COMMENTS.find(row=>row.periodEnd === el('weeklyEnd').value);
+  if(item){
+    el('weeklyStart').value = item.periodStart;
+    el('weeklySummary').value = item.summary;
+    el('weeklyWins').value = item.wins;
+    el('weeklyIssues').value = item.issues;
+    el('weeklyChanges').value = item.changes;
+    el('weeklyNextSteps').value = item.nextSteps;
+    el('weeklyStatusSelect').value = item.status === 'draft' ? 'draft' : 'published';
+  }else{
+    ['weeklySummary','weeklyWins','weeklyIssues','weeklyChanges','weeklyNextSteps'].forEach(id=>{ el(id).value = ''; });
+    el('weeklyStatusSelect').value = 'published';
+  }
+}
+
+function weeklyFormRecord(){
+  return {
+    id: el('weeklyEnd').value,
+    periodStart: el('weeklyStart').value,
+    periodEnd: el('weeklyEnd').value,
+    summary: el('weeklySummary').value.trim(),
+    wins: el('weeklyWins').value.trim(),
+    issues: el('weeklyIssues').value.trim(),
+    changes: el('weeklyChanges').value.trim(),
+    nextSteps: el('weeklyNextSteps').value.trim(),
+    status: el('weeklyStatusSelect').value,
+    createdAt: '',
+    updatedAt: new Date().toISOString()
+  };
 }
 
 function selectedDates(){
