@@ -14,6 +14,8 @@ const SHEET_ID = C.sheetId;
 const LOCKED = !!C.locked;
 const SHOW_DRAFTS = !!C.showDrafts;
 const TITLE = C.title || 'reporting';
+const CONVERSION_LABEL = C.conversionLabel || 'Конверсии';
+const CONVERSION_SHORT_LABEL = C.conversionShortLabel || 'Конв.';
 
 /* ---------- styles + fonts ---------- */
 /* ---------- логотипы ----------
@@ -338,7 +340,7 @@ ${HAS_PROJECT ? `
     <div class="card"><div class="label">Показы</div><div class="value" id="kImpr">—</div></div>
     <div class="card"><div class="label">Клики</div><div class="value" id="kClicks">—</div></div>
     <div class="card"><div class="label">CTR</div><div class="value" id="kCtr">—</div></div>
-    <div class="card"><div class="label">Конверсии</div><div class="value" id="kConv">—</div></div>
+    <div class="card"><div class="label">${esc(CONVERSION_LABEL)}</div><div class="value" id="kConv">—</div></div>
     <div class="card"><div class="label">CPA</div><div class="value" id="kCpa">—</div></div>
     <div class="card hidden" id="kQualCard"><div class="label">Квал-лидов</div><div class="value" id="kQual">—</div></div>
     <div class="card hidden" id="kQualCpaCard"><div class="label">Цена квала</div><div class="value" id="kQualCpa">—</div></div>
@@ -1029,7 +1031,7 @@ function renderFunnel(impr, clicks, conv, ecomRows, isEcom){
   ] : [
     {label:'Показы', value: impr, whole:true},
     {label:'Клики', value: clicks, whole:true},
-    {label:'Конверсии', value: conv},
+    {label:CONVERSION_LABEL, value: conv},
   ];
   const max = steps[0].value || 1;
   let html = steps.map((s,i)=>{
@@ -1139,7 +1141,7 @@ function renderFormatPanel(){
       }).join('')}</tbody>
     </table>` : `
     <table class="fmt-table">
-      <thead><tr><th>Формат</th><th>Расход</th><th>Показы</th><th>Конверсии</th><th>CPA</th></tr></thead>
+      <thead><tr><th>Формат</th><th>Расход</th><th>Показы</th><th>${esc(CONVERSION_LABEL)}</th><th>CPA</th></tr></thead>
       <tbody>${fmts.map(f=>{
         const d = byFmt[f];
         const curLabel = d.curs.size===1 ? [...d.curs][0] : '';
@@ -1439,7 +1441,7 @@ function drawVolumeChart(dates, rows, curs){
   }));
   const cfg = {
     data:{ labels: dates.map(d=>d.slice(5)), datasets:[
-      {type:'bar', label:'Конверсии', yAxisID:'y2', data:convByDay,
+      {type:'bar', label:CONVERSION_LABEL, yAxisID:'y2', data:convByDay,
        backgroundColor:'rgba(255,255,255,.10)', borderRadius:4},
       ...spendSets ]},
     options:{ responsive:true, maintainAspectRatio:false,
@@ -1606,7 +1608,7 @@ function drawTable(rows, isEcom, ecomCampaignRows){
             <div class="m"><span class="mlabel">Выручка</span><span class="mval">${fmtM(r.funnel.purchaseValue)} ${sym(r.currency)}</span></div>
             <div class="m"><span class="mlabel">Цена покупки</span><span class="mval">${r.funnel.purchase?fmtM(r.cost/r.funnel.purchase)+' '+sym(r.currency):'—'}</span></div>
             <div class="m"><span class="mlabel">ROAS</span><span class="mval">${r.cost?(r.funnel.purchaseValue/r.cost).toFixed(2)+'×':'—'}</span></div>` : `
-            <div class="m"><span class="mlabel">Конв.</span><span class="mval">${fmtM(r.conv)}</span></div>
+            <div class="m"><span class="mlabel">${esc(CONVERSION_SHORT_LABEL)}</span><span class="mval">${fmtM(r.conv)}</span></div>
             <div class="m"><span class="mlabel">CPA</span><span class="mval">${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}</span></div>`}
           </div>
         </div>`).join('')}
@@ -1640,9 +1642,11 @@ const genericCache = {};
 // список планов-по-каналам — опционально задаётся в конфиге клиента:
 // projectPlanTabs: [{tab:'План работы (SMM)', label:'SMM'}, ...]
 // Если не задан — поведение точно как раньше: одна вкладка "План работ".
-const PLAN_TABS = (C.projectPlanTabs && C.projectPlanTabs.length)
-  ? C.projectPlanTabs
-  : [{ tab: PROJECT_TAB, label: 'План работ' }];
+const PLAN_TABS = C.projectPlanDisabled
+  ? []
+  : ((C.projectPlanTabs && C.projectPlanTabs.length)
+    ? C.projectPlanTabs
+    : [{ tab: PROJECT_TAB, label: 'План работ' }]);
 const planCache = {};
 
 function initProject(){
@@ -1655,13 +1659,17 @@ function initProject(){
     const nav = el('projectSubNav');
     nav.classList.remove('hidden');
     nav.innerHTML = PLAN_TABS.map((p,i)=>`<button data-sub="__plan${i}" class="${i===0?'active':''}">${esc(p.label)}</button>`).join('') +
-      EXTRA_TABS.map((t,i)=>`<button data-sub="${i}">${esc(t.label)}</button>`).join('');
+      EXTRA_TABS.map((t,i)=>`<button data-sub="${i}" class="${!PLAN_TABS.length && i===0?'active':''}">${esc(t.label)}</button>`).join('');
     nav.querySelectorAll('button').forEach(b=>{
       b.addEventListener('click',()=>{ activateProjectSub(b.dataset.sub); updateHash(); });
     });
   }
 
-  loadPlanTab(PLAN_TABS[0].tab);
+  if(PLAN_TABS.length){
+    loadPlanTab(PLAN_TABS[0].tab);
+  } else if(EXTRA_TABS.length){
+    activateProjectSub('0');
+  }
 
   // ссылка вида #project или #project/Название-раздела открывает сразу
   // нужную вкладку — без хэша ведёт себя как раньше (по умолчанию "Показатели")
@@ -1891,7 +1899,7 @@ function loadGenericTab(tabDef){
   // автоопределение Google как и раньше, их не трогаем
   gvizFrom(C.projectSheetId, tabDef.tab,
     j => { genericCache[tabDef.tab] = j; renderGenericByMode(tabDef, j); },
-    () => gShow('gError'), !tabDef.mode);
+    () => gShow('gError'), !!tabDef.raw || !tabDef.mode);
 }
 
 function renderGenericByMode(tabDef, json){
@@ -1918,14 +1926,18 @@ function rawRow(r){ return (r.c || []).map(rawCell); }
 
 function renderWeeklyReport(json, tabName){
   const rows = ((json.table && json.table.rows) || []).map(rawRow);
+  const dateRange = /^\s*\d{1,2}[./]\d{1,2}[./]\d{2,4}\s*[-–—]\s*\d{1,2}[./]\d{1,2}[./]\d{2,4}\s*$/;
 
   // ищем ВСЕ шапки таблиц по периодам. Разные отчёты бывают на уровне
-  // кампаний ("Campaign Name") или на уровне групп объявлений
-  // ("Ad Set Name") — ловим оба варианта, дальше нам всё равно нужен
-  // только текст заметок внутри блока, не сама таблица метрик.
+  // кампаний ("Campaign Name" / "Рекламная кампания") или на уровне групп
+  // объявлений ("Ad Set Name") — ловим все варианты, дальше нам всё равно
+  // нужен только текст заметок внутри блока, не сама таблица метрик.
   const headerIdxs = [];
   for(let i = 0; i < rows.length; i++){
-    if(rows[i].some(v => v.trim() === 'Campaign Name' || v.trim() === 'Ad Set Name')) headerIdxs.push(i);
+    if(rows[i].some(v => {
+      const t = v.trim().toLowerCase();
+      return t === 'campaign name' || t === 'ad set name' || t === 'рекламная кампания';
+    })) headerIdxs.push(i);
   }
   if(!headerIdxs.length){ gShow('gError'); return; }
 
@@ -1938,8 +1950,25 @@ function renderWeeklyReport(json, tabName){
     let title = 'Период';
     for(let back = start-1; back >= Math.max(0, start-4); back--){
       const nonEmpty = rows[back].map(v=>v.trim()).filter(Boolean);
-      if(nonEmpty.length === 1){ title = nonEmpty[0]; break; }
+      // Не принимаем длинную заметку предыдущего блока за заголовок
+      // следующего. Для сводок надёжный заголовок — диапазон дат; короткий
+      // одиночный текст оставляем как совместимый запасной вариант.
+      if(nonEmpty.length === 1 && (dateRange.test(nonEmpty[0]) || nonEmpty[0].length <= 40)){
+        title = nonEmpty[0];
+        break;
+      }
       if(nonEmpty.length > 1) break; // это уже не заголовок периода
+    }
+
+    // В некоторых клиентских сводках период стоит только в первой строке
+    // данных (обычно в колонке "Даты"), без отдельного заголовка над
+    // таблицей. Берём первый диапазон дат после шапки, если заголовок выше
+    // так и не нашёлся.
+    if(title === 'Период'){
+      for(let k = start+1; k < Math.min(end, start+6); k++){
+        const found = rows[k].map(v=>v.trim()).find(v => dateRange.test(v));
+        if(found){ title = found; break; }
+      }
     }
 
     // заметки — самый длинный текст внутри блока (реальный абзац всегда
