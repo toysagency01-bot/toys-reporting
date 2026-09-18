@@ -16,6 +16,11 @@ const SHOW_DRAFTS = !!C.showDrafts;
 const TITLE = C.title || 'reporting';
 const CONVERSION_LABEL = C.conversionLabel || 'Конверсии';
 const CONVERSION_SHORT_LABEL = C.conversionShortLabel || 'Конв.';
+// One shared Apps Script endpoint serves every dashboard. A client may still
+// override it in its config while a new deployment is being rolled out.
+const WEEKLY_FORM_URL = C.weeklyFormUrl || window.TOYS_WEEKLY_FORM_URL || 'https://script.google.com/macros/s/AKfycbyK9gtL224H-MTZZwHdb9cq_2-zQzPs4QyEh_XFxaspR_kYG59iNLTBN29plKUeltfpVQ/exec';
+const WEEKLY_PROJECT_KEY = C.weeklyProjectKey || location.pathname.split('/').filter(Boolean).pop() || '';
+const WEEKLY_ACCESS_SHA256 = C.weeklyAccessSha256 || '0d48224e8240072cada34bddc9d80271a707827876f069132aa95055f8c93d64';
 
 /* ---------- styles + fonts ---------- */
 /* ---------- логотипы ----------
@@ -263,6 +268,8 @@ flex-wrap:wrap;gap:10px;margin-bottom:16px}
 .cb-meta{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--muted);margin-bottom:6px}
 .cb-audience{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:6px}
 .cb-status{display:flex;flex-wrap:wrap;gap:6px}
+.weekly-open{margin-left:auto;border:1px solid rgba(37,221,204,.45);background:var(--accent-dim);color:var(--accent);border-radius:10px;padding:10px 15px;font:600 13px 'Golos Text';cursor:pointer}.weekly-open:hover{background:rgba(37,221,204,.2)}
+.weekly-list{display:grid;gap:8px}.weekly-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;overflow:hidden}.weekly-card[open]{background:#1a1a1f}.weekly-card summary{list-style:none;cursor:pointer;padding:15px 18px;display:grid;grid-template-columns:160px minmax(0,1fr) 24px;align-items:center;gap:14px}.weekly-card summary::-webkit-details-marker{display:none}.weekly-card summary::after{content:'+';display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#24242a;color:var(--accent);font-size:18px;line-height:1}.weekly-card[open] summary::after{content:'−'}.weekly-period{color:var(--accent);font-size:12px;font-weight:600}.weekly-preview{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d7d7dc;font-size:13px}.weekly-card[open] .weekly-preview{display:none}.weekly-card[open] summary{grid-template-columns:minmax(0,1fr) 24px}.weekly-body{padding:0 18px 18px}.weekly-summary{border-top:1px solid var(--line);padding-top:14px;font-size:16px;font-weight:600;line-height:1.45;margin-bottom:14px}.weekly-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.weekly-field{border-top:1px solid var(--line);padding-top:10px;color:#d7d7dc;font-size:13px;line-height:1.55}.weekly-field b{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}.weekly-form-modal{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.78);display:grid;place-items:center;padding:20px}.weekly-modal-card{position:relative;width:min(760px,100%);height:min(800px,92vh);background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.55);display:flex;flex-direction:column}.weekly-modal-close{position:absolute;right:12px;top:10px;z-index:2;width:34px;height:34px;border:0;border-radius:50%;background:#24242a;color:#fff;font-size:22px;cursor:pointer}.weekly-form{overflow:auto;padding:22px;display:grid;gap:14px}.weekly-form h3{font-size:20px;padding-right:44px}.weekly-form-help{color:var(--muted);font-size:12px;line-height:1.45}.weekly-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.weekly-form label{display:grid;gap:6px;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}.weekly-form input,.weekly-form textarea,.weekly-form select{width:100%;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);color:var(--text);font:500 13px 'Golos Text';padding:11px 12px;outline:none;color-scheme:dark}.weekly-form input:focus,.weekly-form textarea:focus,.weekly-form select:focus{border-color:rgba(37,221,204,.65)}.weekly-form textarea{min-height:82px;resize:vertical;line-height:1.5}.weekly-form textarea.summary{min-height:112px}.weekly-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.weekly-save{border:0;border-radius:9px;background:var(--accent);color:#06110f;padding:11px 18px;font:800 13px 'Golos Text';cursor:pointer}.weekly-save:disabled{opacity:.55;cursor:wait}.weekly-status{color:var(--muted);font-size:12px}.weekly-status.error{color:#ff6b81}.weekly-submit-frame{display:none}
 @media (max-width: 640px){
   .cards{grid-template-columns:repeat(2,1fr);gap:8px}
   .card{padding:14px 14px 12px}
@@ -283,6 +290,7 @@ flex-wrap:wrap;gap:10px;margin-bottom:16px}
 @media (prefers-reduced-motion:no-preference){
 .card,.panel{animation:rise .35s ease both}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}}
+@media(max-width:760px){.weekly-open{width:100%;margin-left:0}.weekly-fields{grid-template-columns:1fr}.weekly-card summary{grid-template-columns:minmax(0,1fr) 24px}.weekly-preview{grid-column:1 / -1;grid-row:2}.weekly-card[open] summary{grid-template-columns:minmax(0,1fr) 24px}.weekly-form-modal{padding:0}.weekly-modal-card{height:100vh;border-radius:0}.weekly-form-grid{grid-template-columns:1fr}.weekly-form{padding:18px}}
 </style>`);
 
 /* ---------- markup ---------- */
@@ -328,6 +336,7 @@ ${HAS_PROJECT ? `
     <span class="dr-sep">–</span>
     <input type="date" id="dateTo" aria-label="По">
   </div>
+  <button id="openWeekly" class="weekly-open${WEEKLY_FORM_URL && WEEKLY_PROJECT_KEY ? '' : ' hidden'}">Добавить итог недели</button>
 </div>
 <div class="state" id="loading">Загружаю данные…</div>
 <div class="state hidden" id="errorState"><b>Не удалось загрузить данные.</b><br>
@@ -353,6 +362,10 @@ ${HAS_PROJECT ? `
   <div class="panel hidden" id="insightsPanel">
     <h2>Выводы и план</h2>
     <div id="insightsList"></div>
+  </div>
+  <div class="panel${WEEKLY_FORM_URL && WEEKLY_PROJECT_KEY ? '' : ' hidden'}" id="weeklyPanel">
+    <h2>Еженедельные итоги</h2>
+    <div id="weeklyList"></div>
   </div>
   <div class="cards-row">
     <div class="panel">
@@ -387,6 +400,26 @@ ${HAS_PROJECT ? `
     <div id="campList"></div>
   </div>
 </div>
+</div>
+<div id="weeklyModal" class="weekly-form-modal hidden" role="dialog" aria-modal="true" aria-label="Недельный итог">
+  <div class="weekly-modal-card">
+    <button id="closeWeekly" class="weekly-modal-close" aria-label="Закрыть">×</button>
+    <form id="weeklyForm" class="weekly-form" method="post" target="weeklySubmitFrame">
+      <h3>Недельный итог ${esc(TITLE)}</h3>
+      <div class="weekly-form-help">Одна запись на период. Повторное сохранение обновит существующий итог.</div>
+      <input type="hidden" name="project" value="${esc(WEEKLY_PROJECT_KEY)}">
+      <label>Код доступа<input id="weeklyAccess" name="accessCode" type="password" autocomplete="current-password" required></label>
+      <div class="weekly-form-grid"><label>Начало периода<input id="weeklyStart" name="periodStart" type="date" required></label><label>Конец периода<input id="weeklyEnd" name="periodEnd" type="date" required></label></div>
+      <label>Общий итог<textarea id="weeklySummary" name="summary" class="summary" maxlength="5000" required></textarea></label>
+      <label>Что сработало<textarea id="weeklyWins" name="wins" maxlength="5000"></textarea></label>
+      <label>Что не сработало<textarea id="weeklyIssues" name="issues" maxlength="5000"></textarea></label>
+      <label>Какие изменения внесли<textarea id="weeklyChanges" name="changes" maxlength="5000"></textarea></label>
+      <label>План на следующую неделю<textarea id="weeklyNextSteps" name="nextSteps" maxlength="5000"></textarea></label>
+      <label>Статус<select id="weeklyStatusSelect" name="status"><option value="published">Опубликовано</option><option value="draft">Черновик</option></select></label>
+      <div class="weekly-actions"><button id="weeklySave" class="weekly-save" type="submit">Сохранить итог</button><div id="weeklyFormStatus" class="weekly-status" aria-live="polite"></div></div>
+    </form>
+    <iframe id="weeklySubmitFrame" class="weekly-submit-frame" name="weeklySubmitFrame" title="Результат сохранения"></iframe>
+  </div>
 </div>
 ${HAS_PROJECT ? `
 <div id="projectView" class="hidden">
@@ -463,8 +496,9 @@ const sym = c => CUR[c] || (c ? c+' ' : '');
 const fmtN = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(n);
 const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}).format(n);
 
-let DATA = [], INSIGHTS = [], QUALIFIED = [];
+let DATA = [], INSIGHTS = [], QUALIFIED = [], WEEKLY_COMMENTS = [];
 let period = 7, account = '__all', platform = '__all', chart = null, chartMode = 'volume';
+let weeklySubmitPending = false, weeklySubmitTimer = null;
 
 /* ---------- boot: Chart.js -> данные (оба канала) -> insights -> квал-лиды (опционально) ---------- */
 loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
@@ -525,7 +559,6 @@ function loadEcomFunnel(){
   gviz('EcomFunnel', j => { ECOM = parseEcomFunnel(j); loadEcomCampaignFunnel(); },
        () => { ECOM = []; ECOM_CAMPAIGNS = []; start(); });
 }
-
 /* Детализация воронки по рекламной кампании хранится отдельно от агрегата
    EcomFunnel. Так старые выгрузки продолжают работать, а сумма по каналу не
    удваивается при добавлении campaign-level строк. Вкладка опциональна. */
@@ -635,6 +668,113 @@ function parseQualified(json){
   return out;
 }
 
+/* ---------- недельные итоги ---------- */
+function parseWeeklyComments(json){
+  const cols = ((json && json.table && json.table.cols) || []).map(c =>
+    String((c && c.label) || '').trim().toLowerCase());
+  const expected = ['id','period_start','period_end','summary','wins','issues','changes','next_steps','status'];
+  if(expected.some((name, i) => cols[i] !== name)) return [];
+  return ((json.table && json.table.rows) || []).map(r => (r.c || []).map(c => {
+    if(!c) return '';
+    if(c.f != null) return String(c.f);
+    return c.v == null ? '' : String(c.v);
+  })).filter(row => /^\d{4}-\d{2}-\d{2}$/.test(row[2] || '')).map(row => ({
+    id: row[0] || row[2], periodStart: row[1] || '', periodEnd: row[2] || '',
+    summary: row[3] || '', wins: row[4] || '', issues: row[5] || '',
+    changes: row[6] || '', nextSteps: row[7] || '', status: (row[8] || 'draft').toLowerCase(),
+  })).filter(row => row.status === 'published').sort((a,b) => b.periodEnd.localeCompare(a.periodEnd));
+}
+function weeklyLines(value){ return esc(value).replace(/\n/g, '<br>'); }
+function renderWeeklyComments(){
+  const panel = el('weeklyPanel'), list = el('weeklyList');
+  if(!panel || !list || !WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY) return;
+  panel.classList.remove('hidden');
+  list.innerHTML = WEEKLY_COMMENTS.length ? `<div class="weekly-list">${WEEKLY_COMMENTS.map((item,index)=>{
+    const fields = [['Что сработало',item.wins],['Что не сработало',item.issues],['Что изменили',item.changes],['План на следующую неделю',item.nextSteps]].filter(row=>row[1]);
+    return `<details class="weekly-card" name="weekly-summary"${index===0?' open':''}><summary><span class="weekly-period">${esc(item.periodStart)} — ${esc(item.periodEnd)}</span><span class="weekly-preview">${esc(item.summary)}</span></summary><div class="weekly-body"><div class="weekly-summary">${weeklyLines(item.summary)}</div>${fields.length?`<div class="weekly-fields">${fields.map(row=>`<div class="weekly-field"><b>${esc(row[0])}</b>${weeklyLines(row[1])}</div>`).join('')}</div>`:''}</div></details>`;
+  }).join('')}</div>` : '<div class="state">Опубликованных недельных итогов пока нет</div>';
+}
+function loadWeeklyComments(){
+  if(!WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY){ renderWeeklyComments(); return; }
+  const storageId = C.weeklyStorageSheetId || SHEET_ID || C.projectSheetId;
+  if(!storageId){ renderWeeklyComments(); return; }
+  gvizFrom(storageId, C.weeklyCommentsSheet || 'WeeklyComments',
+    json => { WEEKLY_COMMENTS = parseWeeklyComments(json); renderWeeklyComments(); },
+    () => { WEEKLY_COMMENTS = []; renderWeeklyComments(); });
+}
+function shiftWeeklyDate(value, days){
+  const date = new Date(String(value || '') + 'T00:00:00Z');
+  if(!isFinite(date.getTime())) return '';
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0,10);
+}
+async function weeklyAccessValid(value){
+  if(!window.crypto || !window.crypto.subtle) return false;
+  const bytes = new TextEncoder().encode(String(value || '').trim().toUpperCase());
+  const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(byte=>byte.toString(16).padStart(2,'0')).join('') === WEEKLY_ACCESS_SHA256;
+}
+function weeklySetStatus(text, error){
+  const node = el('weeklyFormStatus');
+  if(!node) return;
+  node.textContent = text || ''; node.classList.toggle('error', !!error);
+}
+function fillWeeklyForm(){
+  const item = WEEKLY_COMMENTS.find(row => row.periodEnd === el('weeklyEnd').value);
+  if(item){
+    el('weeklyStart').value=item.periodStart; el('weeklySummary').value=item.summary; el('weeklyWins').value=item.wins;
+    el('weeklyIssues').value=item.issues; el('weeklyChanges').value=item.changes; el('weeklyNextSteps').value=item.nextSteps;
+    el('weeklyStatusSelect').value='published';
+  }else{
+    ['weeklySummary','weeklyWins','weeklyIssues','weeklyChanges','weeklyNextSteps'].forEach(id=>{ el(id).value=''; });
+    el('weeklyStatusSelect').value='published';
+  }
+}
+function openWeeklyForm(){
+  if(!WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY) return;
+  const modal=el('weeklyModal'), end=el('dateTo').value || periodDates().slice(-1)[0] || '';
+  el('weeklyForm').action = WEEKLY_FORM_URL;
+  el('weeklyAccess').value = sessionStorage.getItem('toysWeeklyAccess') || '';
+  el('weeklyEnd').value=end; el('weeklyStart').value=shiftWeeklyDate(end,-6); fillWeeklyForm(); weeklySetStatus('');
+  modal.classList.remove('hidden'); document.body.style.overflow='hidden';
+  setTimeout(()=>el(el('weeklyAccess').value ? 'weeklySummary' : 'weeklyAccess').focus(),0);
+}
+function closeWeeklyForm(){
+  if(weeklySubmitPending) return;
+  el('weeklyModal').classList.add('hidden'); document.body.style.overflow='';
+}
+function weeklyFormRecord(){
+  return {id:el('weeklyEnd').value,periodStart:el('weeklyStart').value,periodEnd:el('weeklyEnd').value,
+    summary:el('weeklySummary').value.trim(),wins:el('weeklyWins').value.trim(),issues:el('weeklyIssues').value.trim(),
+    changes:el('weeklyChanges').value.trim(),nextSteps:el('weeklyNextSteps').value.trim(),status:el('weeklyStatusSelect').value};
+}
+function weeklySaveSucceeded(){
+  clearTimeout(weeklySubmitTimer); weeklySubmitPending=false; el('weeklySave').disabled=false;
+  const record=weeklyFormRecord(); WEEKLY_COMMENTS=WEEKLY_COMMENTS.filter(item=>item.periodEnd!==record.periodEnd).concat(record)
+    .filter(item=>item.status==='published').sort((a,b)=>b.periodEnd.localeCompare(a.periodEnd));
+  renderWeeklyComments(); closeWeeklyForm();
+  setTimeout(loadWeeklyComments,800);
+}
+function bindWeeklyComments(){
+  if(!WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY) return;
+  el('openWeekly').addEventListener('click',openWeeklyForm); el('closeWeekly').addEventListener('click',closeWeeklyForm);
+  el('weeklyModal').addEventListener('click',event=>{ if(event.target===el('weeklyModal')) closeWeeklyForm(); });
+  el('weeklyEnd').addEventListener('change',()=>{ el('weeklyStart').value=shiftWeeklyDate(el('weeklyEnd').value,-6); fillWeeklyForm(); });
+  el('weeklyForm').addEventListener('submit',async event=>{
+    event.preventDefault(); el('weeklySave').disabled=true; weeklySetStatus('Проверяю код…');
+    if(!(await weeklyAccessValid(el('weeklyAccess').value))){ el('weeklySave').disabled=false; weeklySetStatus('Неверный код доступа',true); return; }
+    sessionStorage.setItem('toysWeeklyAccess',el('weeklyAccess').value); weeklySubmitPending=true; weeklySetStatus('Сохраняю…');
+    clearTimeout(weeklySubmitTimer); weeklySubmitTimer=setTimeout(()=>{ if(!weeklySubmitPending)return; weeklySubmitPending=false; el('weeklySave').disabled=false; weeklySetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true); },20000);
+    el('weeklyForm').submit();
+  });
+  el('weeklySubmitFrame').addEventListener('load',()=>{ if(weeklySubmitPending) weeklySaveSucceeded(); });
+  window.addEventListener('message',event=>{
+    if(!weeklySubmitPending || !event.data) return;
+    if(event.data.type==='weekly-comment-error'){ weeklySubmitPending=false; el('weeklySave').disabled=false; weeklySetStatus(event.data.message||'Не удалось сохранить',true); return; }
+    if(event.data.type==='weekly-comment-saved') weeklySaveSucceeded();
+  });
+}
+
 function start(){
   if(!LOCKED) buildAccountSelect();
   document.getElementById('controls').classList.remove('hidden');
@@ -707,6 +847,8 @@ function start(){
   if(sel) sel.addEventListener('change', e=>{ account = e.target.value; render(); });
   const last = DATA.reduce((m,r)=> r.date>m? r.date:m, '');
   document.getElementById('updated').textContent = last ? ('данные по ' + last) : 'реклама ещё не подключена';
+  bindWeeklyComments();
+  loadWeeklyComments();
   render();
 
   if(HAS_CHANNELS) initChannels();
