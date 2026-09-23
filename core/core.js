@@ -164,6 +164,7 @@ border-top:1px solid var(--line)}
 .camp-metrics .mlabel{display:block;color:var(--muted);font-size:10px;letter-spacing:.04em;
 text-transform:uppercase;margin-bottom:1px}
 .camp-metrics .mval{font-size:13px;font-variant-numeric:tabular-nums;font-weight:600}
+.camp-metrics .delta{font-size:10px;margin-left:4px}
 .wk-block{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
 .wk-block:first-child{margin-top:0;padding-top:0;border-top:none}
 .wk-title{font-size:14px;font-weight:700;color:var(--accent);margin-bottom:10px}
@@ -1089,7 +1090,13 @@ function render(){
   renderChannels(rows, curs, ecomRows, isEcom);
   renderFormatPanel();
   drawChart(dates, rows, curs, ecomRows, isEcom);
-  drawTable(rows, isEcom, isEcom ? currentEcomCampaignRows(dates) : []);
+  drawTable(
+    rows,
+    isEcom,
+    isEcom ? currentEcomCampaignRows(dates) : [],
+    prevRows,
+    isEcom ? currentEcomCampaignRows(prevDates) : []
+  );
 }
 
 // Один и тот же фильтр EcomFunnel используется во всех e-commerce блоках.
@@ -1663,9 +1670,9 @@ function shiftIsoDays_(date, days){
   return d.toISOString().slice(0,10);
 }
 
-function drawTable(rows, isEcom, ecomCampaignRows){
+function aggregateCampaignRows_(rows){
   const agg = {};
-  rows.forEach(r=>{
+  (rows || []).forEach(r=>{
     const k = campaignKey_(r);
     agg[k] = agg[k] || {
       account:r.account, accountId:r.accountId, campaign:r.campaign,
@@ -1673,6 +1680,38 @@ function drawTable(rows, isEcom, ecomCampaignRows){
     };
     agg[k].impr+=r.impr; agg[k].clicks+=r.clicks; agg[k].cost+=r.cost; agg[k].conv+=r.conv;
   });
+  return agg;
+}
+
+function aggregateCampaignFunnelRows_(rows){
+  const agg = {};
+  (rows || []).forEach(e=>{
+    const key = campaignFunnelKey_(e);
+    const f = agg[key] || (agg[key] = {
+      addToCart:0, addToCartValue:0, checkout:0, checkoutValue:0,
+      purchase:0, purchaseValue:0,
+    });
+    f.addToCart += e.addToCart; f.addToCartValue += e.addToCartValue;
+    f.checkout += e.checkout; f.checkoutValue += e.checkoutValue;
+    f.purchase += e.purchase; f.purchaseValue += e.purchaseValue;
+  });
+  return agg;
+}
+
+function emptyCampaignTotals_(){
+  return {impr:0, clicks:0, cost:0, conv:0};
+}
+
+function emptyCampaignFunnel_(){
+  return {
+    addToCart:0, addToCartValue:0, checkout:0, checkoutValue:0,
+    purchase:0, purchaseValue:0,
+  };
+}
+
+function drawTable(rows, isEcom, ecomCampaignRows, previousRows, previousEcomCampaignRows){
+  const agg = aggregateCampaignRows_(rows);
+  const previousAgg = aggregateCampaignRows_(previousRows);
 
   // Кампания считается активной, если у неё были показы, клики, расход или
   // конверсии за последние 30 дней относительно свежей даты её аккаунта и
@@ -1690,17 +1729,8 @@ function drawTable(rows, isEcom, ecomCampaignRows){
     }
   });
 
-  const funnelByCampaign = {};
-  (ecomCampaignRows || []).forEach(e=>{
-    const key = campaignFunnelKey_(e);
-    const f = funnelByCampaign[key] || (funnelByCampaign[key] = {
-      addToCart:0, addToCartValue:0, checkout:0, checkoutValue:0,
-      purchase:0, purchaseValue:0,
-    });
-    f.addToCart += e.addToCart; f.addToCartValue += e.addToCartValue;
-    f.checkout += e.checkout; f.checkoutValue += e.checkoutValue;
-    f.purchase += e.purchase; f.purchaseValue += e.purchaseValue;
-  });
+  const funnelByCampaign = aggregateCampaignFunnelRows_(ecomCampaignRows);
+  const previousFunnelByCampaign = aggregateCampaignFunnelRows_(previousEcomCampaignRows);
 
   const list = Object.keys(agg).filter(key=>{
     if(!isEcom) return true;
@@ -1715,10 +1745,9 @@ function drawTable(rows, isEcom, ecomCampaignRows){
     // Missing campaign rows mean zero events, not "unknown" data: the
     // account-level exporter has already loaded successfully before this
     // renderer is used.
-    item.funnel = funnelByCampaign[campaignFunnelKey_(item)] || {
-      addToCart:0, addToCartValue:0, checkout:0, checkoutValue:0,
-      purchase:0, purchaseValue:0,
-    };
+    item.funnel = funnelByCampaign[campaignFunnelKey_(item)] || emptyCampaignFunnel_();
+    item.previous = previousAgg[key] || emptyCampaignTotals_();
+    item.previousFunnel = previousFunnelByCampaign[campaignFunnelKey_(item)] || emptyCampaignFunnel_();
     return item;
   }).sort((a,b)=>b.cost-a.cost);
 
@@ -1740,19 +1769,19 @@ function drawTable(rows, isEcom, ecomCampaignRows){
             <span class="chan-tag ${r.platform==='Meta Ads'?'meta':'google'}">${r.platform==='Meta Ads'?'Meta':'Google'}</span>
           </div>
           <div class="camp-metrics${isEcom ? ' ecom' : ''}">
-            <div class="m"><span class="mlabel">Показы</span><span class="mval">${fmtN(r.impr)}</span></div>
-            <div class="m"><span class="mlabel">Клики</span><span class="mval">${fmtN(r.clicks)}</span></div>
-            <div class="m"><span class="mlabel">CTR</span><span class="mval">${r.impr?(r.clicks/r.impr*100).toFixed(2)+'%':'—'}</span></div>
-            <div class="m"><span class="mlabel">Расход</span><span class="mval">${fmtM(r.cost)} ${sym(r.currency)}</span></div>
+            <div class="m"><span class="mlabel">Показы</span><span class="mval">${fmtN(r.impr)}${deltaBadge(r.impr,r.previous.impr)}</span></div>
+            <div class="m"><span class="mlabel">Клики</span><span class="mval">${fmtN(r.clicks)}${deltaBadge(r.clicks,r.previous.clicks)}</span></div>
+            <div class="m"><span class="mlabel">CTR</span><span class="mval">${r.impr?(r.clicks/r.impr*100).toFixed(2)+'%':'—'}${deltaBadge(r.impr?r.clicks/r.impr*100:null,r.previous.impr?r.previous.clicks/r.previous.impr*100:null)}</span></div>
+            <div class="m"><span class="mlabel">Расход</span><span class="mval">${fmtM(r.cost)} ${sym(r.currency)}${deltaBadge(r.cost,r.previous.cost)}</span></div>
             ${isEcom ? `
-            <div class="m"><span class="mlabel">В корзину</span><span class="mval">${fmtM(r.funnel.addToCart)}</span></div>
-            <div class="m"><span class="mlabel">Оформление</span><span class="mval">${fmtM(r.funnel.checkout)}</span></div>
-            <div class="m"><span class="mlabel">Покупки</span><span class="mval">${fmtM(r.funnel.purchase)}</span></div>
-            <div class="m"><span class="mlabel">Выручка</span><span class="mval">${fmtM(r.funnel.purchaseValue)} ${sym(r.currency)}</span></div>
-            <div class="m"><span class="mlabel">Цена покупки</span><span class="mval">${r.funnel.purchase?fmtM(r.cost/r.funnel.purchase)+' '+sym(r.currency):'—'}</span></div>
-            <div class="m"><span class="mlabel">ROAS</span><span class="mval">${r.cost?(r.funnel.purchaseValue/r.cost).toFixed(2)+'×':'—'}</span></div>` : `
-            <div class="m"><span class="mlabel">${esc(CONVERSION_SHORT_LABEL)}</span><span class="mval">${fmtM(r.conv)}</span></div>
-            <div class="m"><span class="mlabel">CPA</span><span class="mval">${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}</span></div>`}
+            <div class="m"><span class="mlabel">В корзину</span><span class="mval">${fmtM(r.funnel.addToCart)}${deltaBadge(r.funnel.addToCart,r.previousFunnel.addToCart)}</span></div>
+            <div class="m"><span class="mlabel">Оформление</span><span class="mval">${fmtM(r.funnel.checkout)}${deltaBadge(r.funnel.checkout,r.previousFunnel.checkout)}</span></div>
+            <div class="m"><span class="mlabel">Покупки</span><span class="mval">${fmtM(r.funnel.purchase)}${deltaBadge(r.funnel.purchase,r.previousFunnel.purchase)}</span></div>
+            <div class="m"><span class="mlabel">Выручка</span><span class="mval">${fmtM(r.funnel.purchaseValue)} ${sym(r.currency)}${deltaBadge(r.funnel.purchaseValue,r.previousFunnel.purchaseValue)}</span></div>
+            <div class="m"><span class="mlabel">Цена покупки</span><span class="mval">${r.funnel.purchase?fmtM(r.cost/r.funnel.purchase)+' '+sym(r.currency):'—'}${deltaBadge(r.funnel.purchase?r.cost/r.funnel.purchase:null,r.previousFunnel.purchase?r.previous.cost/r.previousFunnel.purchase:null,{invert:true})}</span></div>
+            <div class="m"><span class="mlabel">ROAS</span><span class="mval">${r.cost?(r.funnel.purchaseValue/r.cost).toFixed(2)+'×':'—'}${deltaBadge(r.cost?r.funnel.purchaseValue/r.cost:null,r.previous.cost?r.previousFunnel.purchaseValue/r.previous.cost:null)}</span></div>` : `
+            <div class="m"><span class="mlabel">${esc(CONVERSION_SHORT_LABEL)}</span><span class="mval">${fmtM(r.conv)}${deltaBadge(r.conv,r.previous.conv)}</span></div>
+            <div class="m"><span class="mlabel">CPA</span><span class="mval">${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}${deltaBadge(r.conv?r.cost/r.conv:null,r.previous.conv?r.previous.cost/r.previous.conv:null,{invert:true})}</span></div>`}
           </div>
         </div>`).join('')}
     </div>`).join('') : '<div class="state">Нет активных кампаний за последние 30 дней</div>';
