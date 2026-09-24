@@ -769,9 +769,13 @@ function bindWeeklyComments(){
     clearTimeout(weeklySubmitTimer); weeklySubmitTimer=setTimeout(()=>{ if(!weeklySubmitPending)return; weeklySubmitPending=false; el('weeklySave').disabled=false; weeklySetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true); },20000);
     el('weeklyForm').submit();
   });
-  el('weeklySubmitFrame').addEventListener('load',()=>{ if(weeklySubmitPending) weeklySaveSucceeded(); });
+  // A form-target iframe fires `load` for both successful and failed Apps Script
+  // responses. Treating that event as success creates a phantom card which
+  // disappears after reload when the backend rejected the write. Only the
+  // explicit postMessage response below is authoritative.
   window.addEventListener('message',event=>{
     if(!weeklySubmitPending || !event.data) return;
+    if(event.source !== el('weeklySubmitFrame').contentWindow) return;
     if(event.data.type==='weekly-comment-error'){ weeklySubmitPending=false; el('weeklySave').disabled=false; weeklySetStatus(event.data.message||'Не удалось сохранить',true); return; }
     if(event.data.type==='weekly-comment-saved') weeklySaveSucceeded();
   });
