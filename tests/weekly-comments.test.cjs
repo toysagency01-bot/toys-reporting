@@ -17,8 +17,18 @@ assert.doesNotMatch(
 );
 assert.match(
   core,
-  /event\.source !== el\('weeklySubmitFrame'\)\.contentWindow/,
-  'weekly-comment messages must come from the submission iframe',
+  /event\.data\.replyToken !== weeklySubmitToken/,
+  'weekly-comment responses must match the one-time submission token',
+);
+assert.match(
+  core,
+  /googleusercontent\\?\.com|googleusercontent/,
+  'weekly-comment responses must be restricted to the Apps Script sandbox origin',
+);
+assert.match(
+  backend,
+  /replyToken:replyToken/g,
+  'weekly-comment backend must echo the one-time submission token',
 );
 
 const coreVersions = new Map();

@@ -410,6 +410,7 @@ ${HAS_PROJECT ? `
       <h3>Недельный итог ${esc(TITLE)}</h3>
       <div class="weekly-form-help">Одна запись на период. Повторное сохранение обновит существующий итог.</div>
       <input type="hidden" name="project" value="${esc(WEEKLY_PROJECT_KEY)}">
+      <input id="weeklyReplyToken" type="hidden" name="replyToken" value="">
       <label>Код доступа<input id="weeklyAccess" name="accessCode" type="password" autocomplete="current-password" required></label>
       <div class="weekly-form-grid"><label>Начало периода<input id="weeklyStart" name="periodStart" type="date" required></label><label>Конец периода<input id="weeklyEnd" name="periodEnd" type="date" required></label></div>
       <label>Общий итог<textarea id="weeklySummary" name="summary" class="summary" maxlength="5000" required></textarea></label>
@@ -500,7 +501,7 @@ const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}
 
 let DATA = [], INSIGHTS = [], QUALIFIED = [], WEEKLY_COMMENTS = [];
 let period = 7, account = '__all', platform = '__all', chart = null, chartMode = 'volume';
-let weeklySubmitPending = false, weeklySubmitTimer = null;
+let weeklySubmitPending = false, weeklySubmitTimer = null, weeklySubmitToken = '';
 
 /* ---------- boot: Chart.js -> данные (оба канала) -> insights -> квал-лиды (опционально) ---------- */
 loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
@@ -765,17 +766,21 @@ function bindWeeklyComments(){
   el('weeklyForm').addEventListener('submit',async event=>{
     event.preventDefault(); el('weeklySave').disabled=true; weeklySetStatus('Проверяю код…');
     if(!(await weeklyAccessValid(el('weeklyAccess').value))){ el('weeklySave').disabled=false; weeklySetStatus('Неверный код доступа',true); return; }
-    sessionStorage.setItem('toysWeeklyAccess',el('weeklyAccess').value); weeklySubmitPending=true; weeklySetStatus('Сохраняю…');
+    sessionStorage.setItem('toysWeeklyAccess',el('weeklyAccess').value);
+    weeklySubmitToken = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    el('weeklyReplyToken').value = weeklySubmitToken;
+    weeklySubmitPending=true; weeklySetStatus('Сохраняю…');
     clearTimeout(weeklySubmitTimer); weeklySubmitTimer=setTimeout(()=>{ if(!weeklySubmitPending)return; weeklySubmitPending=false; el('weeklySave').disabled=false; weeklySetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true); },20000);
     el('weeklyForm').submit();
   });
   // A form-target iframe fires `load` for both successful and failed Apps Script
   // responses. Treating that event as success creates a phantom card which
   // disappears after reload when the backend rejected the write. Only the
-  // explicit postMessage response below is authoritative.
+  // explicit token-authenticated postMessage response below is authoritative.
   window.addEventListener('message',event=>{
     if(!weeklySubmitPending || !event.data) return;
-    if(event.source !== el('weeklySubmitFrame').contentWindow) return;
+    const googleReplyOrigin = event.origin === 'https://script.google.com' || /^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/.test(event.origin);
+    if(!googleReplyOrigin || event.data.replyToken !== weeklySubmitToken) return;
     if(event.data.type==='weekly-comment-error'){ weeklySubmitPending=false; el('weeklySave').disabled=false; weeklySetStatus(event.data.message||'Не удалось сохранить',true); return; }
     if(event.data.type==='weekly-comment-saved') weeklySaveSucceeded();
   });
