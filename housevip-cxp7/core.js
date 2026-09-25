@@ -2114,6 +2114,14 @@ function leadGviz(sheetName){
 function leadRows(json){
   return ((json&&json.table&&json.table.rows)||[]).map(row=>(row.c||[]).map(rawCell));
 }
+function leadDataRows(json,expected,required){
+  const rows=leadRows(json), headerIndex=rows.findIndex(row=>expected.every((value,index)=>String(row[index]||'').trim()===value));
+  if(headerIndex>=0) return rows.slice(headerIndex+1);
+  const labels=((json&&json.table&&json.table.cols)||[]).map(col=>String(col&&col.label||'').trim());
+  if(expected.every((value,index)=>labels[index]===value)) return rows;
+  if(required) throw new Error(LEAD_SOURCE_SHEET+': не найдена ожидаемая шапка');
+  return [];
+}
 async function leadId(row){
   const seed=row.map(value=>String(value==null?'':value).trim()).join('\u001f');
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(seed));
@@ -2121,13 +2129,12 @@ async function leadId(row){
 }
 async function leadModelFromSheets(sourceJson,feedbackJson){
   const expected=['Дата','Имя','Телефон','Почта','Способ связи','Бюджет'];
-  const sourceRows=leadRows(sourceJson), headerIndex=sourceRows.findIndex(row=>expected.every((value,index)=>String(row[index]||'').trim()===value));
-  if(headerIndex<0) throw new Error('ЛИДЫ(Meta): не найдена ожидаемая шапка');
-  const feedbackRows=leadRows(feedbackJson), feedbackHeader=feedbackRows.findIndex(row=>['lead_id','status','client_comment','updated_at'].every((value,index)=>String(row[index]||'').trim()===value));
+  const sourceRows=leadDataRows(sourceJson,expected,true);
+  const feedbackRows=leadDataRows(feedbackJson,['lead_id','status','client_comment','updated_at'],false);
   const feedback={};
-  if(feedbackHeader>=0) feedbackRows.slice(feedbackHeader+1).forEach(row=>{const id=String(row[0]||'').trim();if(id)feedback[id]={status:String(row[1]||''),comment:String(row[2]||''),updatedAt:String(row[3]||'')};});
+  feedbackRows.forEach(row=>{const id=String(row[0]||'').trim();if(id)feedback[id]={status:String(row[1]||''),comment:String(row[2]||''),updatedAt:String(row[3]||'')};});
   const leads=[];
-  for(const values of sourceRows.slice(headerIndex+1)){
+  for(const values of sourceRows){
     const row=values.slice(0,6).map(value=>String(value==null?'':value));
     if(!row.some(value=>value.trim())) continue;
     const id=await leadId(row), saved=feedback[id]||{};
@@ -2179,8 +2186,8 @@ async function leadSubmit(mode, extra={}){
   try{
     const body=new URLSearchParams({mode,project:WEEKLY_PROJECT_KEY,replyToken:leadSubmitToken,...extra});
     await fetch(WEEKLY_FORM_URL,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:body.toString()});
-    const feedback=await leadGviz(LEAD_FEEDBACK_SHEET), rows=leadRows(feedback), header=rows.findIndex(row=>String(row[0]||'').trim()==='lead_id');
-    const saved=header>=0&&rows.slice(header+1).some(row=>String(row[0]||'').trim()===extra.leadId&&String(row[1]||'')===extra.status&&String(row[2]||'')===extra.comment);
+    const feedback=await leadGviz(LEAD_FEEDBACK_SHEET), rows=leadDataRows(feedback,['lead_id','status','client_comment','updated_at'],false);
+    const saved=rows.some(row=>String(row[0]||'').trim()===extra.leadId&&String(row[1]||'')===extra.status&&String(row[2]||'')===extra.comment);
     leadFinishSave(saved,saved?'Сохранено':'Не удалось подтвердить сохранение');
     if(saved){const item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===extra.leadId);if(item){item.status=extra.status;item.comment=extra.comment;}}
   }catch(_error){leadFinishSave(false,'Не удалось сохранить');}

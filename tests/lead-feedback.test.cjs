@@ -24,7 +24,8 @@ ok(!core.includes('lead-feedback-frame'), 'lead app must not embed Apps Script d
 ok(!core.includes('id="leadAccess"'), 'HOUSEVIP lead access code prompt must be absent');
 ok(!core.includes("script.id='leadRequestScript'"), 'lead loading must not use the broken Apps Script JSONP route');
 ok(!core.includes("form.id='leadRequestForm'"), 'lead loading must not use the broken iframe POST route');
-ok(housevip.includes('20260925-housevipleads8'), 'HOUSEVIP cache version missing');
+ok(core.includes('json.table.cols'), 'GViz label header fallback missing');
+ok(housevip.includes('20260925-housevipleads9'), 'HOUSEVIP cache version missing');
 ok(weekly.includes("'housevip-cxp7': {sourceSheet:'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source missing');
 ok(weekly.includes("title:'HOUSEVIP', publicAccess:true"), 'HOUSEVIP public lead access flag missing');
 ok(weekly.includes('function listLeadDashboard(project, accessCode)'), 'list function missing');
