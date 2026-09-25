@@ -504,7 +504,10 @@ const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}
 let DATA = [], INSIGHTS = [], QUALIFIED = [], WEEKLY_COMMENTS = [];
 let period = 7, account = '__all', platform = '__all', chart = null, chartMode = 'volume';
 let weeklySubmitPending = false, weeklySubmitTimer = null, weeklySubmitToken = '';
-let LEAD_MODEL = null, leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '', leadJsonpCallback = '';
+let LEAD_MODEL = null, leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '';
+const LEAD_SOURCE_SHEET = 'ЛИДЫ(Meta)';
+const LEAD_FEEDBACK_SHEET = 'LeadFeedback';
+const LEAD_STATUSES = ['Новый','Связались','Квалифицирован','Показ','Сделка','Неактуален'];
 
 /* ---------- boot: Chart.js -> данные (оба канала) -> insights -> квал-лиды (опционально) ---------- */
 loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
@@ -2081,9 +2084,8 @@ function loadGenericTab(tabDef){
   gShow('gLoading');
   el('gTitle').textContent = tabDef.label;
 
-  // Лиды содержат персональные данные. Никогда не читаем такой лист через
-  // публичный gviz. Встраиваем защищённый Apps Script: он отдаёт данные только
-  // после серверной проверки кода и сохраняет ОС отдельно от импорта Meta.
+  // HOUSEVIP открывает лиды по индивидуальной ссылке проекта без кода.
+  // Исходный импорт Meta читаем напрямую, а статусы/комментарии держим в LeadFeedback.
   if(WEEKLY_PROJECT_KEY === 'housevip-cxp7' && tabDef.mode === 'lead-feedback') return renderLeadFeedback(tabDef);
 
   if(genericCache[tabDef.tab]){ renderGenericByMode(tabDef, genericCache[tabDef.tab]); return; }
@@ -2103,7 +2105,43 @@ function renderLeadFeedback(tabDef){
     <section id="leadAuth" class="lead-auth"><h3>Лиды Meta</h3><p class="lead-feedback-note">Загружаю обращения и обратную связь…</p><div id="leadAuthStatus" class="lead-status" aria-live="polite"></div></section>
     <section id="leadApp" class="hidden"><div class="lead-toolbar"><input id="leadSearch" type="search" placeholder="Поиск по имени, телефону или почте"><select id="leadStatusFilter"><option value="">Все статусы</option></select><span id="leadCount" class="lead-count"></span></div><div id="leadList" class="lead-list"></div></section>`;
   gShow('gPanel');
-  leadSubmit('lead-list');
+  leadLoadFromSheets();
+}
+
+function leadGviz(sheetName){
+  return new Promise((resolve,reject)=>gvizFrom(C.projectSheetId,sheetName,resolve,reject,true));
+}
+function leadRows(json){
+  return ((json&&json.table&&json.table.rows)||[]).map(row=>(row.c||[]).map(rawCell));
+}
+async function leadId(row){
+  const seed=row.map(value=>String(value==null?'':value).trim()).join('\u001f');
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(seed));
+  return Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('').slice(0,24);
+}
+async function leadModelFromSheets(sourceJson,feedbackJson){
+  const expected=['Дата','Имя','Телефон','Почта','Способ связи','Бюджет'];
+  const sourceRows=leadRows(sourceJson), headerIndex=sourceRows.findIndex(row=>expected.every((value,index)=>String(row[index]||'').trim()===value));
+  if(headerIndex<0) throw new Error('ЛИДЫ(Meta): не найдена ожидаемая шапка');
+  const feedbackRows=leadRows(feedbackJson), feedbackHeader=feedbackRows.findIndex(row=>['lead_id','status','client_comment','updated_at'].every((value,index)=>String(row[index]||'').trim()===value));
+  const feedback={};
+  if(feedbackHeader>=0) feedbackRows.slice(feedbackHeader+1).forEach(row=>{const id=String(row[0]||'').trim();if(id)feedback[id]={status:String(row[1]||''),comment:String(row[2]||''),updatedAt:String(row[3]||'')};});
+  const leads=[];
+  for(const values of sourceRows.slice(headerIndex+1)){
+    const row=values.slice(0,6).map(value=>String(value==null?'':value));
+    if(!row.some(value=>value.trim())) continue;
+    const id=await leadId(row), saved=feedback[id]||{};
+    leads.push({id,date:row[0],name:row[1],phone:row[2],email:row[3],contactMethod:row[4],budget:row[5],status:saved.status||'Новый',comment:saved.comment||'',updatedAt:saved.updatedAt||''});
+  }
+  return {title:'HOUSEVIP',statuses:LEAD_STATUSES.slice(),leads};
+}
+async function leadLoadFromSheets(){
+  try{
+    const source=await leadGviz(LEAD_SOURCE_SHEET);
+    let feedback={table:{rows:[]}};
+    try{feedback=await leadGviz(LEAD_FEEDBACK_SHEET)}catch(_e){}
+    leadShowModel(await leadModelFromSheets(source,feedback));
+  }catch(error){leadSetStatus(error&&error.message||'Не удалось открыть лиды',true);}
 }
 
 function leadSetStatus(text, error){
@@ -2134,30 +2172,22 @@ function leadSave(card){
   button.disabled=true; saved.textContent='Сохраняю…'; leadSubmitId=card.dataset.leadId;
   leadSubmit('lead-save',{leadId:leadSubmitId,status:card.querySelector('[data-role="status"]').value,comment:card.querySelector('[data-role="comment"]').value});
 }
-function leadSubmit(mode, extra={}){
-  leadCleanupRequest();
+async function leadSubmit(mode, extra={}){
+  if(mode!=='lead-save'||leadSubmitPending)return;
   leadSubmitPending=mode; leadSubmitToken=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  leadJsonpCallback=`__toysLead_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  window[leadJsonpCallback]=leadHandleResponse;
-  const query=new URLSearchParams({mode,project:WEEKLY_PROJECT_KEY,callback:leadJsonpCallback,replyToken:leadSubmitToken,...extra});
-  const script=document.createElement('script');script.id='leadRequestScript';script.src=WEEKLY_FORM_URL+'?'+query.toString();script.referrerPolicy='no-referrer';
-  script.onerror=()=>leadFailRequest('Не удалось связаться с сервисом лидов');document.head.appendChild(script);
-  clearTimeout(leadSubmitTimer);leadSubmitTimer=setTimeout(()=>leadFailRequest('Сервис долго не отвечает. Попробуйте ещё раз.'),20000);
+  clearTimeout(leadSubmitTimer);leadSubmitTimer=setTimeout(()=>leadFinishSave(false,'Сервис долго не отвечает. Попробуйте ещё раз.'),30000);
+  try{
+    const body=new URLSearchParams({mode,project:WEEKLY_PROJECT_KEY,replyToken:leadSubmitToken,...extra});
+    await fetch(WEEKLY_FORM_URL,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:body.toString()});
+    const feedback=await leadGviz(LEAD_FEEDBACK_SHEET), rows=leadRows(feedback), header=rows.findIndex(row=>String(row[0]||'').trim()==='lead_id');
+    const saved=header>=0&&rows.slice(header+1).some(row=>String(row[0]||'').trim()===extra.leadId&&String(row[1]||'')===extra.status&&String(row[2]||'')===extra.comment);
+    leadFinishSave(saved,saved?'Сохранено':'Не удалось подтвердить сохранение');
+    if(saved){const item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===extra.leadId);if(item){item.status=extra.status;item.comment=extra.comment;}}
+  }catch(_error){leadFinishSave(false,'Не удалось сохранить');}
 }
-function leadCleanupRequest(){
-  clearTimeout(leadSubmitTimer);el('leadRequestScript')?.remove();
-  if(leadJsonpCallback){try{delete window[leadJsonpCallback]}catch(e){window[leadJsonpCallback]=undefined}leadJsonpCallback='';}
-}
-function leadFailRequest(message){
-  if(!leadSubmitPending)return;const pending=leadSubmitPending;leadSubmitPending='';leadCleanupRequest();
-  if(pending==='lead-list')leadSetStatus(message,true);else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent=message}}
-}
-function leadHandleResponse(data){
-  if(!leadSubmitPending||!data||data.replyToken!==leadSubmitToken)return;
-  const pending=leadSubmitPending;leadSubmitPending='';leadCleanupRequest();
-  if(data.type==='lead-feedback-error'){if(pending==='lead-list')leadSetStatus(data.message||'Не удалось открыть лиды',true);else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent=data.message||'Не удалось сохранить'}}return;}
-  if(data.type==='lead-dashboard-loaded'){leadShowModel(data.model);return;}
-  if(data.type==='lead-feedback-saved'){const result=data.result||{},item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===result.leadId);if(item){item.status=result.status;item.comment=result.comment;}const card=document.querySelector(`[data-lead-id="${result.leadId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent='Сохранено';}}
+function leadFinishSave(ok,message){
+  if(!leadSubmitPending)return;leadSubmitPending='';clearTimeout(leadSubmitTimer);
+  const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;const saved=card.querySelector('.lead-saved');saved.textContent=message;saved.classList.toggle('error',!ok);}
 }
 
 function renderGenericByMode(tabDef, json){
