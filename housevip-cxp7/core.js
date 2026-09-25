@@ -507,6 +507,7 @@ let weeklySubmitPending = false, weeklySubmitTimer = null, weeklySubmitToken = '
 let LEAD_MODEL = null, leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '';
 const LEAD_SOURCE_SHEET = 'ЛИДЫ(Meta)';
 const LEAD_FEEDBACK_SHEET = 'LeadFeedback';
+const LEAD_SHEET_GIDS = {[LEAD_SOURCE_SHEET]:'612493655',[LEAD_FEEDBACK_SHEET]:'1273117779'};
 const LEAD_STATUSES = ['Новый','Связались','Квалифицирован','Показ','Сделка','Неактуален'];
 
 /* ---------- boot: Chart.js -> данные (оба канала) -> insights -> квал-лиды (опционально) ---------- */
@@ -2109,7 +2110,15 @@ function renderLeadFeedback(tabDef){
 }
 
 function leadGviz(sheetName){
-  return new Promise((resolve,reject)=>gvizFrom(C.projectSheetId,sheetName,resolve,reject,true));
+  return new Promise((resolve,reject)=>{
+    const gid=LEAD_SHEET_GIDS[sheetName];if(!gid){reject(new Error('Лист лидов не настроен'));return;}
+    const cb='__leadGvizCb'+(++cbSeq), script=document.createElement('script');
+    const timer=setTimeout(()=>{cleanup();reject(new Error('Таблица долго не отвечает'));},12000);
+    window[cb]=json=>{cleanup();if(json&&json.status==='error')reject(new Error('Не удалось прочитать '+sheetName));else resolve(json);};
+    script.src=`https://docs.google.com/spreadsheets/d/${C.projectSheetId}/gviz/tq?tqx=responseHandler%3A${cb}&gid=${gid}&headers=0&_=${Date.now()}`;
+    script.onerror=()=>{cleanup();reject(new Error('Не удалось связаться с таблицей'));};document.head.appendChild(script);
+    function cleanup(){clearTimeout(timer);delete window[cb];script.remove();}
+  });
 }
 function leadRows(json){
   return ((json&&json.table&&json.table.rows)||[]).map(row=>(row.c||[]).map(rawCell));
