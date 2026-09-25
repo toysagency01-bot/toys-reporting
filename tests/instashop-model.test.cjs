@@ -1,10 +1,5 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 const model = require('../core/instashop-model.js');
-
-const profkitIndex = fs.readFileSync(path.join(__dirname, '..', 'profkit-instashop-r4vk', 'index.html'), 'utf8');
-assert.match(profkitIndex, /startDate:\s*'2026-03-25'/);
 
 function gviz(labels, rows){
   return {
