@@ -16,8 +16,9 @@ ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' ? '(' + label + ')' : '
 ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' && tabDef.mode === 'lead-feedback'"), 'HOUSEVIP lead route missing');
 ok(core.includes("const LEAD_SOURCE_SHEET = 'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source tab missing');
 ok(core.includes("const LEAD_FEEDBACK_SHEET = 'LeadFeedback'"), 'HOUSEVIP feedback tab missing');
-ok(core.includes("[LEAD_SOURCE_SHEET]:'612493655'"), 'HOUSEVIP source gid missing');
-ok(core.includes("[LEAD_FEEDBACK_SHEET]:'1273117779'"), 'HOUSEVIP feedback gid missing');
+ok(core.includes('sheets.googleapis.com/v4/spreadsheets/'), 'Google Sheets values API missing');
+ok(core.includes("leadSheetValues(LEAD_SOURCE_SHEET,'A:F')"), 'HOUSEVIP source range missing');
+ok(core.includes("leadSheetValues(LEAD_FEEDBACK_SHEET,'A:D')"), 'HOUSEVIP feedback range missing');
 ok(core.includes('leadLoadFromSheets()'), 'automatic HOUSEVIP lead loading missing');
 ok(core.includes("leadSubmit('lead-save'"), 'lead feedback save bridge missing');
 ok(core.includes("mode:'no-cors'"), 'lead feedback save must tolerate Google multi-account redirects');
@@ -26,8 +27,7 @@ ok(!core.includes('lead-feedback-frame'), 'lead app must not embed Apps Script d
 ok(!core.includes('id="leadAccess"'), 'HOUSEVIP lead access code prompt must be absent');
 ok(!core.includes("script.id='leadRequestScript'"), 'lead loading must not use the broken Apps Script JSONP route');
 ok(!core.includes("form.id='leadRequestForm'"), 'lead loading must not use the broken iframe POST route');
-ok(core.includes('json.table.cols'), 'GViz label header fallback missing');
-ok(housevip.includes('20260925-housevipleads10'), 'HOUSEVIP cache version missing');
+ok(housevip.includes('20260925-housevipleads11'), 'HOUSEVIP cache version missing');
 ok(weekly.includes("'housevip-cxp7': {sourceSheet:'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source missing');
 ok(weekly.includes("title:'HOUSEVIP', publicAccess:true"), 'HOUSEVIP public lead access flag missing');
 ok(weekly.includes('function listLeadDashboard(project, accessCode)'), 'list function missing');

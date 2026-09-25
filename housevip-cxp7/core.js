@@ -507,7 +507,6 @@ let weeklySubmitPending = false, weeklySubmitTimer = null, weeklySubmitToken = '
 let LEAD_MODEL = null, leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '';
 const LEAD_SOURCE_SHEET = 'ЛИДЫ(Meta)';
 const LEAD_FEEDBACK_SHEET = 'LeadFeedback';
-const LEAD_SHEET_GIDS = {[LEAD_SOURCE_SHEET]:'612493655',[LEAD_FEEDBACK_SHEET]:'1273117779'};
 const LEAD_STATUSES = ['Новый','Связались','Квалифицирован','Показ','Сделка','Неактуален'];
 
 /* ---------- boot: Chart.js -> данные (оба канала) -> insights -> квал-лиды (опционально) ---------- */
@@ -2109,25 +2108,17 @@ function renderLeadFeedback(tabDef){
   leadLoadFromSheets();
 }
 
-function leadGviz(sheetName){
-  return new Promise((resolve,reject)=>{
-    const gid=LEAD_SHEET_GIDS[sheetName];if(!gid){reject(new Error('Лист лидов не настроен'));return;}
-    const cb='__leadGvizCb'+(++cbSeq), script=document.createElement('script');
-    const timer=setTimeout(()=>{cleanup();reject(new Error('Таблица долго не отвечает'));},12000);
-    window[cb]=json=>{cleanup();if(json&&json.status==='error')reject(new Error('Не удалось прочитать '+sheetName));else resolve(json);};
-    script.src=`https://docs.google.com/spreadsheets/d/${C.projectSheetId}/gviz/tq?tqx=responseHandler%3A${cb}&gid=${gid}&headers=0&_=${Date.now()}`;
-    script.onerror=()=>{cleanup();reject(new Error('Не удалось связаться с таблицей'));};document.head.appendChild(script);
-    function cleanup(){clearTimeout(timer);delete window[cb];script.remove();}
-  });
+async function leadSheetValues(sheetName,columns){
+  if(!C.projectApiKey) throw new Error('Для лидов не настроен Google Sheets API');
+  const range=`'${sheetName.replace(/'/g,"''")}'!${columns}`;
+  const url=`https://sheets.googleapis.com/v4/spreadsheets/${C.projectSheetId}/values/${encodeURIComponent(range)}?key=${encodeURIComponent(C.projectApiKey)}&valueRenderOption=FORMATTED_VALUE&_=${Date.now()}`;
+  const response=await fetch(url,{cache:'no-store'}), json=await response.json();
+  if(!response.ok||json.error) throw new Error('Не удалось прочитать '+sheetName);
+  return json.values||[];
 }
-function leadRows(json){
-  return ((json&&json.table&&json.table.rows)||[]).map(row=>(row.c||[]).map(rawCell));
-}
-function leadDataRows(json,expected,required){
-  const rows=leadRows(json), headerIndex=rows.findIndex(row=>expected.every((value,index)=>String(row[index]||'').trim()===value));
+function leadDataRows(rows,expected,required){
+  const headerIndex=rows.findIndex(row=>expected.every((value,index)=>String(row[index]||'').trim()===value));
   if(headerIndex>=0) return rows.slice(headerIndex+1);
-  const labels=((json&&json.table&&json.table.cols)||[]).map(col=>String(col&&col.label||'').trim());
-  if(expected.every((value,index)=>labels[index]===value)) return rows;
   if(required) throw new Error(LEAD_SOURCE_SHEET+': не найдена ожидаемая шапка');
   return [];
 }
@@ -2136,10 +2127,10 @@ async function leadId(row){
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(seed));
   return Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('').slice(0,24);
 }
-async function leadModelFromSheets(sourceJson,feedbackJson){
+async function leadModelFromSheets(sourceValues,feedbackValues){
   const expected=['Дата','Имя','Телефон','Почта','Способ связи','Бюджет'];
-  const sourceRows=leadDataRows(sourceJson,expected,true);
-  const feedbackRows=leadDataRows(feedbackJson,['lead_id','status','client_comment','updated_at'],false);
+  const sourceRows=leadDataRows(sourceValues,expected,true);
+  const feedbackRows=leadDataRows(feedbackValues,['lead_id','status','client_comment','updated_at'],false);
   const feedback={};
   feedbackRows.forEach(row=>{const id=String(row[0]||'').trim();if(id)feedback[id]={status:String(row[1]||''),comment:String(row[2]||''),updatedAt:String(row[3]||'')};});
   const leads=[];
@@ -2153,9 +2144,9 @@ async function leadModelFromSheets(sourceJson,feedbackJson){
 }
 async function leadLoadFromSheets(){
   try{
-    const source=await leadGviz(LEAD_SOURCE_SHEET);
-    let feedback={table:{rows:[]}};
-    try{feedback=await leadGviz(LEAD_FEEDBACK_SHEET)}catch(_e){}
+    const source=await leadSheetValues(LEAD_SOURCE_SHEET,'A:F');
+    let feedback=[];
+    try{feedback=await leadSheetValues(LEAD_FEEDBACK_SHEET,'A:D')}catch(_e){}
     leadShowModel(await leadModelFromSheets(source,feedback));
   }catch(error){leadSetStatus(error&&error.message||'Не удалось открыть лиды',true);}
 }
@@ -2195,7 +2186,7 @@ async function leadSubmit(mode, extra={}){
   try{
     const body=new URLSearchParams({mode,project:WEEKLY_PROJECT_KEY,replyToken:leadSubmitToken,...extra});
     await fetch(WEEKLY_FORM_URL,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:body.toString()});
-    const feedback=await leadGviz(LEAD_FEEDBACK_SHEET), rows=leadDataRows(feedback,['lead_id','status','client_comment','updated_at'],false);
+    const feedback=await leadSheetValues(LEAD_FEEDBACK_SHEET,'A:D'), rows=leadDataRows(feedback,['lead_id','status','client_comment','updated_at'],false);
     const saved=rows.some(row=>String(row[0]||'').trim()===extra.leadId&&String(row[1]||'')===extra.status&&String(row[2]||'')===extra.comment);
     leadFinishSave(saved,saved?'Сохранено':'Не удалось подтвердить сохранение');
     if(saved){const item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===extra.leadId);if(item){item.status=extra.status;item.comment=extra.comment;}}
