@@ -2099,7 +2099,7 @@ function renderLeadFeedback(tabDef){
   if(!WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY){ gShow('gError'); return; }
   const src = WEEKLY_FORM_URL + '?mode=leads&project=' + encodeURIComponent(WEEKLY_PROJECT_KEY);
   el('gTitle').textContent = tabDef.label;
-  el('gWrap').innerHTML = `<div class="lead-feedback-note">Контакты загружаются только после проверки кода доступа. Статусы и комментарии сохраняются отдельно и не меняют исходный импорт Meta.</div><iframe class="lead-feedback-frame" title="Лиды Meta и обратная связь" src="${esc(src)}" loading="lazy" referrerpolicy="no-referrer"></iframe>`;
+  el('gWrap').innerHTML = `<div class="lead-feedback-note">Контакты загружаются только после проверки кода доступа. Статусы и комментарии сохраняются отдельно и не меняют исходный импорт Meta.</div><iframe class="lead-feedback-frame" title="Лиды Meta и обратная связь" src="${esc(src)}" loading="lazy" referrerpolicy="no-referrer" credentialless></iframe>`;
   gShow('gPanel');
 }
 

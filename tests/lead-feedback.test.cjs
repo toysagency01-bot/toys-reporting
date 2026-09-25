@@ -16,7 +16,8 @@ ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' ? '(' + label + ')' : '
 ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' && tabDef.mode === 'lead-feedback'"), 'protected HOUSEVIP lead route missing');
 ok(!/gvizFrom\([^\n]+ЛИДЫ/.test(core), 'lead PII must not use public gviz');
 ok(core.includes("'?mode=leads&project='"), 'protected Apps Script iframe missing');
-ok(housevip.includes('20260925-housevipleads1'), 'HOUSEVIP cache version missing');
+ok(core.includes('credentialless'), 'lead iframe must omit Google account cookies');
+ok(housevip.includes('20260925-housevipleads2'), 'HOUSEVIP cache version missing');
 ok(weekly.includes("'housevip-cxp7': {sourceSheet:'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source missing');
 ok(weekly.includes('function listLeadDashboard(project, accessCode)'), 'protected list function missing');
 ok(weekly.includes('function saveLeadFeedback(project, accessCode, leadId, status, comment)'), 'feedback save function missing');
