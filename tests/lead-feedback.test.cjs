@@ -15,20 +15,21 @@ ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' && (base === 'ЛИДЫ'
 ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' ? '(' + label + ')' : ''"), 'HOUSEVIP-only compact Meta suffix support missing');
 ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' && tabDef.mode === 'lead-feedback'"), 'HOUSEVIP lead route missing');
 ok(!/gvizFrom\([^\n]+ЛИДЫ/.test(core), 'lead PII must not use public gviz');
-ok(core.includes("LEAD_ACCESS=''; leadSubmit('lead-list')"), 'automatic HOUSEVIP lead loading missing');
+ok(core.includes("leadSubmit('lead-list')"), 'automatic HOUSEVIP lead loading missing');
 ok(core.includes("leadSubmit('lead-save'"), 'POST bridge for lead feedback missing');
-ok(core.includes('bindLeadFeedbackBridge()'), 'lead response bridge missing');
+ok(core.includes('window[leadJsonpCallback]=leadHandleResponse'), 'JSONP callback bridge missing');
 ok(!core.includes('lead-feedback-frame'), 'lead app must not embed Apps Script directly');
 ok(!core.includes('id="leadAccess"'), 'HOUSEVIP lead access code prompt must be absent');
-ok(core.includes("form.id='leadRequestForm'"), 'lead POST form must remain mounted until acknowledgement');
-ok(core.includes("input.setAttribute('value'"), 'lead POST fields must preserve values through native form submission');
-ok(housevip.includes('20260925-housevipleads6'), 'HOUSEVIP cache version missing');
+ok(core.includes("script.id='leadRequestScript'"), 'lead JSONP request script missing');
+ok(!core.includes("form.id='leadRequestForm'"), 'lead loading must not use the broken iframe POST route');
+ok(housevip.includes('20260925-housevipleads7'), 'HOUSEVIP cache version missing');
 ok(weekly.includes("'housevip-cxp7': {sourceSheet:'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source missing');
 ok(weekly.includes("title:'HOUSEVIP', publicAccess:true"), 'HOUSEVIP public lead access flag missing');
 ok(weekly.includes('function listLeadDashboard(project, accessCode)'), 'list function missing');
 ok(weekly.includes('function saveLeadFeedback(project, accessCode, leadId, status, comment)'), 'feedback save function missing');
 ok(weekly.includes("mode === 'lead-list'"), 'lead-list POST mode missing');
 ok(weekly.includes("mode === 'lead-save'"), 'lead-save POST mode missing');
+ok(weekly.includes('function wcsJsonp_(callback, payload)'), 'lead JSONP response helper missing');
 ok(weekly.includes('wcsAssertAccess_(accessCode);'), 'access check missing');
 ok(!sharedCore.includes('lead-feedback-frame'), 'shared core must remain unchanged');
 

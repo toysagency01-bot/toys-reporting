@@ -504,7 +504,7 @@ const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}
 let DATA = [], INSIGHTS = [], QUALIFIED = [], WEEKLY_COMMENTS = [];
 let period = 7, account = '__all', platform = '__all', chart = null, chartMode = 'volume';
 let weeklySubmitPending = false, weeklySubmitTimer = null, weeklySubmitToken = '';
-let LEAD_MODEL = null, LEAD_ACCESS = '', leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '';
+let LEAD_MODEL = null, leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '', leadJsonpCallback = '';
 
 /* ---------- boot: Chart.js -> данные (оба канала) -> insights -> квал-лиды (опционально) ---------- */
 loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
@@ -862,7 +862,6 @@ function start(){
   const last = DATA.reduce((m,r)=> r.date>m? r.date:m, '');
   document.getElementById('updated').textContent = last ? ('данные по ' + last) : 'реклама ещё не подключена';
   bindWeeklyComments();
-  bindLeadFeedbackBridge();
   loadWeeklyComments();
   render();
 
@@ -2102,10 +2101,9 @@ function renderLeadFeedback(tabDef){
   el('gTitle').textContent = tabDef.label;
   el('gWrap').innerHTML = `<div class="lead-feedback-note">Контакты загружаются по индивидуальной ссылке проекта. Статусы и комментарии сохраняются отдельно и не меняют исходный импорт Meta.</div>
     <section id="leadAuth" class="lead-auth"><h3>Лиды Meta</h3><p class="lead-feedback-note">Загружаю обращения и обратную связь…</p><div id="leadAuthStatus" class="lead-status" aria-live="polite"></div></section>
-    <section id="leadApp" class="hidden"><div class="lead-toolbar"><input id="leadSearch" type="search" placeholder="Поиск по имени, телефону или почте"><select id="leadStatusFilter"><option value="">Все статусы</option></select><span id="leadCount" class="lead-count"></span></div><div id="leadList" class="lead-list"></div></section>
-    <iframe id="leadSubmitFrame" class="lead-bridge" name="leadSubmitFrame" title="Ответ сервиса лидов"></iframe>`;
+    <section id="leadApp" class="hidden"><div class="lead-toolbar"><input id="leadSearch" type="search" placeholder="Поиск по имени, телефону или почте"><select id="leadStatusFilter"><option value="">Все статусы</option></select><span id="leadCount" class="lead-count"></span></div><div id="leadList" class="lead-list"></div></section>`;
   gShow('gPanel');
-  LEAD_ACCESS=''; leadSubmit('lead-list');
+  leadSubmit('lead-list');
 }
 
 function leadSetStatus(text, error){
@@ -2137,32 +2135,29 @@ function leadSave(card){
   leadSubmit('lead-save',{leadId:leadSubmitId,status:card.querySelector('[data-role="status"]').value,comment:card.querySelector('[data-role="comment"]').value});
 }
 function leadSubmit(mode, extra={}){
-  if(!el('leadSubmitFrame')) return;
+  leadCleanupRequest();
   leadSubmitPending=mode; leadSubmitToken=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  el('leadRequestForm')?.remove();
-  const form=document.createElement('form'); form.id='leadRequestForm'; form.method='post'; form.action=WEEKLY_FORM_URL; form.target='leadSubmitFrame'; form.className='lead-bridge';
-  const fields={mode,project:WEEKLY_PROJECT_KEY,accessCode:LEAD_ACCESS,replyToken:leadSubmitToken,...extra};
-  Object.entries(fields).forEach(([name,value])=>{const input=document.createElement('input');input.type='hidden';input.name=name;input.setAttribute('value',value==null?'':String(value));form.appendChild(input)});
-  el('gWrap').appendChild(form); form.submit();
-  clearTimeout(leadSubmitTimer); leadSubmitTimer=setTimeout(()=>{if(!leadSubmitPending)return;const current=leadSubmitPending;leadSubmitPending='';el('leadRequestForm')?.remove();if(current==='lead-list'){leadSetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true)}else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent='Сервис долго не отвечает'}}},20000);
+  leadJsonpCallback=`__toysLead_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  window[leadJsonpCallback]=leadHandleResponse;
+  const query=new URLSearchParams({mode,project:WEEKLY_PROJECT_KEY,callback:leadJsonpCallback,replyToken:leadSubmitToken,...extra});
+  const script=document.createElement('script');script.id='leadRequestScript';script.src=WEEKLY_FORM_URL+'?'+query.toString();script.referrerPolicy='no-referrer';
+  script.onerror=()=>leadFailRequest('Не удалось связаться с сервисом лидов');document.head.appendChild(script);
+  clearTimeout(leadSubmitTimer);leadSubmitTimer=setTimeout(()=>leadFailRequest('Сервис долго не отвечает. Попробуйте ещё раз.'),20000);
 }
-function bindLeadFeedbackBridge(){
-  window.addEventListener('message',event=>{
-    if(!leadSubmitPending||!event.data) return;
-    const googleReplyOrigin=event.origin==='https://script.google.com'||/^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/.test(event.origin);
-    if(!googleReplyOrigin||event.data.replyToken!==leadSubmitToken) return;
-    const pending=leadSubmitPending; leadSubmitPending=''; clearTimeout(leadSubmitTimer); el('leadRequestForm')?.remove();
-    if(event.data.type==='lead-feedback-error'){
-      if(pending==='lead-list'){leadSetStatus(event.data.message||'Не удалось открыть лиды',true)}
-      else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent=event.data.message||'Не удалось сохранить'}}
-      return;
-    }
-    if(event.data.type==='lead-dashboard-loaded'){leadShowModel(event.data.model);return;}
-    if(event.data.type==='lead-feedback-saved'){
-      const result=event.data.result||{}, item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===result.leadId); if(item){item.status=result.status;item.comment=result.comment;}
-      const card=document.querySelector(`[data-lead-id="${result.leadId}"]`); if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent='Сохранено';}
-    }
-  });
+function leadCleanupRequest(){
+  clearTimeout(leadSubmitTimer);el('leadRequestScript')?.remove();
+  if(leadJsonpCallback){try{delete window[leadJsonpCallback]}catch(e){window[leadJsonpCallback]=undefined}leadJsonpCallback='';}
+}
+function leadFailRequest(message){
+  if(!leadSubmitPending)return;const pending=leadSubmitPending;leadSubmitPending='';leadCleanupRequest();
+  if(pending==='lead-list')leadSetStatus(message,true);else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent=message}}
+}
+function leadHandleResponse(data){
+  if(!leadSubmitPending||!data||data.replyToken!==leadSubmitToken)return;
+  const pending=leadSubmitPending;leadSubmitPending='';leadCleanupRequest();
+  if(data.type==='lead-feedback-error'){if(pending==='lead-list')leadSetStatus(data.message||'Не удалось открыть лиды',true);else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent=data.message||'Не удалось сохранить'}}return;}
+  if(data.type==='lead-dashboard-loaded'){leadShowModel(data.model);return;}
+  if(data.type==='lead-feedback-saved'){const result=data.result||{},item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===result.leadId);if(item){item.status=result.status;item.comment=result.comment;}const card=document.querySelector(`[data-lead-id="${result.leadId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent='Сохранено';}}
 }
 
 function renderGenericByMode(tabDef, json){
