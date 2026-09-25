@@ -16,6 +16,12 @@ ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' ? '(' + label + ')' : '
 ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' && tabDef.mode === 'lead-feedback'"), 'HOUSEVIP lead route missing');
 ok(core.includes("const LEAD_SOURCE_SHEET = 'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source tab missing');
 ok(core.includes("const LEAD_FEEDBACK_SHEET = 'LeadFeedback'"), 'HOUSEVIP feedback tab missing');
+ok(core.includes("'Не удалось связаться'"), 'real-estate lead statuses missing');
+ok(core.includes("'Бронь / задаток'"), 'real-estate deal stage missing');
+ok(core.includes("'Показ':'Просмотр проведён'"), 'legacy status alias missing');
+ok(core.includes('<b>Статус</b>'), 'visible lead status label missing');
+ok(core.includes('<b>Комментарий</b>'), 'visible comment label missing');
+ok(!core.includes('Комментарий клиента'), 'old comment label must be removed');
 ok(core.includes('sheets.googleapis.com/v4/spreadsheets/'), 'Google Sheets values API missing');
 ok(core.includes("leadSheetValues(LEAD_SOURCE_SHEET,'A:F')"), 'HOUSEVIP source range missing');
 ok(core.includes("leadSheetValues(LEAD_FEEDBACK_SHEET,'A:D')"), 'HOUSEVIP feedback range missing');
@@ -27,7 +33,8 @@ ok(!core.includes('lead-feedback-frame'), 'lead app must not embed Apps Script d
 ok(!core.includes('id="leadAccess"'), 'HOUSEVIP lead access code prompt must be absent');
 ok(!core.includes("script.id='leadRequestScript'"), 'lead loading must not use the broken Apps Script JSONP route');
 ok(!core.includes("form.id='leadRequestForm'"), 'lead loading must not use the broken iframe POST route');
-ok(housevip.includes('20260925-housevipleads11'), 'HOUSEVIP cache version missing');
+ok(housevip.includes('20260925-housevipleads12'), 'HOUSEVIP cache version missing');
+ok(weekly.includes("'Бронь / задаток'"), 'server real-estate statuses missing');
 ok(weekly.includes("'housevip-cxp7': {sourceSheet:'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source missing');
 ok(weekly.includes("title:'HOUSEVIP', publicAccess:true"), 'HOUSEVIP public lead access flag missing');
 ok(weekly.includes('function listLeadDashboard(project, accessCode)'), 'list function missing');
