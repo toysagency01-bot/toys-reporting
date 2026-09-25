@@ -273,7 +273,7 @@ flex-wrap:wrap;gap:10px;margin-bottom:16px}
 .weekly-list{display:grid;gap:8px}.weekly-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;overflow:hidden}.weekly-card[open]{background:#1a1a1f}.weekly-card summary{list-style:none;cursor:pointer;padding:15px 18px;display:grid;grid-template-columns:160px minmax(0,1fr) 24px;align-items:center;gap:14px}.weekly-card summary::-webkit-details-marker{display:none}.weekly-card summary::after{content:'+';display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#24242a;color:var(--accent);font-size:18px;line-height:1}.weekly-card[open] summary::after{content:'−'}.weekly-period{color:var(--accent);font-size:12px;font-weight:600}.weekly-preview{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d7d7dc;font-size:13px}.weekly-card[open] .weekly-preview{display:none}.weekly-card[open] summary{grid-template-columns:minmax(0,1fr) 24px}.weekly-body{padding:0 18px 18px}.weekly-summary{border-top:1px solid var(--line);padding-top:14px;font-size:16px;font-weight:600;line-height:1.45;margin-bottom:14px}.weekly-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.weekly-field{border-top:1px solid var(--line);padding-top:10px;color:#d7d7dc;font-size:13px;line-height:1.55}.weekly-field b{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}.weekly-form-modal{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.78);display:grid;place-items:center;padding:20px}.weekly-modal-card{position:relative;width:min(760px,100%);height:min(800px,92vh);background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.55);display:flex;flex-direction:column}.weekly-modal-close{position:absolute;right:12px;top:10px;z-index:2;width:34px;height:34px;border:0;border-radius:50%;background:#24242a;color:#fff;font-size:22px;cursor:pointer}.weekly-form{overflow:auto;padding:22px;display:grid;gap:14px}.weekly-form h3{font-size:20px;padding-right:44px}.weekly-form-help{color:var(--muted);font-size:12px;line-height:1.45}.weekly-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.weekly-form label{display:grid;gap:6px;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}.weekly-form input,.weekly-form textarea,.weekly-form select{width:100%;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);color:var(--text);font:500 13px 'Golos Text';padding:11px 12px;outline:none;color-scheme:dark}.weekly-form input:focus,.weekly-form textarea:focus,.weekly-form select:focus{border-color:rgba(37,221,204,.65)}.weekly-form textarea{min-height:82px;resize:vertical;line-height:1.5}.weekly-form textarea.summary{min-height:112px}.weekly-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.weekly-save{border:0;border-radius:9px;background:var(--accent);color:#06110f;padding:11px 18px;font:800 13px 'Golos Text';cursor:pointer}.weekly-save:disabled{opacity:.55;cursor:wait}.weekly-status{color:var(--muted);font-size:12px}.weekly-status.error{color:#ff6b81}.weekly-submit-frame{display:none}
 .weekly-form-modal.hidden{display:none}
 .lead-feedback-note{color:var(--muted);font-size:12px;line-height:1.5;margin-bottom:12px}
-.lead-feedback-frame{display:block;width:100%;height:min(780px,78vh);min-height:620px;border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
+.lead-auth{max-width:480px;margin:48px auto;padding:22px;background:var(--panel-2);border:1px solid var(--line);border-radius:14px}.lead-auth h3{font-size:18px;margin-bottom:7px}.lead-auth-row,.lead-toolbar{display:flex;gap:10px;flex-wrap:wrap}.lead-auth input,.lead-toolbar input,.lead-toolbar select,.lead-card select,.lead-card textarea{background:#121216;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font:500 13px 'Golos Text'}.lead-auth input{flex:1;min-width:200px}.lead-primary,.lead-save{border:0;border-radius:9px;background:var(--accent);color:#04110f;padding:10px 16px;font:800 13px 'Golos Text';cursor:pointer}.lead-primary:disabled,.lead-save:disabled{opacity:.5;cursor:wait}.lead-status{min-height:18px;margin-top:9px;color:var(--muted);font-size:12px}.lead-status.error{color:#ff6b81}.lead-toolbar{position:sticky;top:0;z-index:3;background:var(--panel);padding:0 0 14px}.lead-toolbar input{flex:1;min-width:230px}.lead-count{margin-left:auto;align-self:center;color:var(--muted);font-size:12px}.lead-list{display:grid;gap:10px}.lead-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px}.lead-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px}.lead-name{font-weight:700}.lead-date{color:var(--muted);font-size:12px}.lead-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px 16px;margin-bottom:12px}.lead-field b{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;margin-bottom:3px}.lead-field a{color:var(--accent);text-decoration:none}.lead-actions{display:grid;grid-template-columns:180px minmax(240px,1fr) auto;gap:9px;align-items:start}.lead-card textarea{min-height:42px;resize:vertical}.lead-saved{color:var(--accent);font-size:12px;margin-top:7px}.lead-bridge{display:none}
 @media (max-width: 640px){
   .cards{grid-template-columns:repeat(2,1fr);gap:8px}
   .card{padding:14px 14px 12px}
@@ -294,7 +294,7 @@ flex-wrap:wrap;gap:10px;margin-bottom:16px}
 @media (prefers-reduced-motion:no-preference){
 .card,.panel{animation:rise .35s ease both}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}}
-@media(max-width:760px){.weekly-open{width:100%;margin-left:0}.weekly-fields{grid-template-columns:1fr}.weekly-card summary{grid-template-columns:minmax(0,1fr) 24px}.weekly-preview{grid-column:1 / -1;grid-row:2}.weekly-card[open] summary{grid-template-columns:minmax(0,1fr) 24px}.weekly-form-modal{padding:0}.weekly-modal-card{height:100vh;border-radius:0}.weekly-form-grid{grid-template-columns:1fr}.weekly-form{padding:18px}.lead-feedback-frame{height:76vh;min-height:560px}}
+@media(max-width:760px){.weekly-open{width:100%;margin-left:0}.weekly-fields{grid-template-columns:1fr}.weekly-card summary{grid-template-columns:minmax(0,1fr) 24px}.weekly-preview{grid-column:1 / -1;grid-row:2}.weekly-card[open] summary{grid-template-columns:minmax(0,1fr) 24px}.weekly-form-modal{padding:0}.weekly-modal-card{height:100vh;border-radius:0}.weekly-form-grid{grid-template-columns:1fr}.weekly-form{padding:18px}.lead-grid{grid-template-columns:1fr 1fr}.lead-actions{grid-template-columns:1fr}.lead-toolbar{position:static}.lead-count{width:100%;margin-left:0}.lead-auth{margin:24px auto}}
 </style>`);
 
 /* ---------- markup ---------- */
@@ -504,6 +504,7 @@ const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}
 let DATA = [], INSIGHTS = [], QUALIFIED = [], WEEKLY_COMMENTS = [];
 let period = 7, account = '__all', platform = '__all', chart = null, chartMode = 'volume';
 let weeklySubmitPending = false, weeklySubmitTimer = null, weeklySubmitToken = '';
+let LEAD_MODEL = null, LEAD_ACCESS = '', leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '';
 
 /* ---------- boot: Chart.js -> данные (оба канала) -> insights -> квал-лиды (опционально) ---------- */
 loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
@@ -861,6 +862,7 @@ function start(){
   const last = DATA.reduce((m,r)=> r.date>m? r.date:m, '');
   document.getElementById('updated').textContent = last ? ('данные по ' + last) : 'реклама ещё не подключена';
   bindWeeklyComments();
+  bindLeadFeedbackBridge();
   loadWeeklyComments();
   render();
 
@@ -2097,10 +2099,76 @@ function loadGenericTab(tabDef){
 
 function renderLeadFeedback(tabDef){
   if(!WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY){ gShow('gError'); return; }
-  const src = WEEKLY_FORM_URL + '?mode=leads&project=' + encodeURIComponent(WEEKLY_PROJECT_KEY);
   el('gTitle').textContent = tabDef.label;
-  el('gWrap').innerHTML = `<div class="lead-feedback-note">Контакты загружаются только после проверки кода доступа. Статусы и комментарии сохраняются отдельно и не меняют исходный импорт Meta.</div><iframe class="lead-feedback-frame" title="Лиды Meta и обратная связь" src="${esc(src)}" loading="lazy" referrerpolicy="no-referrer" credentialless></iframe>`;
+  el('gWrap').innerHTML = `<div class="lead-feedback-note">Контакты загружаются только после проверки кода доступа. Статусы и комментарии сохраняются отдельно и не меняют исходный импорт Meta.</div>
+    <section id="leadAuth" class="lead-auth"><h3>Лиды Meta</h3><p class="lead-feedback-note">Введите тот же код доступа, который используется для недельных итогов.</p><div class="lead-auth-row"><input id="leadAccess" type="password" autocomplete="current-password" placeholder="Код доступа"><button id="leadOpen" class="lead-primary" type="button">Открыть</button></div><div id="leadAuthStatus" class="lead-status" aria-live="polite"></div></section>
+    <section id="leadApp" class="hidden"><div class="lead-toolbar"><input id="leadSearch" type="search" placeholder="Поиск по имени, телефону или почте"><select id="leadStatusFilter"><option value="">Все статусы</option></select><span id="leadCount" class="lead-count"></span></div><div id="leadList" class="lead-list"></div></section>
+    <iframe id="leadSubmitFrame" class="lead-bridge" name="leadSubmitFrame" title="Ответ сервиса лидов"></iframe>`;
   gShow('gPanel');
+  const access = el('leadAccess'); access.value = sessionStorage.getItem('toysWeeklyAccess') || '';
+  el('leadOpen').addEventListener('click', leadOpen);
+  access.addEventListener('keydown', event=>{ if(event.key==='Enter') leadOpen(); });
+}
+
+function leadSetStatus(text, error){
+  const node=el('leadAuthStatus'); if(!node) return;
+  node.textContent=text||''; node.classList.toggle('error',!!error);
+}
+function leadField(label,value,kind){
+  const safe=esc(value||'—');
+  const body=kind==='tel'&&value?`<a href="tel:${esc(String(value).replace(/[^+\d]/g,''))}">${safe}</a>`:kind==='mail'&&value?`<a href="mailto:${encodeURIComponent(value)}">${safe}</a>`:`<span>${safe}</span>`;
+  return `<div class="lead-field"><b>${esc(label)}</b>${body}</div>`;
+}
+function renderLeadRows(){
+  if(!LEAD_MODEL || !el('leadList')) return;
+  const query=(el('leadSearch').value||'').trim().toLowerCase(), status=el('leadStatusFilter').value;
+  const rows=LEAD_MODEL.leads.filter(item=>(!status||item.status===status)&&(!query||[item.name,item.phone,item.email,item.contactMethod,item.budget].join(' ').toLowerCase().includes(query)));
+  el('leadCount').textContent=`${rows.length} из ${LEAD_MODEL.leads.length}`;
+  el('leadList').innerHTML=rows.length?rows.map(item=>`<article class="lead-card" data-lead-id="${esc(item.id)}"><div class="lead-head"><span class="lead-name">${esc(item.name||'—')}</span><span class="lead-date">${esc(item.date||'')}</span></div><div class="lead-grid">${leadField('Телефон',item.phone,'tel')}${leadField('Почта',item.email,'mail')}${leadField('Способ связи',item.contactMethod)}${leadField('Бюджет',item.budget)}</div><div class="lead-actions"><select data-role="status">${LEAD_MODEL.statuses.map(value=>`<option value="${esc(value)}"${value===item.status?' selected':''}>${esc(value)}</option>`).join('')}</select><textarea data-role="comment" maxlength="3000" placeholder="Комментарий клиента">${esc(item.comment||'')}</textarea><div><button class="lead-save" type="button">Сохранить</button><div class="lead-saved" aria-live="polite"></div></div></div></article>`).join(''):'<div class="state">Ничего не найдено</div>';
+  document.querySelectorAll('.lead-save').forEach(button=>button.addEventListener('click',()=>leadSave(button.closest('.lead-card'))));
+}
+function leadShowModel(model){
+  LEAD_MODEL=model; el('leadAuth').classList.add('hidden'); el('leadApp').classList.remove('hidden');
+  const filter=el('leadStatusFilter'); filter.innerHTML='<option value="">Все статусы</option>'+model.statuses.map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('');
+  el('leadSearch').addEventListener('input',renderLeadRows); filter.addEventListener('change',renderLeadRows); renderLeadRows();
+}
+async function leadOpen(){
+  const button=el('leadOpen'); LEAD_ACCESS=el('leadAccess').value.trim(); button.disabled=true; leadSetStatus('Проверяю код…');
+  if(!(await weeklyAccessValid(LEAD_ACCESS))){ button.disabled=false; leadSetStatus('Неверный код доступа',true); return; }
+  sessionStorage.setItem('toysWeeklyAccess',LEAD_ACCESS); leadSubmit('lead-list');
+}
+function leadSave(card){
+  if(!card||leadSubmitPending) return;
+  const button=card.querySelector('.lead-save'), saved=card.querySelector('.lead-saved');
+  button.disabled=true; saved.textContent='Сохраняю…'; leadSubmitId=card.dataset.leadId;
+  leadSubmit('lead-save',{leadId:leadSubmitId,status:card.querySelector('[data-role="status"]').value,comment:card.querySelector('[data-role="comment"]').value});
+}
+function leadSubmit(mode, extra={}){
+  if(!el('leadSubmitFrame')) return;
+  leadSubmitPending=mode; leadSubmitToken=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const form=document.createElement('form'); form.method='post'; form.action=WEEKLY_FORM_URL; form.target='leadSubmitFrame'; form.className='lead-bridge';
+  const fields={mode,project:WEEKLY_PROJECT_KEY,accessCode:LEAD_ACCESS,replyToken:leadSubmitToken,...extra};
+  Object.entries(fields).forEach(([name,value])=>{const input=document.createElement('input');input.type='hidden';input.name=name;input.value=value==null?'':String(value);form.appendChild(input)});
+  el('gWrap').appendChild(form); form.submit(); form.remove();
+  clearTimeout(leadSubmitTimer); leadSubmitTimer=setTimeout(()=>{if(!leadSubmitPending)return;const current=leadSubmitPending;leadSubmitPending='';if(current==='lead-list'){el('leadOpen').disabled=false;leadSetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true)}else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent='Сервис долго не отвечает'}}},20000);
+}
+function bindLeadFeedbackBridge(){
+  window.addEventListener('message',event=>{
+    if(!leadSubmitPending||!event.data) return;
+    const googleReplyOrigin=event.origin==='https://script.google.com'||/^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/.test(event.origin);
+    if(!googleReplyOrigin||event.data.replyToken!==leadSubmitToken) return;
+    const pending=leadSubmitPending; leadSubmitPending=''; clearTimeout(leadSubmitTimer);
+    if(event.data.type==='lead-feedback-error'){
+      if(pending==='lead-list'){el('leadOpen').disabled=false;leadSetStatus(event.data.message||'Не удалось открыть лиды',true)}
+      else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent=event.data.message||'Не удалось сохранить'}}
+      return;
+    }
+    if(event.data.type==='lead-dashboard-loaded'){leadShowModel(event.data.model);return;}
+    if(event.data.type==='lead-feedback-saved'){
+      const result=event.data.result||{}, item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===result.leadId); if(item){item.status=result.status;item.comment=result.comment;}
+      const card=document.querySelector(`[data-lead-id="${result.leadId}"]`); if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent='Сохранено';}
+    }
+  });
 }
 
 function renderGenericByMode(tabDef, json){

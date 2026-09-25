@@ -15,12 +15,16 @@ ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' && (base === 'ЛИДЫ'
 ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' ? '(' + label + ')' : ''"), 'HOUSEVIP-only compact Meta suffix support missing');
 ok(core.includes("WEEKLY_PROJECT_KEY === 'housevip-cxp7' && tabDef.mode === 'lead-feedback'"), 'protected HOUSEVIP lead route missing');
 ok(!/gvizFrom\([^\n]+ЛИДЫ/.test(core), 'lead PII must not use public gviz');
-ok(core.includes("'?mode=leads&project='"), 'protected Apps Script iframe missing');
-ok(core.includes('credentialless'), 'lead iframe must omit Google account cookies');
-ok(housevip.includes('20260925-housevipleads2'), 'HOUSEVIP cache version missing');
+ok(core.includes("leadSubmit('lead-list')"), 'protected POST bridge for lead loading missing');
+ok(core.includes("leadSubmit('lead-save'"), 'protected POST bridge for lead feedback missing');
+ok(core.includes('bindLeadFeedbackBridge()'), 'lead response bridge missing');
+ok(!core.includes('lead-feedback-frame'), 'lead app must not embed Apps Script directly');
+ok(housevip.includes('20260925-housevipleads3'), 'HOUSEVIP cache version missing');
 ok(weekly.includes("'housevip-cxp7': {sourceSheet:'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source missing');
 ok(weekly.includes('function listLeadDashboard(project, accessCode)'), 'protected list function missing');
 ok(weekly.includes('function saveLeadFeedback(project, accessCode, leadId, status, comment)'), 'feedback save function missing');
+ok(weekly.includes("mode === 'lead-list'"), 'lead-list POST mode missing');
+ok(weekly.includes("mode === 'lead-save'"), 'lead-save POST mode missing');
 ok(weekly.includes('wcsAssertAccess_(accessCode);'), 'access check missing');
 ok(!sharedCore.includes('lead-feedback-frame'), 'shared core must remain unchanged');
 
