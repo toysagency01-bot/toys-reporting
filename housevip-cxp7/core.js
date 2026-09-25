@@ -2139,18 +2139,19 @@ function leadSave(card){
 function leadSubmit(mode, extra={}){
   if(!el('leadSubmitFrame')) return;
   leadSubmitPending=mode; leadSubmitToken=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const form=document.createElement('form'); form.method='post'; form.action=WEEKLY_FORM_URL; form.target='leadSubmitFrame'; form.className='lead-bridge';
+  el('leadRequestForm')?.remove();
+  const form=document.createElement('form'); form.id='leadRequestForm'; form.method='post'; form.action=WEEKLY_FORM_URL; form.target='leadSubmitFrame'; form.className='lead-bridge';
   const fields={mode,project:WEEKLY_PROJECT_KEY,accessCode:LEAD_ACCESS,replyToken:leadSubmitToken,...extra};
   Object.entries(fields).forEach(([name,value])=>{const input=document.createElement('input');input.type='hidden';input.name=name;input.value=value==null?'':String(value);form.appendChild(input)});
-  el('gWrap').appendChild(form); form.submit(); form.remove();
-  clearTimeout(leadSubmitTimer); leadSubmitTimer=setTimeout(()=>{if(!leadSubmitPending)return;const current=leadSubmitPending;leadSubmitPending='';if(current==='lead-list'){leadSetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true)}else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent='Сервис долго не отвечает'}}},20000);
+  el('gWrap').appendChild(form); form.submit();
+  clearTimeout(leadSubmitTimer); leadSubmitTimer=setTimeout(()=>{if(!leadSubmitPending)return;const current=leadSubmitPending;leadSubmitPending='';el('leadRequestForm')?.remove();if(current==='lead-list'){leadSetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true)}else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent='Сервис долго не отвечает'}}},20000);
 }
 function bindLeadFeedbackBridge(){
   window.addEventListener('message',event=>{
     if(!leadSubmitPending||!event.data) return;
     const googleReplyOrigin=event.origin==='https://script.google.com'||/^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/.test(event.origin);
     if(!googleReplyOrigin||event.data.replyToken!==leadSubmitToken) return;
-    const pending=leadSubmitPending; leadSubmitPending=''; clearTimeout(leadSubmitTimer);
+    const pending=leadSubmitPending; leadSubmitPending=''; clearTimeout(leadSubmitTimer); el('leadRequestForm')?.remove();
     if(event.data.type==='lead-feedback-error'){
       if(pending==='lead-list'){leadSetStatus(event.data.message||'Не удалось открыть лиды',true)}
       else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent=event.data.message||'Не удалось сохранить'}}

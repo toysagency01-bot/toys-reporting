@@ -20,7 +20,8 @@ ok(core.includes("leadSubmit('lead-save'"), 'POST bridge for lead feedback missi
 ok(core.includes('bindLeadFeedbackBridge()'), 'lead response bridge missing');
 ok(!core.includes('lead-feedback-frame'), 'lead app must not embed Apps Script directly');
 ok(!core.includes('id="leadAccess"'), 'HOUSEVIP lead access code prompt must be absent');
-ok(housevip.includes('20260925-housevipleads4'), 'HOUSEVIP cache version missing');
+ok(core.includes("form.id='leadRequestForm'"), 'lead POST form must remain mounted until acknowledgement');
+ok(housevip.includes('20260925-housevipleads5'), 'HOUSEVIP cache version missing');
 ok(weekly.includes("'housevip-cxp7': {sourceSheet:'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source missing');
 ok(weekly.includes("title:'HOUSEVIP', publicAccess:true"), 'HOUSEVIP public lead access flag missing');
 ok(weekly.includes('function listLeadDashboard(project, accessCode)'), 'list function missing');
