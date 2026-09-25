@@ -2142,7 +2142,7 @@ function leadSubmit(mode, extra={}){
   el('leadRequestForm')?.remove();
   const form=document.createElement('form'); form.id='leadRequestForm'; form.method='post'; form.action=WEEKLY_FORM_URL; form.target='leadSubmitFrame'; form.className='lead-bridge';
   const fields={mode,project:WEEKLY_PROJECT_KEY,accessCode:LEAD_ACCESS,replyToken:leadSubmitToken,...extra};
-  Object.entries(fields).forEach(([name,value])=>{const input=document.createElement('input');input.type='hidden';input.name=name;input.value=value==null?'':String(value);form.appendChild(input)});
+  Object.entries(fields).forEach(([name,value])=>{const input=document.createElement('input');input.type='hidden';input.name=name;input.setAttribute('value',value==null?'':String(value));form.appendChild(input)});
   el('gWrap').appendChild(form); form.submit();
   clearTimeout(leadSubmitTimer); leadSubmitTimer=setTimeout(()=>{if(!leadSubmitPending)return;const current=leadSubmitPending;leadSubmitPending='';el('leadRequestForm')?.remove();if(current==='lead-list'){leadSetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true)}else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent='Сервис долго не отвечает'}}},20000);
 }
