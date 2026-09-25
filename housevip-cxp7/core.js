@@ -2100,14 +2100,12 @@ function loadGenericTab(tabDef){
 function renderLeadFeedback(tabDef){
   if(!WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY){ gShow('gError'); return; }
   el('gTitle').textContent = tabDef.label;
-  el('gWrap').innerHTML = `<div class="lead-feedback-note">Контакты загружаются только после проверки кода доступа. Статусы и комментарии сохраняются отдельно и не меняют исходный импорт Meta.</div>
-    <section id="leadAuth" class="lead-auth"><h3>Лиды Meta</h3><p class="lead-feedback-note">Введите тот же код доступа, который используется для недельных итогов.</p><div class="lead-auth-row"><input id="leadAccess" type="password" autocomplete="current-password" placeholder="Код доступа"><button id="leadOpen" class="lead-primary" type="button">Открыть</button></div><div id="leadAuthStatus" class="lead-status" aria-live="polite"></div></section>
+  el('gWrap').innerHTML = `<div class="lead-feedback-note">Контакты загружаются по индивидуальной ссылке проекта. Статусы и комментарии сохраняются отдельно и не меняют исходный импорт Meta.</div>
+    <section id="leadAuth" class="lead-auth"><h3>Лиды Meta</h3><p class="lead-feedback-note">Загружаю обращения и обратную связь…</p><div id="leadAuthStatus" class="lead-status" aria-live="polite"></div></section>
     <section id="leadApp" class="hidden"><div class="lead-toolbar"><input id="leadSearch" type="search" placeholder="Поиск по имени, телефону или почте"><select id="leadStatusFilter"><option value="">Все статусы</option></select><span id="leadCount" class="lead-count"></span></div><div id="leadList" class="lead-list"></div></section>
     <iframe id="leadSubmitFrame" class="lead-bridge" name="leadSubmitFrame" title="Ответ сервиса лидов"></iframe>`;
   gShow('gPanel');
-  const access = el('leadAccess'); access.value = sessionStorage.getItem('toysWeeklyAccess') || '';
-  el('leadOpen').addEventListener('click', leadOpen);
-  access.addEventListener('keydown', event=>{ if(event.key==='Enter') leadOpen(); });
+  LEAD_ACCESS=''; leadSubmit('lead-list');
 }
 
 function leadSetStatus(text, error){
@@ -2132,11 +2130,6 @@ function leadShowModel(model){
   const filter=el('leadStatusFilter'); filter.innerHTML='<option value="">Все статусы</option>'+model.statuses.map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('');
   el('leadSearch').addEventListener('input',renderLeadRows); filter.addEventListener('change',renderLeadRows); renderLeadRows();
 }
-async function leadOpen(){
-  const button=el('leadOpen'); LEAD_ACCESS=el('leadAccess').value.trim(); button.disabled=true; leadSetStatus('Проверяю код…');
-  if(!(await weeklyAccessValid(LEAD_ACCESS))){ button.disabled=false; leadSetStatus('Неверный код доступа',true); return; }
-  sessionStorage.setItem('toysWeeklyAccess',LEAD_ACCESS); leadSubmit('lead-list');
-}
 function leadSave(card){
   if(!card||leadSubmitPending) return;
   const button=card.querySelector('.lead-save'), saved=card.querySelector('.lead-saved');
@@ -2150,7 +2143,7 @@ function leadSubmit(mode, extra={}){
   const fields={mode,project:WEEKLY_PROJECT_KEY,accessCode:LEAD_ACCESS,replyToken:leadSubmitToken,...extra};
   Object.entries(fields).forEach(([name,value])=>{const input=document.createElement('input');input.type='hidden';input.name=name;input.value=value==null?'':String(value);form.appendChild(input)});
   el('gWrap').appendChild(form); form.submit(); form.remove();
-  clearTimeout(leadSubmitTimer); leadSubmitTimer=setTimeout(()=>{if(!leadSubmitPending)return;const current=leadSubmitPending;leadSubmitPending='';if(current==='lead-list'){el('leadOpen').disabled=false;leadSetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true)}else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent='Сервис долго не отвечает'}}},20000);
+  clearTimeout(leadSubmitTimer); leadSubmitTimer=setTimeout(()=>{if(!leadSubmitPending)return;const current=leadSubmitPending;leadSubmitPending='';if(current==='lead-list'){leadSetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true)}else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent='Сервис долго не отвечает'}}},20000);
 }
 function bindLeadFeedbackBridge(){
   window.addEventListener('message',event=>{
@@ -2159,7 +2152,7 @@ function bindLeadFeedbackBridge(){
     if(!googleReplyOrigin||event.data.replyToken!==leadSubmitToken) return;
     const pending=leadSubmitPending; leadSubmitPending=''; clearTimeout(leadSubmitTimer);
     if(event.data.type==='lead-feedback-error'){
-      if(pending==='lead-list'){el('leadOpen').disabled=false;leadSetStatus(event.data.message||'Не удалось открыть лиды',true)}
+      if(pending==='lead-list'){leadSetStatus(event.data.message||'Не удалось открыть лиды',true)}
       else{const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;card.querySelector('.lead-saved').textContent=event.data.message||'Не удалось сохранить'}}
       return;
     }
