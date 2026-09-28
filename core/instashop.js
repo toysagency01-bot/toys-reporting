@@ -20,6 +20,10 @@ let chart = null;
 let weeklySubmitPending = false;
 let weeklySubmitTimer = null;
 
+window.addEventListener('toys-theme-change', () => {
+  if(META.length || SALES.length) render();
+});
+
 document.head.insertAdjacentHTML('beforeend', `
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -288,13 +292,33 @@ function renderWeekly(){
 }
 
 function drawChart(series){
+  const styles = getComputedStyle(document.documentElement);
+  const value = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
+  const replacements = {
+    '#888891': value('--chart-muted', '#888891'),
+    '#25ddcc': value('--accent', '#25ddcc'),
+    'rgba(255,255,255,.05)': value('--chart-grid', 'rgba(255,255,255,.05)')
+  };
+  const themeChartConfig = config => {
+    const walk = item => {
+      if(Array.isArray(item)){ item.forEach(walk); return; }
+      if(!item || typeof item !== 'object') return;
+      Object.keys(item).forEach(key => {
+        const current = item[key];
+        if(typeof current === 'string' && replacements[current]) item[key] = replacements[current];
+        else walk(current);
+      });
+    };
+    walk(config);
+    return config;
+  };
   if(chart) chart.destroy();
-  chart = new Chart(el('chart'), {data:{labels:series.map(x=>x.date.slice(5)),datasets:[
+  chart = new Chart(el('chart'), themeChartConfig({data:{labels:series.map(x=>x.date.slice(5)),datasets:[
     {type:'line',label:'Расход, UAH',yAxisID:'ySpend',data:series.map(x=>+x.spend.toFixed(2)),borderColor:'#25ddcc',backgroundColor:'transparent',tension:.3,pointRadius:2,borderWidth:2},
     {type:'bar',label:'Direct',yAxisID:'yCount',data:series.map(x=>x.direct),backgroundColor:'rgba(143,123,255,.35)',borderRadius:4},
     {type:'bar',label:'Квалы',yAxisID:'yCount',data:series.map(x=>x.qualified),backgroundColor:'rgba(255,180,84,.35)',borderRadius:4},
     {type:'bar',label:'Продажи',yAxisID:'yCount',data:series.map(x=>x.sales),backgroundColor:'rgba(255,107,129,.35)',borderRadius:4}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#888891',boxWidth:12,font:{family:'Golos Text'}}}},scales:{x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#888891'}},ySpend:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#888891'}},yCount:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#888891'}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#888891',boxWidth:12,font:{family:'Golos Text'}}}},scales:{x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#888891'}},ySpend:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#888891'}},yCount:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#888891'}}}}}));
 }
 
 function drawCampaigns(periodRows, latest){

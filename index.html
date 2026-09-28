@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;800&display=swap" rel="stylesheet">
+<script src="core/theme.js?v=20260928-theme1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
@@ -182,6 +183,10 @@ let period = 7;       // дней
 let account = '__all';
 let chart = null;
 
+window.addEventListener('toys-theme-change', () => {
+  if(DATA.length) render();
+});
+
 init();
 
 function init(){
@@ -334,6 +339,25 @@ function drawChart(dates, rows, curs){
       }
     }
   };
+  const styles = getComputedStyle(document.documentElement);
+  const value = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
+  const replacements = {
+    '#87878f': value('--chart-muted', '#87878f'),
+    '#aaa': value('--chart-muted', '#87878f'),
+    '#25ddcc': value('--accent', '#25ddcc'),
+    'rgba(255,255,255,.05)': value('--chart-grid', 'rgba(255,255,255,.05)'),
+    'rgba(255,255,255,.10)': value('--chart-bar', 'rgba(255,255,255,.10)')
+  };
+  const walk = item => {
+    if(Array.isArray(item)){ item.forEach(walk); return; }
+    if(!item || typeof item !== 'object') return;
+    Object.keys(item).forEach(key => {
+      const current = item[key];
+      if(typeof current === 'string' && replacements[current]) item[key] = replacements[current];
+      else walk(current);
+    });
+  };
+  walk(cfg);
   if(chart) chart.destroy();
   chart = new Chart(document.getElementById('chart'), cfg);
 }

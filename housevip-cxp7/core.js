@@ -511,6 +511,10 @@ const LEAD_FEEDBACK_SHEET = 'LeadFeedback';
 const LEAD_STATUSES = ['Новый','Не удалось связаться','Связались','Квалифицирован','Подбор объекта','Просмотр назначен','Просмотр проведён','Переговоры','Бронь / задаток','Сделка','Отложен','Неактуален'];
 const LEAD_STATUS_ALIASES = {'Показ':'Просмотр проведён'};
 
+window.addEventListener('toys-theme-change', () => {
+  if(DATA.length) render();
+});
+
 /* Опциональный справочный пересчёт расхода в дополнительную валюту.
    Включается только через DASH_CONFIG.spendFx конкретного проекта. */
 const SPEND_FX = C.spendFx || null;
@@ -1569,6 +1573,29 @@ function drawChart(dates, rows, curs, ecomRows, isEcom){
   return drawVolumeChart(dates, rows, curs);
 }
 
+function themeChartConfig(config){
+  const styles = getComputedStyle(document.documentElement);
+  const value = (name, fallback) => styles.getPropertyValue(name).trim() || fallback;
+  const replacements = {
+    '#87878f': value('--chart-muted', '#87878f'),
+    '#aaa': value('--chart-muted', '#87878f'),
+    '#25ddcc': value('--accent', '#25ddcc'),
+    'rgba(255,255,255,.05)': value('--chart-grid', 'rgba(255,255,255,.05)'),
+    'rgba(255,255,255,.10)': value('--chart-bar', 'rgba(255,255,255,.10)')
+  };
+  const walk = item => {
+    if(Array.isArray(item)){ item.forEach(walk); return; }
+    if(!item || typeof item !== 'object') return;
+    Object.keys(item).forEach(key => {
+      const current = item[key];
+      if(typeof current === 'string' && replacements[current]) item[key] = replacements[current];
+      else walk(current);
+    });
+  };
+  walk(config);
+  return config;
+}
+
 function drawEcomVolumeChart(dates, rows, ecomRows){
   function ecomByDay(key){
     return dates.map(d => ecomRows.filter(r=>r.date===d).reduce((s,r)=>s+r[key],0));
@@ -1593,7 +1620,7 @@ function drawEcomVolumeChart(dates, rows, ecomRows){
         y1:{position:'left',beginAtZero:true,grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}}
       }}};
   if(chart) chart.destroy();
-  chart = new Chart(el('chart'), cfg);
+  chart = new Chart(el('chart'), themeChartConfig(cfg));
 }
 
 function drawEcomEfficiencyChart(dates, rows, ecomRows){
@@ -1634,7 +1661,7 @@ function drawEcomEfficiencyChart(dates, rows, ecomRows){
         y2:{position:'right',beginAtZero:true,grid:{display:false},ticks:{color:'#87878f',font:{family:'Golos Text',size:11},callback:v=>v+'%'}}
       }}};
   if(chart) chart.destroy();
-  chart = new Chart(el('chart'), cfg);
+  chart = new Chart(el('chart'), themeChartConfig(cfg));
 }
 
 function drawVolumeChart(dates, rows, curs){
@@ -1660,7 +1687,7 @@ function drawVolumeChart(dates, rows, curs){
         y2:{position:'right',grid:{display:false},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}}
       }}};
   if(chart) chart.destroy();
-  chart = new Chart(el('chart'), cfg);
+  chart = new Chart(el('chart'), themeChartConfig(cfg));
 }
 
 function drawEfficiencyChart(dates, rows, curs){
@@ -1696,7 +1723,7 @@ function drawEfficiencyChart(dates, rows, curs){
         y2:{position:'right',grid:{display:false},ticks:{color:'#87878f',font:{family:'Golos Text',size:11},callback:v=>v+'%'}}
       }}};
   if(chart) chart.destroy();
-  chart = new Chart(el('chart'), cfg);
+  chart = new Chart(el('chart'), themeChartConfig(cfg));
 }
 
 function campaignKey_(r){
