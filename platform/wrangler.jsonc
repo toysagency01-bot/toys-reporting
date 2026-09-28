@@ -13,7 +13,7 @@
     {
       "binding": "TOYS_DB",
       "database_name": "toys-agency",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "d4a52154-5b79-49fb-af07-37e9228c7172",
       "migrations_dir": "migrations"
     }
   ],
@@ -21,7 +21,7 @@
     "crons": ["15 4 * * *"]
   },
   "vars": {
-    "ENVIRONMENT": "development",
+    "ENVIRONMENT": "production",
     "APP_NAME": "TOYS Agency Platform"
   }
 }
