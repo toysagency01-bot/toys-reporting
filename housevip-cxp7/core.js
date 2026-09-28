@@ -522,13 +522,14 @@ function loadSpendFx(){
   const to = String(SPEND_FX.to).trim().toUpperCase();
   if(!from || !to || from === to) return;
 
-  fetch(`https://api.frankfurter.dev/v2/rate/${encodeURIComponent(from.toLowerCase())}/${encodeURIComponent(to.toLowerCase())}`, {cache:'no-store'})
+  fetch(`https://latest.currency-api.pages.dev/v1/currencies/${encodeURIComponent(from.toLowerCase())}.json`, {cache:'no-store'})
     .then(r => {
       if(!r.ok) throw new Error(`FX ${r.status}`);
       return r.json();
     })
     .then(data => {
-      const rate = Number(data && data.rate);
+      const rates = data && data[from.toLowerCase()];
+      const rate = Number(rates && rates[to.toLowerCase()]);
       if(!(rate > 0)) return;
       SPEND_FX_RATE = rate;
       SPEND_FX_DATE = String((data && data.date) || '');
