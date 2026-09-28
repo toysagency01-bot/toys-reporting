@@ -1,0 +1,4 @@
+# Copy this file to .dev.vars for local development.
+# Never commit real tokens.
+TOYS_INTERNAL_TOKEN=replace-with-a-long-random-value
+
