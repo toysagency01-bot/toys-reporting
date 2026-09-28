@@ -1,0 +1,34 @@
+{
+  "updatedAt": "2026-09-28",
+  "active": [
+    { "name": "amklinika", "slug": "amklinika-k8m2" },
+    { "name": "BSCLINIC", "slug": "bs-clinic-a5b4" },
+    { "name": "DRC", "slug": "drc-gzsn" },
+    { "name": "Europisol", "slug": "europisol-tckt" },
+    { "name": "HOUSEVIP", "slug": "housevip-cxp7" },
+    { "name": "Karlovarska Sul", "slug": "karlovarska-sul-k4rm" },
+    { "name": "Monorey", "slug": "monorey-acdk" },
+    { "name": "MurMur", "slug": "murmur-up8m" },
+    { "name": "PROFKIT Instashop", "slug": "profkit-instashop-r4vk" },
+    { "name": "Profkit", "slug": "profkit-yg2a" },
+    { "name": "Seven Sky", "slug": "seven-sky-5cr7" },
+    { "name": "Taycher", "slug": "taycher-5pxk" },
+    { "name": "TOYS AGENCY", "slug": "toys-agency-ctft" },
+    { "name": "VISA Agency", "slug": "visa-agency-qa3b" },
+    { "name": "Wedoprofi", "slug": "wedoprofi-p8x4" }
+  ],
+  "inactive": [
+    { "name": "Академия ERA", "slug": "akademiya-era-3pbm" },
+    { "name": "Colizeum Madrid", "slug": "colizeum-madrid-ytnc" },
+    { "name": "GBT Clinic", "slug": "gbt-clinic-ydwc" },
+    { "name": "KL Advisory", "slug": "kl-advisory-cz-qevz" },
+    { "name": "KOVRU", "slug": "kovru-ywms" },
+    { "name": "LoR", "slug": "lor-xh83" },
+    { "name": "Mimaussy", "slug": "mimaussy-7tuj" },
+    { "name": "MyPulse", "slug": "mypulse-mutk" },
+    { "name": "NEXA MAX", "slug": "nexa-max-rne3" },
+    { "name": "Tribute", "slug": "tribute-eany" },
+    { "name": "Tribute US", "slug": "tribute-us-m2nf" },
+    { "name": "YTN7", "slug": "ytn7-wqsf" }
+  ]
+}

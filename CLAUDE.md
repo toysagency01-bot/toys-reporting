@@ -137,20 +137,15 @@ config-флагом. Пример: `projectPlanTabs`/`projectChannels` — ме�
   — должен быть `ads_read` в granted.
 - Хранится в Script Properties Apps Script проекта как `META_TOKEN`.
 
-## 5. Список клиентов (на момент написания брифа)
+## 5. Список клиентов
 
-Google+Meta: DRC (drc-gzsn), kl-advisory.cz (kl-advisory-cz-qevz), Tribute
-(tribute-eany), Tribute US (tribute-us-m2nf), Академия ERA (akademiya-era-3pbm),
-NEXA MAX (nexa-max-rne3), Colizeum Madrid (colizeum-madrid-ytnc), LoR
-(lor-xh83).
+Единственный актуальный источник статуса проектов в репозитории —
+`config/project-status.json`. Массовые обновления, проверки и релизы выполнять
+только для массива `active`. Проекты из `inactive` сохраняются как архив и не
+должны попадать в общий rollout без прямой команды Дениса.
 
-Meta-only: Seven Sky (seven-sky-5cr7), BS Clinic (bs-clinic-a5b4), VISA
-Agency (visa-agency-qa3b), Profkit (profkit-yg2a), MurMur (murmur-up8m),
-TOYS AGENCY сам (toys-agency-ctft), KOVRU (kovru-ywms, CRM = Excel, не
-Zoho), MyPulse (mypulse-mutk, CRM = Zoho, см. ниже), YTN7 (ytn7-wqsf),
-Monorey (monorey-acdk), Taycher (taycher-5pxk), GBT Clinic (gbt-clinic-ydwc),
-Europisol (europisol-tckt), Mimaussy (mimaussy-7tuj), Karlovarska Sul
-(karlovarska-sul-k4rm, самый новый, см. отдельный раздел ниже).
+После каждого массового релиза обязательно перечислять в сообщении конкретные
+страницы, которые были обновлены. Это нужно для оперативной актуализации списка.
 
 Точные ID таблиц/кабинетов — смотри в самой TOYS Config, они периодически
 дополняются, в этом брифе не дублирую, чтобы не разъезжалось с реальностью.

@@ -6,15 +6,14 @@ const theme = fs.readFileSync(path.join(root, 'core', 'theme.js'), 'utf8');
 const sharedCore = fs.readFileSync(path.join(root, 'core', 'core.js'), 'utf8');
 const housevipCore = fs.readFileSync(path.join(root, 'housevip-cxp7', 'core.js'), 'utf8');
 const instashopCore = fs.readFileSync(path.join(root, 'core', 'instashop.js'), 'utf8');
+const projectStatus = JSON.parse(fs.readFileSync(path.join(root, 'config', 'project-status.json'), 'utf8'));
 
 function ok(value, message) {
   if (!value) throw new Error(message);
 }
 
 const indexFiles = [path.join(root, 'index.html')]
-  .concat(fs.readdirSync(root, {withFileTypes:true})
-    .filter(entry => entry.isDirectory() && !entry.name.endsWith('-concept') && fs.existsSync(path.join(root, entry.name, 'index.html')))
-    .map(entry => path.join(root, entry.name, 'index.html')));
+  .concat(projectStatus.active.map(project => path.join(root, project.slug, 'index.html')));
 
 indexFiles.forEach(file => {
   const html = fs.readFileSync(file, 'utf8');
@@ -40,4 +39,4 @@ ok(sharedCore.includes('themeChartConfig(cfg)'), 'shared chart theming missing')
 ok(housevipCore.includes('themeChartConfig(cfg)'), 'HOUSEVIP chart theming missing');
 ok(instashopCore.includes('themeChartConfig({data:'), 'Instashop chart theming missing');
 
-console.log(`theme integration guards passed for ${indexFiles.length} dashboards`);
+console.log(`theme integration guards passed for the landing page and ${projectStatus.active.length} active dashboards`);

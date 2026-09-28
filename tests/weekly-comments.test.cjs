@@ -9,6 +9,8 @@ const backend = fs.readFileSync(
   'utf8',
 );
 const clients = fs.readFileSync(path.join(root, 'config', 'clients.csv'), 'utf8');
+const projectStatus = JSON.parse(fs.readFileSync(path.join(root, 'config', 'project-status.json'), 'utf8'));
+const activeProjects = new Set(projectStatus.active.map(project => project.slug));
 
 assert.doesNotMatch(
   core,
@@ -32,13 +34,12 @@ assert.match(
 );
 
 const coreVersions = new Map();
-for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-  if (!entry.isDirectory()) continue;
-  const indexPath = path.join(root, entry.name, 'index.html');
+for (const slug of activeProjects) {
+  const indexPath = path.join(root, slug, 'index.html');
   if (!fs.existsSync(indexPath)) continue;
   const html = fs.readFileSync(indexPath, 'utf8');
   const match = html.match(/\.\.\/core\/core\.js\?v=([^"']+)/);
-  if (match) coreVersions.set(entry.name, match[1]);
+  if (match) coreVersions.set(slug, match[1]);
 }
 assert.equal(
   new Set(coreVersions.values()).size,
@@ -58,7 +59,7 @@ const configuredClients = clients
     slug: columns[2],
     reportSheetId: columns[3] || columns[7],
   }))
-  .filter(client => client.slug && client.reportSheetId);
+  .filter(client => client.slug && client.reportSheetId && activeProjects.has(client.slug));
 
 for (const { slug, reportSheetId } of configuredClients) {
   assert.equal(
