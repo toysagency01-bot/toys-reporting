@@ -20,6 +20,15 @@ indexFiles.forEach(file => {
   ok(html.includes('theme.js?v=20260928-ui2'), `theme module missing: ${path.relative(root, file)}`);
 });
 
+projectStatus.active.forEach(project => {
+  const html = fs.readFileSync(path.join(root, project.slug, 'index.html'), 'utf8');
+  const expectedTitle = project.slug === 'toys-agency-ctft'
+    ? 'TOYS AGENCY — Дашборд результатов'
+    : `TOYS × ${project.name} — Дашборд результатов`;
+  ok(html.includes(`<title>${expectedTitle}</title>`), `page title mismatch: ${project.slug}`);
+  ok(html.includes('<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">'), `favicon missing: ${project.slug}`);
+});
+
 ok(theme.includes("localStorage.setItem(STORAGE_KEY, theme)"), 'theme choice persistence missing');
 ok(theme.includes("root.dataset.theme = storedTheme() || 'dark'"), 'dark default or stored theme restore missing');
 ok(theme.includes("id = 'toysThemeToggle'"), 'theme toggle button missing');
