@@ -1,0 +1,103 @@
+body.housevip-ux-v2{max-width:1480px;padding-top:24px;background:radial-gradient(circle at 15% -10%,rgba(18,169,155,.07),transparent 30%),var(--bg)}
+body.housevip-ux-v2 header{min-height:72px;margin-bottom:16px;padding:14px 18px;border-radius:18px}
+body.housevip-ux-v2 .ux-legacy-tabs{display:none!important}
+.ux-nav{display:flex;gap:4px;width:max-content;max-width:100%;margin-bottom:16px;padding:5px;border:1px solid var(--line);border-radius:15px;background:var(--panel);box-shadow:var(--ui-shadow-soft);overflow-x:auto;scrollbar-width:none}
+.ux-nav::-webkit-scrollbar{display:none}
+.ux-nav button{display:flex;align-items:center;gap:8px;padding:10px 14px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:600 13px 'Golos Text',system-ui;white-space:nowrap;cursor:pointer}
+.ux-nav button:hover{color:var(--text)}
+.ux-nav button.active{background:var(--accent-dim);color:var(--accent)}
+.ux-nav svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;flex:0 0 17px}
+.ux-nav button:first-child svg rect{fill:currentColor;stroke:none;opacity:.82}
+body.housevip-ux-v2 #controls{margin-bottom:0;border-radius:16px}
+body.housevip-ux-v2 #controls .weekly-open{display:none}
+body.housevip-ux-v2 #content{padding-top:0}
+.ux-section{display:none;animation:ux-rise .2s ease}
+.ux-section.active{display:block}
+@keyframes ux-rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.ux-page-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:32px 3px 19px}
+.ux-page-heading p{margin:0 0 7px;color:var(--accent);font-size:10px;font-weight:800;letter-spacing:.12em}
+.ux-page-heading h1{margin:0;color:var(--text);font-size:30px;line-height:1.08;letter-spacing:-.035em;text-transform:none}
+.ux-page-heading span{display:block;margin-top:8px;color:var(--muted);font-size:13px}
+.ux-primary{padding:10px 14px;border:0;border-radius:11px;background:var(--accent);color:#06110f;font:700 13px 'Golos Text';cursor:pointer}
+.ux-insight{display:flex;align-items:center;gap:16px;margin-bottom:16px;padding:18px 20px;border:1px solid rgba(37,221,204,.20);border-radius:18px;background:linear-gradient(110deg,var(--panel),var(--accent-dim));box-shadow:var(--ui-shadow-soft)}
+.ux-insight-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:var(--accent);color:#06110f;font-size:22px;font-weight:800;box-shadow:0 8px 24px rgba(37,221,204,.18)}
+.ux-insight>div:nth-child(2){flex:1;min-width:0}
+.ux-insight span{display:block;margin-bottom:4px;color:var(--accent);font-size:9px;font-weight:800;letter-spacing:.11em}
+.ux-insight strong{display:block;color:var(--text);font-size:16px;line-height:1.35}
+.ux-insight p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.ux-insight button{border:0;background:transparent;color:var(--accent);font:700 12px 'Golos Text';white-space:nowrap;cursor:pointer}
+body.housevip-ux-v2 #mainCards{grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:14px}
+body.housevip-ux-v2 #mainCards .card{min-height:128px;padding:17px;border-radius:17px}
+body.housevip-ux-v2 #mainCards .card::after{height:2px;opacity:.3}
+body.housevip-ux-v2 #mainCards .label{margin-bottom:15px;font-size:10px}
+body.housevip-ux-v2 #mainCards .value{font-size:23px;letter-spacing:-.035em}
+body.housevip-ux-v2 #mainCards .delta{display:block;margin:10px 0 0;font-size:10px}
+body.housevip-ux-v2 #mainCards .spend-fx{font-size:11px;margin-top:7px}
+.ux-overview-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,.7fr);gap:14px}
+.ux-overview-grid>.panel{margin-bottom:0}
+.ux-period-panel{display:flex;flex-direction:column}
+.ux-panel-heading h2{margin:0!important;color:var(--text)!important;font-size:14px!important;letter-spacing:0!important;text-transform:none!important}
+.ux-panel-heading p{margin:4px 0 0;color:var(--muted);font-size:11px}
+.ux-period-metrics{display:grid;gap:10px;margin-top:18px}
+.ux-period-metrics>div{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 10px;padding:12px;border-radius:12px;background:var(--panel-2)}
+.ux-period-metrics span{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+.ux-period-metrics strong{font-size:15px}
+.ux-period-metrics small{grid-column:2;color:var(--accent);font-size:10px;text-align:right}
+.ux-attention{margin-top:auto;padding:13px;border:1px solid rgba(255,180,84,.18);border-radius:13px;background:rgba(255,180,84,.07)}
+.ux-attention b{display:block;margin-bottom:5px;color:#ffb454;font-size:9px;letter-spacing:.08em}
+.ux-attention strong{display:block;font-size:11px;line-height:1.4}
+.ux-attention p{margin:4px 0 0;color:var(--muted);font-size:10px;line-height:1.5}
+body.housevip-ux-v2 .ux-overview-grid .chart-wrap{height:300px}
+body.housevip-ux-v2 #uxCampaigns>.panel,body.housevip-ux-v2 #uxWeekly>.panel{margin-bottom:14px}
+body.housevip-ux-v2 #uxCampaigns #campList>.task-group{margin-top:0}
+body.housevip-ux-v2 #uxCampaigns .camp-row{margin-top:8px;padding:15px;border:1px solid var(--line);border-radius:13px;background:var(--panel-2)}
+body.housevip-ux-v2 #uxCampaigns .camp-metrics{grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+body.housevip-ux-v2 #uxCampaigns .camp-name{font-weight:600}
+.ux-funnel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.ux-funnel-grid>.panel{margin-bottom:0}
+.ux-funnel-grid>#channelPanel:not(.hidden){grid-column:1/-1}
+body.housevip-ux-v2 #uxWeekly #weeklyPanel>h2{display:none}
+body.housevip-ux-v2 #uxWeekly #weeklyList:empty::after{content:'Опубликованных недельных итогов пока нет';display:block;padding:42px;text-align:center;color:var(--muted)}
+body.housevip-ux-v2 #projectView>.ux-page-heading{padding-top:32px}
+.ux-project-channels{display:flex;gap:4px;width:max-content;margin:0 0 12px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.ux-project-channels button{padding:8px 13px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:600 12px 'Golos Text';cursor:pointer}
+.ux-project-channels button.active{background:var(--accent-dim);color:var(--accent)}
+#projectView[data-ux-mode="leads"] #uxProjectChannels,#projectView[data-ux-mode="leads"] #projectSubNav{display:none!important}
+body.housevip-ux-v2 #projectSubNav{margin-bottom:16px}
+body.housevip-ux-v2 .lead-toolbar{top:12px;padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--panel);box-shadow:var(--ui-shadow-soft)}
+body.housevip-ux-v2 .lead-card{border-radius:14px;padding:16px}
+:root[data-theme="light"] body.housevip-ux-v2{background:radial-gradient(circle at 15% -10%,rgba(12,159,147,.07),transparent 30%),#f3f6f5}
+:root[data-theme="light"] body.housevip-ux-v2 .ux-insight{background:linear-gradient(110deg,#fff,#e3f7f4)}
+:root[data-theme="light"] body.housevip-ux-v2 .ux-primary{color:#fff}
+:root[data-theme="light"] body.housevip-ux-v2 .lead-auth input,
+:root[data-theme="light"] body.housevip-ux-v2 .lead-toolbar input,
+:root[data-theme="light"] body.housevip-ux-v2 .lead-toolbar select,
+:root[data-theme="light"] body.housevip-ux-v2 .lead-card select,
+:root[data-theme="light"] body.housevip-ux-v2 .lead-card textarea{background:#fff;color:var(--text)}
+@media(max-width:1180px){
+  body.housevip-ux-v2 #mainCards{grid-template-columns:repeat(3,1fr)}
+  .ux-overview-grid{grid-template-columns:1fr}
+  .ux-period-panel{min-height:auto}
+  .ux-attention{margin-top:16px}
+  body.housevip-ux-v2 #uxCampaigns .camp-metrics{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:760px){
+  body.housevip-ux-v2{padding-top:12px}
+  .ux-nav{width:100%}
+  .ux-page-heading{align-items:flex-start;flex-direction:column;padding:26px 2px 17px}
+  .ux-page-heading h1{font-size:25px}
+  .ux-insight{align-items:flex-start;flex-wrap:wrap;padding:15px}
+  .ux-insight-icon{width:38px;height:38px}
+  .ux-insight>div:nth-child(2){flex-basis:calc(100% - 58px)}
+  .ux-insight button{margin-left:54px}
+  .ux-funnel-grid{grid-template-columns:1fr}
+  .ux-funnel-grid>#channelPanel:not(.hidden){grid-column:auto}
+  body.housevip-ux-v2 #uxCampaigns .camp-metrics{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:520px){
+  body.housevip-ux-v2 #mainCards{grid-template-columns:repeat(2,1fr);gap:8px}
+  body.housevip-ux-v2 #mainCards .card{min-height:114px;padding:14px}
+  body.housevip-ux-v2 #mainCards .value{font-size:19px}
+  body.housevip-ux-v2 #mainCards .delta{font-size:9px}
+  .ux-nav button{padding:9px 11px}
+}
