@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>TOYS · Karlovarská Sůl · UX concept</title>
+  <link rel="stylesheet" href="./styles.css?v=20260928-ux1">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <img src="../assets/toys-logo.svg" alt="TOYS Agency" class="brand-logo">
+        <span class="brand-divider"></span>
+        <div>
+          <div class="project-name">Karlovarská Sůl</div>
+          <div class="project-meta"><span class="live-dot"></span>Демонстрационный срез</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="prototype-badge">UX-ПРОТОТИП</span>
+        <button class="icon-button" id="themeToggle" type="button" aria-label="Переключить тему" title="Переключить тему">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <nav class="primary-nav" aria-label="Основные разделы">
+      <button class="nav-item active" data-view="overview" type="button">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+        Обзор
+      </button>
+      <button class="nav-item" data-view="campaigns" type="button">
+        <svg viewBox="0 0 24 24"><path d="M4 7h16v12H4zM8 7V5h8v2M4 12h16"/></svg>
+        Кампании
+      </button>
+      <button class="nav-item" data-view="funnel" type="button">
+        <svg viewBox="0 0 24 24"><path d="M4 5h16l-6.5 7.2V19l-3 1v-7.8z"/></svg>
+        Воронка
+      </button>
+      <button class="nav-item" data-view="weekly" type="button">
+        <svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 2v4m8-4v4M8 10h8m-8 4h5"/></svg>
+        Недельные итоги
+      </button>
+    </nav>
+
+    <section class="toolbar" aria-label="Фильтры отчёта">
+      <div class="filter-group" id="channelFilter">
+        <button class="filter-chip active" data-channel="all" type="button">Все каналы</button>
+        <button class="filter-chip" data-channel="google" type="button"><span class="platform-icon google-icon"></span>Google</button>
+        <button class="filter-chip" data-channel="meta" type="button"><span class="platform-icon meta-icon"></span>Meta</button>
+      </div>
+      <div class="toolbar-spacer"></div>
+      <div class="period-presets" id="periodFilter">
+        <button type="button">Вчера</button>
+        <button class="active" type="button">7 дней</button>
+        <button type="button">30 дней</button>
+      </div>
+      <button class="date-control" type="button">
+        <svg viewBox="0 0 24 24"><path d="M5 5h14v15H5zM8 3v4m8-4v4M5 9h14"/></svg>
+        21–27 сентября 2026
+      </button>
+    </section>
+
+    <main>
+      <section class="view active" id="view-overview" data-view-panel="overview">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">ОБЗОР ПРОЕКТА</p>
+            <h1>Результаты за 7 дней</h1>
+            <p class="page-description">Короткая управленческая сводка — без лишней детализации кампаний.</p>
+          </div>
+          <div class="freshness"><span></span>Обновлено сегодня, 07:00</div>
+        </div>
+
+        <section class="insight-banner">
+          <div class="insight-mark">
+            <svg viewBox="0 0 24 24"><path d="m4 16 5-5 3 3 7-7M15 7h4v4"/></svg>
+          </div>
+          <div class="insight-copy">
+            <span class="insight-kicker">ГЛАВНЫЙ ВЫВОД</span>
+            <strong>Выручка выросла на 14,8%, пока расход снизился на 3,2%</strong>
+            <p>Основной рост обеспечили брендовая кампания Google и продажи из Meta. Shopping требует проверки: трафик есть, покупок нет.</p>
+          </div>
+          <button class="text-button" data-open-view="campaigns" type="button">Посмотреть причины <span>→</span></button>
+        </section>
+
+        <section class="kpi-grid">
+          <article class="kpi-card">
+            <div class="kpi-top"><span>Расход</span><span class="kpi-icon money-icon">€</span></div>
+            <div class="kpi-value">5 781 Kč <small>+ 95 €</small></div>
+            <div class="delta good">↓ 3,2% <span>к прошлым 7 дням</span></div>
+          </article>
+          <article class="kpi-card featured">
+            <div class="kpi-top"><span>Выручка</span><span class="kpi-icon">↗</span></div>
+            <div class="kpi-value">12 143 Kč</div>
+            <div class="delta good">↑ 14,8% <span>к прошлым 7 дням</span></div>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-top"><span>ROAS</span><span class="kpi-icon">×</span></div>
+            <div class="kpi-value">2,18×</div>
+            <div class="delta good">↑ 18,6% <span>эффективнее</span></div>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-top"><span>Покупки</span><span class="kpi-icon">◎</span></div>
+            <div class="kpi-value">9,27</div>
+            <div class="delta good">↑ 28,8% <span>к прошлому периоду</span></div>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-top"><span>Цена покупки</span><span class="kpi-icon">⌁</span></div>
+            <div class="kpi-value">624 Kč</div>
+            <div class="delta good">↓ 24,8% <span>дешевле</span></div>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-top"><span>Конверсия</span><span class="kpi-icon">%</span></div>
+            <div class="kpi-value">2,23%</div>
+            <div class="delta bad">↓ 6,1% <span>к прошлому периоду</span></div>
+          </article>
+        </section>
+
+        <section class="overview-grid">
+          <article class="panel chart-panel">
+            <div class="panel-header">
+              <div><h2>Выручка и расход</h2><p>Динамика по дням</p></div>
+              <div class="chart-legend"><span class="revenue-dot"></span>Выручка <span class="spend-dot"></span>Расход</div>
+            </div>
+            <div class="chart-wrap">
+              <div class="chart-y"><span>3 000</span><span>2 000</span><span>1 000</span><span>0</span></div>
+              <svg class="trend-chart" viewBox="0 0 760 260" preserveAspectRatio="none" aria-label="График выручки и расходов">
+                <defs>
+                  <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#18b8a8" stop-opacity=".28"/><stop offset="1" stop-color="#18b8a8" stop-opacity="0"/></linearGradient>
+                </defs>
+                <g class="grid-lines"><path d="M0 30H760M0 95H760M0 160H760M0 225H760"/></g>
+                <path class="area" d="M0 196 C55 188 82 128 126 142 S205 175 254 123 S345 72 381 92 S456 146 508 111 S598 54 633 75 S712 82 760 36 L760 260 L0 260Z"/>
+                <path class="revenue-line" d="M0 196 C55 188 82 128 126 142 S205 175 254 123 S345 72 381 92 S456 146 508 111 S598 54 633 75 S712 82 760 36"/>
+                <path class="spend-line" d="M0 211 C62 207 85 189 126 196 S201 206 254 190 S332 179 381 187 S463 203 508 185 S598 171 633 180 S718 174 760 163"/>
+                <g class="chart-points"><circle cx="0" cy="196" r="4"/><circle cx="126" cy="142" r="4"/><circle cx="254" cy="123" r="4"/><circle cx="381" cy="92" r="4"/><circle cx="508" cy="111" r="4"/><circle cx="633" cy="75" r="4"/><circle cx="760" cy="36" r="4"/></g>
+              </svg>
+              <div class="chart-x"><span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span></div>
+            </div>
+          </article>
+
+          <article class="panel channel-panel">
+            <div class="panel-header"><div><h2>Эффективность каналов</h2><p>ROAS и доля выручки</p></div></div>
+            <div class="channel-row">
+              <div class="channel-title"><span class="platform-icon google-icon"></span><strong>Google Ads</strong><span>1,37×</span></div>
+              <div class="progress"><i style="width:39%"></i></div>
+              <div class="channel-caption"><span>39% выручки</span><span>130 €</span></div>
+            </div>
+            <div class="channel-row">
+              <div class="channel-title"><span class="platform-icon meta-icon"></span><strong>Meta Ads</strong><span>2,33×</span></div>
+              <div class="progress meta"><i style="width:61%"></i></div>
+              <div class="channel-caption"><span>61% выручки</span><span>7 985 Kč</span></div>
+            </div>
+            <div class="attention-card">
+              <span class="attention-icon">!</span>
+              <div><strong>Требует внимания</strong><p>Shopping потратил 19 €, но не принёс покупок.</p></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="overview-grid lower-grid">
+          <article class="panel funnel-panel">
+            <div class="panel-header">
+              <div><h2>Здоровье воронки</h2><p>От показа до покупки</p></div>
+              <button class="link-button" data-open-view="funnel" type="button">Детально →</button>
+            </div>
+            <div class="mini-funnel">
+              <div class="funnel-step" style="--width:100%"><span>Показы</span><strong>19 241</strong><i></i></div>
+              <div class="funnel-step" style="--width:70%"><span>Клики</span><strong>415</strong><small>2,16%</small><i></i></div>
+              <div class="funnel-step" style="--width:46%"><span>Корзина</span><strong>24</strong><small>5,84%</small><i></i></div>
+              <div class="funnel-step" style="--width:34%"><span>Оформление</span><strong>15</strong><small>60,4%</small><i></i></div>
+              <div class="funnel-step" style="--width:24%"><span>Покупки</span><strong>9,27</strong><small>63,3%</small><i></i></div>
+            </div>
+          </article>
+
+          <article class="panel weekly-preview">
+            <div class="panel-header">
+              <div><h2>Последний итог недели</h2><p>21–27 сентября 2026</p></div>
+              <button class="link-button" data-open-view="weekly" type="button">Все итоги →</button>
+            </div>
+            <blockquote>«Рост продаж дали брендовая кампания и Meta. На следующей неделе проверяем Shopping и масштабируем лучшие объявления.»</blockquote>
+            <div class="weekly-tags"><span>↗ Масштабировать Brand</span><span>⚑ Проверить Shopping</span></div>
+          </article>
+        </section>
+      </section>
+
+      <section class="view" id="view-campaigns" data-view-panel="campaigns">
+        <div class="page-heading"><div><p class="eyebrow">ДЕТАЛИЗАЦИЯ</p><h1>Кампании</h1><p class="page-description">Все показатели и динамика — отдельно от управленческого обзора.</p></div></div>
+        <div class="panel table-panel">
+          <div class="table-tools"><span>5 активных кампаний</span><button type="button">Сортировка: по расходу ▾</button></div>
+          <div class="campaign-table">
+            <div class="table-row table-head"><span>Кампания</span><span>Канал</span><span>Расход</span><span>Покупки</span><span>Выручка</span><span>ROAS</span><span>Динамика</span></div>
+            <div class="table-row"><strong>TOYS / Sales / Main</strong><span class="channel-pill meta"><span class="platform-icon meta-icon"></span>Meta</span><span>3 315 Kč</span><span>6</span><span>7 365 Kč</span><strong>2,22×</strong><span class="delta good">↑ 48%</span></div>
+            <div class="table-row"><strong>TOYS_Search_Brand</strong><span class="channel-pill google"><span class="platform-icon google-icon"></span>Google</span><span>48 €</span><span>2,27</span><span>130 €</span><strong>2,71×</strong><span class="delta good">↑ 10%</span></div>
+            <div class="table-row warning"><strong>TOYS_Shopping <em>Требует внимания</em></strong><span class="channel-pill google"><span class="platform-icon google-icon"></span>Google</span><span>19 €</span><span>0</span><span>0 €</span><strong>0,00×</strong><span class="delta bad">↓ 100%</span></div>
+            <div class="table-row"><strong>TOYS_Search_Categories</strong><span class="channel-pill google"><span class="platform-icon google-icon"></span>Google</span><span>28 €</span><span>0</span><span>0 €</span><strong>0,00×</strong><span class="delta neutral">—</span></div>
+            <div class="table-row"><strong>TOYS / Sales / Graveyard</strong><span class="channel-pill meta"><span class="platform-icon meta-icon"></span>Meta</span><span>117 Kč</span><span>1</span><span>620 Kč</span><strong>5,32×</strong><span class="delta good">↑</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-funnel" data-view-panel="funnel">
+        <div class="page-heading"><div><p class="eyebrow">ПУТЬ ПОКУПАТЕЛЯ</p><h1>Воронка e-commerce</h1><p class="page-description">Общая конверсия и сравнение каналов на каждом этапе.</p></div></div>
+        <div class="funnel-layout">
+          <article class="panel big-funnel">
+            <h2>Общая воронка</h2>
+            <div class="funnel-bars">
+              <div style="--w:100%"><span>Показы</span><strong>19 241</strong><i></i></div>
+              <div style="--w:72%"><span>Клики</span><strong>415</strong><small>2,16%</small><i></i></div>
+              <div style="--w:52%"><span>Добавили в корзину</span><strong>24</strong><small>5,84%</small><i></i></div>
+              <div style="--w:39%"><span>Начали оформление</span><strong>15</strong><small>60,41%</small><i></i></div>
+              <div style="--w:28%"><span>Покупки</span><strong>9,27</strong><small>63,25%</small><i></i></div>
+            </div>
+          </article>
+          <article class="panel comparison-panel"><h2>Сравнение каналов</h2><div class="compare-card"><span class="platform-icon google-icon"></span><strong>Google</strong><span>2,27 покупки</span><b>ROAS 1,37×</b></div><div class="compare-card"><span class="platform-icon meta-icon"></span><strong>Meta</strong><span>7 покупок</span><b>ROAS 2,33×</b></div></article>
+        </div>
+      </section>
+
+      <section class="view" id="view-weekly" data-view-panel="weekly">
+        <div class="page-heading"><div><p class="eyebrow">ИСТОРИЯ РЕШЕНИЙ</p><h1>Недельные итоги</h1><p class="page-description">Выводы байера отделены от оперативной аналитики.</p></div><button class="primary-button" type="button">+ Добавить итог</button></div>
+        <div class="weekly-list">
+          <details class="weekly-item" open><summary><div><span>21–27 сентября 2026</span><strong>Выручка растёт, Shopping требует проверки</strong></div><span class="summary-arrow">⌄</span></summary><div class="weekly-body"><div><span>Что сработало</span><p>Брендовая кампания Google и основные продажи Meta.</p></div><div><span>Что не сработало</span><p>Shopping продолжил тратить бюджет без покупок.</p></div><div><span>Что изменили</span><p>Снизили долю бюджета Shopping, усилили Brand.</p></div><div><span>План</span><p>Проверить фид товаров и масштабировать лучшие объявления Meta.</p></div></div></details>
+          <details class="weekly-item"><summary><div><span>14–20 сентября 2026</span><strong>Стабилизация стоимости покупки</strong></div><span class="summary-arrow">⌄</span></summary><div class="weekly-body"><div><span>Что сработало</span><p>Обновлённые объявления Meta.</p></div><div><span>План</span><p>Продолжить тест новых связок.</p></div></div></details>
+          <details class="weekly-item"><summary><div><span>7–13 сентября 2026</span><strong>Запуск обновлённой структуры</strong></div><span class="summary-arrow">⌄</span></summary><div class="weekly-body"><div><span>Итог</span><p>Собрана базовая статистика по всем каналам.</p></div></div></details>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="./app.js?v=20260928-ux1"></script>
+</body>
+</html>

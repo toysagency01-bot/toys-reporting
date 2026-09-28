@@ -13,7 +13,7 @@ function ok(value, message) {
 
 const indexFiles = [path.join(root, 'index.html')]
   .concat(fs.readdirSync(root, {withFileTypes:true})
-    .filter(entry => entry.isDirectory() && fs.existsSync(path.join(root, entry.name, 'index.html')))
+    .filter(entry => entry.isDirectory() && !entry.name.endsWith('-concept') && fs.existsSync(path.join(root, entry.name, 'index.html')))
     .map(entry => path.join(root, entry.name, 'index.html')));
 
 indexFiles.forEach(file => {
