@@ -66,6 +66,19 @@ body.housevip-ux-v2 #projectView>.ux-page-heading{padding-top:32px}
 body.housevip-ux-v2 #projectSubNav{margin-bottom:16px}
 body.housevip-ux-v2 .lead-toolbar{top:12px;padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--panel);box-shadow:var(--ui-shadow-soft)}
 body.housevip-ux-v2 .lead-card{border-radius:14px;padding:16px}
+body.housevip-ux-v2 .lead-auth input,
+body.housevip-ux-v2 .lead-toolbar input,
+body.housevip-ux-v2 .lead-toolbar select,
+body.housevip-ux-v2 .lead-card select,
+body.housevip-ux-v2 .lead-card textarea{background:var(--panel);color:var(--text);border-color:var(--line);color-scheme:dark}
+body.housevip-ux-v2 .lead-toolbar input::placeholder,
+body.housevip-ux-v2 .lead-card textarea::placeholder{color:var(--muted);opacity:.9}
+body.housevip-ux-v2 .lead-toolbar select option,
+body.housevip-ux-v2 .lead-card select option{background:var(--panel);color:var(--text)}
+body.housevip-ux-v2 .lead-toolbar input:focus,
+body.housevip-ux-v2 .lead-toolbar select:focus,
+body.housevip-ux-v2 .lead-card select:focus,
+body.housevip-ux-v2 .lead-card textarea:focus{border-color:var(--accent);outline:2px solid var(--accent-dim);outline-offset:1px}
 :root[data-theme="light"] body.housevip-ux-v2{background:radial-gradient(circle at 15% -10%,rgba(12,159,147,.07),transparent 30%),#f3f6f5}
 :root[data-theme="light"] body.housevip-ux-v2 .ux-insight{background:linear-gradient(110deg,#fff,#e3f7f4)}
 :root[data-theme="light"] body.housevip-ux-v2 .ux-primary{color:#fff}
@@ -73,7 +86,9 @@ body.housevip-ux-v2 .lead-card{border-radius:14px;padding:16px}
 :root[data-theme="light"] body.housevip-ux-v2 .lead-toolbar input,
 :root[data-theme="light"] body.housevip-ux-v2 .lead-toolbar select,
 :root[data-theme="light"] body.housevip-ux-v2 .lead-card select,
-:root[data-theme="light"] body.housevip-ux-v2 .lead-card textarea{background:#fff;color:var(--text)}
+:root[data-theme="light"] body.housevip-ux-v2 .lead-card textarea{background:#fff;color:var(--text);color-scheme:light}
+:root[data-theme="light"] body.housevip-ux-v2 .lead-toolbar select option,
+:root[data-theme="light"] body.housevip-ux-v2 .lead-card select option{background:#fff;color:var(--text)}
 @media(max-width:1180px){
   body.housevip-ux-v2 #mainCards{grid-template-columns:repeat(3,1fr)}
   .ux-overview-grid{grid-template-columns:1fr}
