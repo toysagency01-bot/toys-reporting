@@ -4,6 +4,7 @@
   "main": "src/index.js",
   "compatibility_date": "2026-09-28",
   "workers_dev": true,
+  "preview_urls": false,
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
@@ -23,6 +24,13 @@
   "vars": {
     "ENVIRONMENT": "production",
     "APP_NAME": "TOYS Agency Platform"
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
   }
 }
 
