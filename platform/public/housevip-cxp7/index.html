@@ -1,86 +1,46 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex, nofollow">
-  <title>TOYS × HOUSEVIP — Дашборд результатов</title>
-  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>TOYS × HOUSEVIP — Дашборд результатов</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./ux-v2.css?v=20260928-housevip-cloudflare-full1">
 </head>
 <body>
-  <div class="shell">
-    <header class="topbar">
-      <a class="brand" href="./" aria-label="HOUSEVIP dashboard">
-        <span class="brand-mark">T</span>
-        <span><strong>TOYS</strong><small>× HOUSEVIP</small></span>
-      </a>
-      <div class="top-actions">
-        <span class="pilot-pill">D1 · PILOT</span>
-        <button id="themeButton" class="icon-button" type="button" aria-label="Сменить тему">◐</button>
-      </div>
-    </header>
-
-    <main>
-      <section class="hero">
-        <div>
-          <p class="eyebrow"><span class="meta-logo">∞</span> Meta Ads</p>
-          <h1>Результаты рекламы</h1>
-          <p class="subtitle">Рабочий пилот новой платформы. Источник — база данных Cloudflare D1.</p>
-        </div>
-        <form id="dateForm" class="date-form">
-          <label>С <input id="dateFrom" type="date"></label>
-          <span>—</span>
-          <label>По <input id="dateTo" type="date"></label>
-          <button type="submit">Применить</button>
-        </form>
-      </section>
-
-      <div id="notice" class="notice">Загружаю данные…</div>
-
-      <section id="dashboard" class="hidden">
-        <div class="cards">
-          <article class="metric spend-card">
-            <span>Расход</span>
-            <strong id="spendEur">—</strong>
-            <small id="spendIdr">—</small>
-          </article>
-          <article class="metric"><span>Лиды</span><strong id="leads">—</strong><small id="cplEur">CPL —</small></article>
-          <article class="metric"><span>Показы</span><strong id="impressions">—</strong><small>Meta Ads</small></article>
-          <article class="metric"><span>Клики</span><strong id="clicks">—</strong><small id="ctr">CTR —</small></article>
-        </div>
-
-        <div class="layout">
-          <article class="panel chart-panel">
-            <div class="panel-head"><div><span class="kicker">Динамика</span><h2>Расход и лиды по дням</h2></div><span id="rangeLabel" class="range-label"></span></div>
-            <div id="chart" class="chart" aria-label="Динамика по дням"></div>
-            <div class="legend"><span><i class="teal"></i>Расход</span><span><i class="purple"></i>Лиды</span></div>
-          </article>
-          <article class="panel summary-panel">
-            <span class="kicker">Контроль</span>
-            <h2>Сверка источника</h2>
-            <dl>
-              <div><dt>Источник</dt><dd>Cloudflare D1</dd></div>
-              <div><dt>Валюта кабинета</dt><dd>IDR</dd></div>
-              <div><dt>Основная валюта</dt><dd>EUR</dd></div>
-              <div><dt>Обновление</dt><dd id="updatedAt">—</dd></div>
-            </dl>
-            <p class="fineprint">EUR пересчитывается по актуальному публичному курсу. IDR всегда остаётся рядом для сверки с рекламным кабинетом.</p>
-          </article>
-        </div>
-
-        <article class="panel campaign-panel">
-          <div class="panel-head"><div><span class="kicker">Кампании</span><h2>Результаты за выбранный период</h2></div></div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Кампания</th><th>Показы</th><th>Клики</th><th>CTR</th><th>Расход</th><th>Лиды</th><th>CPL</th></tr></thead>
-              <tbody id="campaignRows"></tbody>
-            </table>
-          </div>
-        </article>
-      </section>
-    </main>
-  </div>
-  <script src="./app.js" type="module"></script>
+<script>
+window.DASH_CONFIG = {
+  title:   'HOUSEVIP',
+  locked:  true,
+  showDrafts: false,
+  conversionLabel: 'Лиды',
+  conversionShortLabel: 'Лиды',
+  sheetId: '1C050_vkmWg3FtrgVz5WIKJurfYNlA0vWGkTZQpVASkU',
+  projectSheetId: '1lEJk5DZl66DJui8p_U3hbEvMweEwGpA9bVIYeWq8Kms',
+  spendFx: { from: 'IDR', to: 'EUR' },
+  projectChannels: [
+    { key: 'smm', label: 'SMM', tabs: [
+      { tab: 'План работ (SMM)', label: 'План работ', kind: 'plan' },
+      { tab: 'Основные контент-направления (SMM)', label: 'Основные контент-направления' },
+      { tab: 'Оформление профиля (SMM)', label: 'Оформление профиля' },
+      { tab: 'Контент-план на сентябрь (SMM)', label: 'Контент-план на сентябрь' },
+      { tab: 'Тексты / Лента на сентябрь (SMM)', label: 'Тексты / Лента на сентябрь' }
+    ] },
+    { key: 'meta', label: 'Meta', tabs: [
+      { tab: 'План работ (Meta)', label: 'План работ', kind: 'plan' },
+      { tab: 'ЛИДЫ(Meta)', label: 'ЛИДЫ', mode: 'lead-feedback' },
+      { tab: 'Еженедельная сводка (Meta)', label: 'Еженедельная сводка', mode: 'weekly-report' },
+      { tab: 'Месячная сводка (Meta)', label: 'Месячная сводка', mode: 'weekly-report' },
+      { tab: 'Анализ конкурентов (Meta)', label: 'Анализ конкурентов', mode: 'competitors' },
+      { tab: 'Стратегия (Meta)', label: 'Стратегия' },
+      { tab: 'Креативный бриф (Meta)', label: 'Креативный бриф', mode: 'creative-brief' }
+    ] }
+  ]
+};
+</script>
+<script src="../core/theme.js?v=20260928-housevip-cloudflare-full1"></script>
+<script src="./core.js?v=20260928-housevip-cloudflare-full1"></script>
+<script src="./ux-v2.js?v=20260928-housevip-cloudflare-full1"></script>
 </body>
 </html>
