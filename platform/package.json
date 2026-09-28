@@ -9,7 +9,9 @@
     "dev": "wrangler dev --local",
     "db:migrate:local": "wrangler d1 migrations apply TOYS_DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply TOYS_DB --remote",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "pages:build": "node scripts/build-pages.mjs",
+    "pages:deploy": "npm run pages:build && wrangler pages deploy dist --project-name toys-agency-dashboard --branch main --force"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
