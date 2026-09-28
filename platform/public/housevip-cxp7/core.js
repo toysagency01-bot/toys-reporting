@@ -16,9 +16,10 @@ const SHOW_DRAFTS = !!C.showDrafts;
 const TITLE = C.title || 'reporting';
 const CONVERSION_LABEL = C.conversionLabel || 'Конверсии';
 const CONVERSION_SHORT_LABEL = C.conversionShortLabel || 'Конв.';
+const DATA_API_BASE = String(C.dataApiBase || '').replace(/\/$/, '');
 // One shared Apps Script endpoint serves every dashboard. A client may still
 // override it in its config while a new deployment is being rolled out.
-const WEEKLY_FORM_URL = C.weeklyFormUrl || window.TOYS_WEEKLY_FORM_URL || 'https://script.google.com/macros/s/AKfycbyK9gtL224H-MTZZwHdb9cq_2-zQzPs4QyEh_XFxaspR_kYG59iNLTBN29plKUeltfpVQ/exec';
+const WEEKLY_FORM_URL = C.weeklyFormUrl || (DATA_API_BASE ? DATA_API_BASE + '/weekly-reports' : '') || window.TOYS_WEEKLY_FORM_URL || 'https://script.google.com/macros/s/AKfycbyK9gtL224H-MTZZwHdb9cq_2-zQzPs4QyEh_XFxaspR_kYG59iNLTBN29plKUeltfpVQ/exec';
 const WEEKLY_PROJECT_KEY = C.weeklyProjectKey || location.pathname.split('/').filter(Boolean).pop() || '';
 const WEEKLY_ACCESS_SHA256 = C.weeklyAccessSha256 || '0d48224e8240072cada34bddc9d80271a707827876f069132aa95055f8c93d64';
 
@@ -529,17 +530,20 @@ function loadSpendFx(){
   const to = String(SPEND_FX.to).trim().toUpperCase();
   if(!from || !to || from === to) return;
 
-  fetch(`https://latest.currency-api.pages.dev/v1/currencies/${encodeURIComponent(from.toLowerCase())}.json`, {cache:'no-store'})
+  const rateUrl = DATA_API_BASE
+    ? `${DATA_API_BASE}/exchange-rate?base=${encodeURIComponent(from)}&quote=${encodeURIComponent(to)}`
+    : `https://latest.currency-api.pages.dev/v1/currencies/${encodeURIComponent(from.toLowerCase())}.json`;
+  fetch(rateUrl, {cache:'no-store'})
     .then(r => {
       if(!r.ok) throw new Error(`FX ${r.status}`);
       return r.json();
     })
     .then(data => {
       const rates = data && data[from.toLowerCase()];
-      const rate = Number(rates && rates[to.toLowerCase()]);
+      const rate = Number(DATA_API_BASE ? data&&data.rate&&data.rate.rate : rates && rates[to.toLowerCase()]);
       if(!(rate > 0)) return;
       SPEND_FX_RATE = rate;
-      SPEND_FX_DATE = String((data && data.date) || '');
+      SPEND_FX_DATE = String(DATA_API_BASE ? data&&data.rate&&data.rate.date : (data && data.date) || '');
       if(DATA.length) render();
     })
     .catch(() => {});
@@ -822,7 +826,7 @@ function fillWeeklyForm(){
 function openWeeklyForm(){
   if(!WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY) return;
   const modal=el('weeklyModal'), end=el('dateTo').value || periodDates().slice(-1)[0] || '';
-  el('weeklyForm').action = WEEKLY_FORM_URL;
+  if(!DATA_API_BASE) el('weeklyForm').action = WEEKLY_FORM_URL;
   el('weeklyAccess').value = sessionStorage.getItem('toysWeeklyAccess') || '';
   el('weeklyEnd').value=end; el('weeklyStart').value=shiftWeeklyDate(end,-6); fillWeeklyForm(); weeklySetStatus('');
   modal.classList.remove('hidden'); document.body.style.overflow='hidden';
@@ -857,6 +861,16 @@ function bindWeeklyComments(){
     el('weeklyReplyToken').value = weeklySubmitToken;
     weeklySubmitPending=true; weeklySetStatus('Сохраняю…');
     clearTimeout(weeklySubmitTimer); weeklySubmitTimer=setTimeout(()=>{ if(!weeklySubmitPending)return; weeklySubmitPending=false; el('weeklySave').disabled=false; weeklySetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true); },20000);
+    if(DATA_API_BASE){
+      try{
+        const record=weeklyFormRecord();
+        const response=await fetch(WEEKLY_FORM_URL,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({...record,accessCode:el('weeklyAccess').value})});
+        const data=await response.json();
+        if(!response.ok||!data.ok)throw new Error(data.error==='invalid_access_code'?'Неверный код доступа':'Не удалось сохранить');
+        weeklySaveSucceeded();
+      }catch(error){weeklySubmitPending=false;clearTimeout(weeklySubmitTimer);el('weeklySave').disabled=false;weeklySetStatus(error&&error.message||'Не удалось сохранить',true);}
+      return;
+    }
     el('weeklyForm').submit();
   });
   // A form-target iframe fires `load` for both successful and failed Apps Script
@@ -960,6 +974,16 @@ function gviz(sheetName, ok, fail){ gvizFrom(SHEET_ID, sheetName, ok, fail); }
 // в первой строке) автоопределение Google иногда промахивается и отдаёт
 // пустые заголовки; тогда шапку ищем сами в renderGeneric
 function gvizFrom(spreadsheetId, sheetName, ok, fail, raw){
+  if(DATA_API_BASE){
+    const url = `${DATA_API_BASE}/data/tabs?tab=${encodeURIComponent(sheetName)}${raw?'&raw=1':''}`;
+    fetch(url,{cache:'no-store'}).then(response=>{
+      if(!response.ok) throw new Error(`API ${response.status}`);
+      return response.json();
+    }).then(json=>{
+      if(json && json.status === 'error') fail(); else ok(json);
+    }).catch(fail);
+    return;
+  }
   const cb = '__gvizCb' + (++cbSeq);
   const timer = setTimeout(()=>{ cleanup(); fail(); }, 12000);
   window[cb] = json => {
@@ -2215,7 +2239,16 @@ function renderLeadFeedback(tabDef){
     <section id="leadAuth" class="lead-auth"><h3>Лиды Meta</h3><p class="lead-feedback-note">Загружаю обращения и обратную связь…</p><div id="leadAuthStatus" class="lead-status" aria-live="polite"></div></section>
     <section id="leadApp" class="hidden"><div class="lead-toolbar"><input id="leadSearch" type="search" placeholder="Поиск по имени, телефону или почте"><select id="leadStatusFilter"><option value="">Все статусы</option></select><span id="leadCount" class="lead-count"></span></div><div id="leadList" class="lead-list"></div></section>`;
   gShow('gPanel');
-  leadLoadFromSheets();
+  if(DATA_API_BASE) leadLoadFromApi(); else leadLoadFromSheets();
+}
+
+async function leadLoadFromApi(){
+  try{
+    const response=await fetch(DATA_API_BASE+'/leads',{cache:'no-store'});
+    if(!response.ok)throw new Error('Не удалось открыть лиды');
+    const data=await response.json();
+    leadShowModel({title:data.title||TITLE,statuses:data.statuses||LEAD_STATUSES.slice(),leads:data.leads||[]});
+  }catch(error){leadSetStatus(error&&error.message||'Не удалось открыть лиды',true);}
 }
 
 async function leadSheetValues(sheetName,columns){
@@ -2287,6 +2320,13 @@ function leadStatusDate(value){
   if(Number.isNaN(date.getTime()))return `изменён ${value}`;
   return `изменён ${new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(date)}`;
 }
+function leadCreatedDate(value){
+  if(!value)return '';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return String(value);
+  const hasTime=!/T00:00:00(?:\.000)?Z$/.test(String(value));
+  return new Intl.DateTimeFormat('ru-RU',hasTime?{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}:{day:'2-digit',month:'2-digit',year:'numeric'}).format(date);
+}
 function leadApplyStage(card,status){
   if(!card)return;
   const stage=leadStage(status);card.dataset.leadStage=stage;
@@ -2297,7 +2337,7 @@ function renderLeadRows(){
   const query=(el('leadSearch').value||'').trim().toLowerCase(), status=el('leadStatusFilter').value;
   const rows=LEAD_MODEL.leads.filter(item=>(!status||item.status===status)&&(!query||[item.name,item.phone,item.email,item.contactMethod,item.budget].join(' ').toLowerCase().includes(query)));
   el('leadCount').textContent=`${rows.length} из ${LEAD_MODEL.leads.length}`;
-  el('leadList').innerHTML=rows.length?rows.map(item=>`<article class="lead-card" data-lead-id="${esc(item.id)}" data-lead-stage="${leadStage(item.status)}"><div class="lead-head"><span class="lead-name">${esc(item.name||'—')}</span><span class="lead-date">${esc(item.date||'')}</span></div><div class="lead-grid">${leadField('Телефон',item.phone,'tel')}${leadField('Почта',item.email,'mail')}${leadField('Способ связи',item.contactMethod)}${leadField('Бюджет',item.budget)}</div><div class="lead-actions"><label class="lead-control"><span class="lead-status-heading"><b>Статус</b><span class="lead-status-date" data-role="status-date">${esc(leadStatusDate(item.statusUpdatedAt))}</span></span><span class="lead-status-select" data-lead-stage="${leadStage(item.status)}"><select data-role="status">${LEAD_MODEL.statuses.map(value=>`<option value="${esc(value)}" data-stage="${leadStage(value)}"${value===item.status?' selected':''}>${esc(value)}</option>`).join('')}</select></span></label><label class="lead-control"><b>Комментарий</b><textarea data-role="comment" maxlength="3000" placeholder="Комментарий">${esc(item.comment||'')}</textarea></label><div><button class="lead-save" type="button">Сохранить</button><div class="lead-saved" aria-live="polite"></div></div></div></article>`).join(''):'<div class="state">Ничего не найдено</div>';
+  el('leadList').innerHTML=rows.length?rows.map(item=>`<article class="lead-card" data-lead-id="${esc(item.id)}" data-lead-stage="${leadStage(item.status)}"><div class="lead-head"><span class="lead-name">${esc(item.name||'—')}</span><span class="lead-date">${esc(leadCreatedDate(item.date))}</span></div><div class="lead-grid">${leadField('Телефон',item.phone,'tel')}${leadField('Почта',item.email,'mail')}${leadField('Способ связи',item.contactMethod)}${leadField('Бюджет',String(item.budget||'').replace(/_/g,' '))}</div><div class="lead-actions"><label class="lead-control"><span class="lead-status-heading"><b>Статус</b><span class="lead-status-date" data-role="status-date">${esc(leadStatusDate(item.statusUpdatedAt))}</span></span><span class="lead-status-select" data-lead-stage="${leadStage(item.status)}"><select data-role="status">${LEAD_MODEL.statuses.map(value=>`<option value="${esc(value)}" data-stage="${leadStage(value)}"${value===item.status?' selected':''}>${esc(value)}</option>`).join('')}</select></span></label><label class="lead-control"><b>Комментарий</b><textarea data-role="comment" maxlength="3000" placeholder="Комментарий">${esc(item.comment||'')}</textarea></label><div><button class="lead-save" type="button">Сохранить</button><div class="lead-saved" aria-live="polite"></div></div></div></article>`).join(''):'<div class="state">Ничего не найдено</div>';
   document.querySelectorAll('.lead-save').forEach(button=>button.addEventListener('click',()=>leadSave(button.closest('.lead-card'))));
   document.querySelectorAll('[data-role="status"]').forEach(select=>select.addEventListener('change',()=>leadApplyStage(select.closest('.lead-card'),select.value)));
 }
@@ -2317,6 +2357,15 @@ async function leadSubmit(mode, extra={}){
   leadSubmitPending=mode; leadSubmitToken=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
   clearTimeout(leadSubmitTimer);leadSubmitTimer=setTimeout(()=>leadFinishSave(false,'Сервис долго не отвечает. Попробуйте ещё раз.'),30000);
   try{
+    if(DATA_API_BASE){
+      const response=await fetch(`${DATA_API_BASE}/leads/${encodeURIComponent(extra.leadId)}`,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:extra.status,comment:extra.comment})});
+      const data=await response.json();
+      if(!response.ok||!data.ok)throw new Error(data.error||'Не удалось сохранить');
+      leadFinishSave(true,'Сохранено');
+      const item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===extra.leadId);
+      if(item){const changed=item.status!==extra.status;item.status=extra.status;item.comment=extra.comment;item.updatedAt=data.lead.updatedAt||'';item.statusUpdatedAt=data.lead.statusUpdatedAt||(changed?data.lead.updatedAt:item.statusUpdatedAt)||'';const card=document.querySelector(`[data-lead-id="${extra.leadId}"]`);if(card){leadApplyStage(card,item.status);const date=card.querySelector('[data-role="status-date"]');if(date)date.textContent=leadStatusDate(item.statusUpdatedAt);}}
+      return;
+    }
     const body=new URLSearchParams({mode,project:WEEKLY_PROJECT_KEY,replyToken:leadSubmitToken,...extra});
     await fetch(WEEKLY_FORM_URL,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:body.toString()});
     const feedback=await leadSheetValues(LEAD_FEEDBACK_SHEET,'A:E'), rows=leadDataRows(feedback,['lead_id','status','client_comment','updated_at'],false);

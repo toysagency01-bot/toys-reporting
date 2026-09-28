@@ -15,7 +15,11 @@ test('Cloudflare HOUSEVIP keeps the complete dashboard navigation and project ta
   assert.match(html, /ЛИДЫ\(Meta\)/);
   assert.match(html, /Еженедельная сводка \(Meta\)/);
   assert.match(html, /Основные контент-направления \(SMM\)/);
-  assert.match(core, /gvizFrom\(\s*C\.projectSheetId,\s*sheetName/);
+  assert.match(html, /dataApiBase:\s*'\/api\/public\/projects\/housevip-cxp7'/);
+  assert.doesNotMatch(html, /1C050_vkmWg3FtrgVz5WIKJurfYNlA0vWGkTZQpVASkU|1lEJk5DZl66DJui8p_U3hbEvMweEwGpA9bVIYeWq8Kms/);
+  assert.match(core, /fetch\(DATA_API_BASE\+'\/leads'/);
+  assert.match(core, /\$\{DATA_API_BASE\}\/data\/tabs/);
+  assert.match(core, /\$\{DATA_API_BASE\}\/exchange-rate/);
   for (const label of ['Обзор', 'Кампании', 'Воронка', 'Лиды', 'Недельные итоги', 'Проект']) {
     assert.match(ux, new RegExp(label));
   }

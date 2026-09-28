@@ -24,6 +24,7 @@ test('all migrations execute and create the required platform tables', () => {
     'organizations', 'projects', 'users', 'project_memberships', 'integrations',
     'campaigns', 'ad_metrics_daily', 'leads', 'lead_status_events', 'lead_comments',
     'sales', 'weekly_reports', 'exchange_rates', 'sync_runs', 'audit_log',
+    'project_tabs',
   ]) {
     assert.ok(names.includes(required), `missing table ${required}`);
   }
@@ -52,7 +53,11 @@ test('HOUSEVIP pilot migration matches the verified source totals and contains n
   assert.deepEqual({ ...totals }, { impressions: 6180, clicks: 292, spend: 1875890, leads: 16 });
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM leads WHERE project_id = 'prj_housevip_cxp7'").get().count, 0);
   const migration = readFileSync(join(migrationsDir, '0003_housevip_pilot.sql'), 'utf8');
-  assert.doesNotMatch(migration, /@|420777970173|420603498833/);
+  assert.doesNotMatch(migration, /[\w.+-]+@[\w.-]+|\b420\d{9}\b/);
+  const fullMigration = readFileSync(join(migrationsDir, '0004_housevip_full.sql'), 'utf8');
+  assert.doesNotMatch(fullMigration, /[\w.+-]+@[\w.-]+|\b420\d{9}\b/);
+  assert.equal(db.prepare("SELECT json_extract(settings_json, '$.dataBackend') AS backend FROM projects WHERE id='prj_housevip_cxp7'").get().backend, 'd1');
+  assert.equal(db.prepare("SELECT rate FROM exchange_rates WHERE base_currency='IDR' AND quote_currency='EUR'").get().rate, 0.000048911144);
   db.close();
 });
 

@@ -122,7 +122,8 @@
     clickLegacy(channel);
     const wanted = label && findProjectTab(label);
     if(wanted){ wanted.click(); if(label.toLowerCase().includes('лид')) history.replaceState(null,'','#leads'); return; }
-    if(label && (attempt||0)<24) setTimeout(()=>openProjectChannel(channel,label,(attempt||0)+1),120);
+    const channelReady = legacyButton(channel)?.classList.contains('active') && byId('projectSubNav')?.querySelectorAll('button').length;
+    if((label || !channelReady) && (attempt||0)<40) setTimeout(()=>openProjectChannel(channel,label,(attempt||0)+1),120);
   }
 
   function showProject(mode,channel,label){
@@ -213,8 +214,11 @@
   scheduleSummary();
 
   const initial=location.hash.replace('#','');
+  const [initialView,initialSubRaw]=initial.split('/');
+  const initialSub=initialSubRaw?decodeURIComponent(initialSubRaw):'';
   if(initial==='campaigns'||initial==='funnel'||initial==='weekly') showAnalytics(initial);
   else if(initial==='leads') showProject('leads','meta','ЛИДЫ');
   else if(initial==='project') showProject('project','smm','');
+  else if(initialView==='smm'||initialView==='meta') showProject(initialSub.toLowerCase().includes('лид')?'leads':'project',initialView,initialSub);
   else showAnalytics('overview');
 })();

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker, { validDate } from '../src/index.js';
+import worker, { sameOriginWrite, validDate } from '../src/index.js';
 
 function database(projects = []) {
   return {
@@ -135,5 +135,10 @@ test('date validation rejects impossible calendar dates', () => {
   assert.equal(validDate('2026-09-28'), true);
   assert.equal(validDate('2026-02-30'), false);
   assert.equal(validDate('28.09.2026'), false);
+});
+
+test('public write endpoints accept same-origin requests and reject cross-origin requests', () => {
+  assert.equal(sameOriginWrite(new Request('https://app.test/api', { headers: { origin: 'https://app.test' } })), true);
+  assert.equal(sameOriginWrite(new Request('https://app.test/api', { headers: { origin: 'https://evil.test' } })), false);
 });
 

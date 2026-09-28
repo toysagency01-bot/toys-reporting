@@ -23,7 +23,8 @@
   },
   "vars": {
     "ENVIRONMENT": "production",
-    "APP_NAME": "TOYS Agency Platform"
+    "APP_NAME": "TOYS Agency Platform",
+    "WEEKLY_ACCESS_SHA256": "0d48224e8240072cada34bddc9d80271a707827876f069132aa95055f8c93d64"
   },
   "observability": {
     "enabled": true,
