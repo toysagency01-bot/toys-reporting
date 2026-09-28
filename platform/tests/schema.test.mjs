@@ -30,13 +30,29 @@ test('all migrations execute and create the required platform tables', () => {
   db.close();
 });
 
-test('the active registry is seeded as draft projects without exposing live data', () => {
+test('the registry keeps all projects draft except the explicit HOUSEVIP pilot', () => {
   const db = migratedDatabase();
   const count = db.prepare('SELECT COUNT(*) AS count FROM projects').get().count;
   const active = db.prepare("SELECT COUNT(*) AS count FROM projects WHERE status = 'active'").get().count;
   assert.equal(count, 15);
-  assert.equal(active, 0);
+  assert.equal(active, 1);
   assert.equal(db.prepare("SELECT project_type FROM projects WHERE slug = 'housevip-cxp7'").get().project_type, 'leadgen');
+  assert.equal(db.prepare("SELECT status FROM projects WHERE slug = 'housevip-cxp7'").get().status, 'active');
+  db.close();
+});
+
+test('HOUSEVIP pilot migration matches the verified source totals and contains no lead PII', () => {
+  const db = migratedDatabase();
+  const totals = db.prepare(`
+    SELECT SUM(impressions) AS impressions, SUM(clicks) AS clicks,
+           SUM(spend) AS spend, SUM(leads) AS leads
+      FROM ad_metrics_daily
+     WHERE project_id = 'prj_housevip_cxp7'
+  `).get();
+  assert.deepEqual({ ...totals }, { impressions: 6180, clicks: 292, spend: 1875890, leads: 16 });
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM leads WHERE project_id = 'prj_housevip_cxp7'").get().count, 0);
+  const migration = readFileSync(join(migrationsDir, '0003_housevip_pilot.sql'), 'utf8');
+  assert.doesNotMatch(migration, /@|420777970173|420603498833/);
   db.close();
 });
 
