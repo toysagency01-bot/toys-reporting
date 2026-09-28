@@ -74,7 +74,10 @@ color-scheme:dark;cursor:pointer;min-width:108px}
 .card .label{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px}
 .card .value{font-size:clamp(20px,2.4vw,28px);font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15}
 .card .value small{display:block;font-size:15px;font-weight:600;opacity:.85;margin-top:2px}
-.card .value .spend-fx{color:var(--accent);font-size:14px;margin-top:6px;opacity:.9}
+.money-primary{white-space:nowrap}
+.money-secondary{display:block;color:var(--muted);font-size:12px;font-weight:600;line-height:1.3;margin-top:5px;opacity:.9;white-space:nowrap}
+.card .value .money-secondary,.card .value .spend-fx{font-size:12px;margin-top:6px}
+.mval .money-secondary,.fmt-table .money-secondary,.chan-legend .money-secondary{font-size:10px;margin-top:3px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:22px}
 .panel h2{font-size:14px;font-weight:600;color:var(--muted);margin-bottom:16px;letter-spacing:.04em;text-transform:uppercase}
 .chart-wrap{position:relative;height:280px}
@@ -497,7 +500,7 @@ new MutationObserver(updateAllScrollFades).observe(document.body, {childList: tr
 updateAllScrollFades();
 
 /* ---------- state ---------- */
-const CUR = {USD:'$',EUR:'€',GBP:'£',PLN:'zł',CZK:'Kč',GEL:'₾',UAH:'₴',CHF:'CHF'};
+const CUR = {USD:'$',EUR:'€',GBP:'£',PLN:'zł',CZK:'Kč',GEL:'₾',UAH:'₴',CHF:'CHF',IDR:'IDR'};
 const sym = c => CUR[c] || (c ? c+' ' : '');
 const fmtN = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(n);
 const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}).format(n);
@@ -515,8 +518,8 @@ window.addEventListener('toys-theme-change', () => {
   if(DATA.length) render();
 });
 
-/* Опциональный справочный пересчёт расхода в дополнительную валюту.
-   Включается только через DASH_CONFIG.spendFx конкретного проекта. */
+/* Опциональный пересчёт денежных показателей в основную валюту интерфейса.
+   Для HOUSEVIP EUR показывается первой строкой, исходный IDR — второй. */
 const SPEND_FX = C.spendFx || null;
 let SPEND_FX_RATE = null, SPEND_FX_DATE = '';
 
@@ -542,13 +545,46 @@ function loadSpendFx(){
     .catch(() => {});
 }
 
-function spendFxLine(amount, currency){
-  if(!SPEND_FX || !(SPEND_FX_RATE > 0)) return '';
+function moneyFxInfo(currency){
+  if(!SPEND_FX || !(SPEND_FX_RATE > 0)) return null;
   const from = String(SPEND_FX.from || '').trim().toUpperCase();
   const to = String(SPEND_FX.to || '').trim().toUpperCase();
-  if(String(currency || '').trim().toUpperCase() !== from) return '';
+  if(String(currency || '').trim().toUpperCase() !== from) return null;
   const title = SPEND_FX_DATE ? `Справочный курс на ${SPEND_FX_DATE}` : 'Актуальный справочный курс';
-  return `<small class="spend-fx" title="${esc(title)}">≈ ${fmtM(amount * SPEND_FX_RATE)} ${sym(to)}</small>`;
+  return {from,to,title,rate:SPEND_FX_RATE};
+}
+
+function moneyPrimaryAmount(amount, currency){
+  const fx = moneyFxInfo(currency);
+  return fx ? amount * fx.rate : amount;
+}
+
+function moneyPrimaryCurrency(currency){
+  const fx = moneyFxInfo(currency);
+  return fx ? fx.to : currency;
+}
+
+function moneyAmountHtml(amount, currency, suffixHtml){
+  const rawCurrency = String(currency || '').trim().toUpperCase();
+  const fx = moneyFxInfo(rawCurrency);
+  const suffix = suffixHtml || '';
+  if(!fx) return `<span class="money-primary">${fmtM(amount)} ${sym(rawCurrency)}${suffix}</span>`;
+  return `<span class="money-primary">${fmtM(amount * fx.rate)} ${sym(fx.to)}${suffix}</span>`+
+    `<small class="money-secondary" title="${esc(fx.title)}">${fmtM(amount)} ${sym(fx.from)}</small>`;
+}
+
+function moneyAmountText(amount, currency){
+  const rawCurrency = String(currency || '').trim().toUpperCase();
+  const fx = moneyFxInfo(rawCurrency);
+  return fx
+    ? `${fmtM(amount * fx.rate)} ${sym(fx.to)} · ${fmtM(amount)} ${sym(fx.from)}`
+    : `${fmtM(amount)} ${sym(rawCurrency)}`;
+}
+
+function moneyChartOriginalLine(context){
+  const dataset = context && context.dataset;
+  if(!dataset || !dataset.originalCurrency || !(dataset.fxRate > 0) || context.raw == null) return '';
+  return `${dataset.originalCurrency}: ${fmtM(Number(context.raw) / dataset.fxRate)} ${sym(dataset.originalCurrency)}`;
 }
 
 loadSpendFx();
@@ -1082,11 +1118,9 @@ function render(){
   const pCpa = pConv ? pCost/pConv : null;
 
   const spendMainHtml = curs.length===1
-    ? `${fmtM(byCur[curs[0]])} ${sym(curs[0])}`
-    : curs.map(c=>`<small>${fmtM(byCur[c])} ${sym(c)}</small>`).join('');
-  const spendDeltaHtml = curs.length===1 ? deltaBadge(byCur[curs[0]], pCost, {neutral:true}) : '';
-  const spendFxHtml = curs.length===1 ? spendFxLine(byCur[curs[0]], curs[0]) : '';
-  el('kSpend').innerHTML = spendMainHtml + spendDeltaHtml + spendFxHtml;
+    ? moneyAmountHtml(byCur[curs[0]], curs[0], deltaBadge(byCur[curs[0]], pCost, {neutral:true}))
+    : curs.map(c=>`<span class="money-group">${moneyAmountHtml(byCur[c], c)}</span>`).join('');
+  el('kSpend').innerHTML = spendMainHtml;
   el('kImpr').innerHTML = fmtN(impr) + deltaBadge(impr, pImpr, {});
   el('kClicks').innerHTML = fmtN(clicks) + deltaBadge(clicks, pClicks, {});
   const ctr = impr ? clicks/impr*100 : null;
@@ -1097,15 +1131,15 @@ function render(){
   if (conv) {
     if (curs.length === 1) {
       const cc = rows.filter(r=>r.currency===curs[0]).reduce((s,r)=>s+r.conv,0);
-      kCpaHtml = cc ? `${fmtM(byCur[curs[0]]/cc)} ${sym(curs[0])}` : '—';
+      kCpaHtml = cc ? moneyAmountHtml(byCur[curs[0]]/cc, curs[0], deltaBadge(byCur[curs[0]]/cc, pCpa, {invert:true})) : '—';
     } else {
       kCpaHtml = curs.map(c=>{
         const cc = rows.filter(r=>r.currency===c).reduce((s,r)=>s+r.conv,0);
-        return cc ? `<small>${fmtM(byCur[c]/cc)} ${sym(c)}</small>` : '';
+        return cc ? `<span class="money-group">${moneyAmountHtml(byCur[c]/cc, c)}</span>` : '';
       }).join('');
     }
   }
-  el('kCpa').innerHTML = kCpaHtml + (conv && curs.length===1 ? deltaBadge(byCur[curs[0]]/conv, pCpa, {invert:true}) : '');
+  el('kCpa').innerHTML = kCpaHtml;
 
   // квал-лиды (Zoho) — показываем только если у клиента включён флаг
   // и по выбранному периоду реально есть данные
@@ -1117,7 +1151,7 @@ function render(){
       el('kQual').textContent = fmtN(qualTotal);
       if (curs.length === 1) {
         el('kQualCpaCard').classList.remove('hidden');
-        el('kQualCpa').textContent = `${fmtM(byCur[curs[0]]/qualTotal)} ${sym(curs[0])}`;
+        el('kQualCpa').innerHTML = moneyAmountHtml(byCur[curs[0]]/qualTotal, curs[0]);
       } else {
         el('kQualCpaCard').classList.add('hidden');
       }
@@ -1290,6 +1324,7 @@ function renderWeekdays(rows, ecomRows, isEcom){
     buckets[idx].purchase += r.purchase;
   });
   const labels = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  const rowCurrencies = [...new Set(rows.map(r=>r.currency).filter(Boolean))];
 
   function metricRow(key, label, cls){
     const max = Math.max(...buckets.map(b=>b[key]), 0) || 1;
@@ -1297,7 +1332,7 @@ function renderWeekdays(rows, ecomRows, isEcom){
       <div class="wd-metric-label">${label}</div>
       <div class="wd-days">
         ${buckets.map((b,i)=>`
-          <div class="wd-day" data-tip="${labels[i]}: ${fmtM(b[key])}">
+          <div class="wd-day" data-tip="${labels[i]}: ${key==='cost' && rowCurrencies.length===1 ? moneyAmountText(b[key],rowCurrencies[0]) : fmtM(b[key])}">
             <div class="wd-bar ${cls}" style="height:${b[key]/max*100}%"></div>
             <span class="wd-daylabel">${labels[i]}</span>
           </div>`).join('')}
@@ -1346,9 +1381,8 @@ function renderFormatPanel(){
       <tbody>${fmts.map(f=>{
         const d = byFmt[f];
         const curLabel = d.curs.size===1 ? [...d.curs][0] : '';
-        const curSuffix = curLabel ? ' '+sym(curLabel) : '';
         const ctr = d.impr ? (d.clicks/d.impr*100).toFixed(2)+'%' : '—';
-        return `<tr><td>${esc(f)}</td><td>${fmtM(d.cost)}${curSuffix}</td><td>${fmtN(d.impr)}</td><td>${fmtN(d.clicks)}</td><td>${ctr}</td></tr>`;
+        return `<tr><td>${esc(f)}</td><td>${curLabel ? moneyAmountHtml(d.cost,curLabel) : fmtM(d.cost)}</td><td>${fmtN(d.impr)}</td><td>${fmtN(d.clicks)}</td><td>${ctr}</td></tr>`;
       }).join('')}</tbody>
     </table>` : `
     <table class="fmt-table">
@@ -1356,9 +1390,8 @@ function renderFormatPanel(){
       <tbody>${fmts.map(f=>{
         const d = byFmt[f];
         const curLabel = d.curs.size===1 ? [...d.curs][0] : '';
-        const curSuffix = curLabel ? ' '+sym(curLabel) : '';
-        const cpa = d.conv ? fmtM(d.cost/d.conv)+curSuffix : '—';
-        return `<tr><td>${esc(f)}</td><td>${fmtM(d.cost)}${curSuffix}</td><td>${fmtN(d.impr)}</td><td>${fmtN(d.conv)}</td><td>${cpa}</td></tr>`;
+        const cpa = d.conv ? (curLabel ? moneyAmountHtml(d.cost/d.conv,curLabel) : fmtM(d.cost/d.conv)) : '—';
+        return `<tr><td>${esc(f)}</td><td>${curLabel ? moneyAmountHtml(d.cost,curLabel) : fmtM(d.cost)}</td><td>${fmtN(d.impr)}</td><td>${fmtN(d.conv)}</td><td>${cpa}</td></tr>`;
       }).join('')}</tbody>
     </table>`;
 }
@@ -1543,7 +1576,7 @@ function renderChannels(rows, curs, ecomRows, isEcom){
 
   if(curs.length === 1){
     html += `<div class="chan-block" style="margin-top:16px">
-      <div class="chan-legend"><span>Google: <b>${fmtM(gCost)} ${sym(curs[0])}</b></span><span>Meta: <b>${fmtM(mCost)} ${sym(curs[0])}</b></span></div>
+      <div class="chan-legend"><span>Google: <b>${moneyAmountHtml(gCost,curs[0])}</b></span><span>Meta: <b>${moneyAmountHtml(mCost,curs[0])}</b></span></div>
       ${splitBar(gCost, mCost, totalCost)}
       <div class="chan-caption">Доля расхода</div>
     </div>`;
@@ -1667,12 +1700,16 @@ function drawEcomEfficiencyChart(dates, rows, ecomRows){
 function drawVolumeChart(dates, rows, curs){
   const convByDay = dates.map(d => rows.filter(r=>r.date===d).reduce((s,r)=>s+r.conv,0));
   const palette = ['#25ddcc','#8f7bff','#ffb454','#ff6b81'];
-  const spendSets = curs.map((c,i)=>({
-    type:'line', label:'Расход, '+c, yAxisID:'y1',
-    data: dates.map(d => rows.filter(r=>r.date===d && r.currency===c).reduce((s,r)=>s+r.cost,0)),
-    borderColor: palette[i] || '#aaa', backgroundColor:'transparent',
-    tension:.3, pointRadius:2, borderWidth:2,
-  }));
+  const spendSets = curs.map((c,i)=>{
+    const fx = moneyFxInfo(c);
+    return {
+      type:'line', label:'Расход, '+moneyPrimaryCurrency(c), yAxisID:'y1',
+      data: dates.map(d => moneyPrimaryAmount(rows.filter(r=>r.date===d && r.currency===c).reduce((s,r)=>s+r.cost,0),c)),
+      originalCurrency:fx ? fx.from : '',fxRate:fx ? fx.rate : null,
+      borderColor: palette[i] || '#aaa', backgroundColor:'transparent',
+      tension:.3, pointRadius:2, borderWidth:2,
+    };
+  });
   const cfg = {
     data:{ labels: dates.map(d=>d.slice(5)), datasets:[
       {type:'bar', label:CONVERSION_LABEL, yAxisID:'y2', data:convByDay,
@@ -1680,7 +1717,7 @@ function drawVolumeChart(dates, rows, curs){
       ...spendSets ]},
     options:{ responsive:true, maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
-      plugins:{legend:{labels:{color:'#87878f',font:{family:'Golos Text',size:12},boxWidth:12}}},
+      plugins:{legend:{labels:{color:'#87878f',font:{family:'Golos Text',size:12},boxWidth:12}},tooltip:{callbacks:{afterLabel:moneyChartOriginalLine}}},
       scales:{
         x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}},
         y1:{position:'left',grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}},
@@ -1692,17 +1729,21 @@ function drawVolumeChart(dates, rows, curs){
 
 function drawEfficiencyChart(dates, rows, curs){
   const palette = ['#25ddcc','#8f7bff','#ffb454','#ff6b81'];
-  const cpaSets = curs.map((c,i)=>({
-    type:'line', label:'CPA, '+c, yAxisID:'y1',
-    data: dates.map(d=>{
-      const dayRows = rows.filter(r=>r.date===d && r.currency===c);
-      const cost = dayRows.reduce((s,r)=>s+r.cost,0);
-      const conv = dayRows.reduce((s,r)=>s+r.conv,0);
-      return conv ? +(cost/conv).toFixed(2) : null;
-    }),
-    borderColor: palette[i] || '#aaa', backgroundColor:'transparent',
-    tension:.3, pointRadius:2, borderWidth:2, spanGaps:true,
-  }));
+  const cpaSets = curs.map((c,i)=>{
+    const fx = moneyFxInfo(c);
+    return {
+      type:'line', label:'CPA, '+moneyPrimaryCurrency(c), yAxisID:'y1',
+      data: dates.map(d=>{
+        const dayRows = rows.filter(r=>r.date===d && r.currency===c);
+        const cost = dayRows.reduce((s,r)=>s+r.cost,0);
+        const conv = dayRows.reduce((s,r)=>s+r.conv,0);
+        return conv ? +moneyPrimaryAmount(cost/conv,c).toFixed(2) : null;
+      }),
+      originalCurrency:fx ? fx.from : '',fxRate:fx ? fx.rate : null,
+      borderColor: palette[i] || '#aaa', backgroundColor:'transparent',
+      tension:.3, pointRadius:2, borderWidth:2, spanGaps:true,
+    };
+  });
   const ctrByDay = dates.map(d=>{
     const dayRows = rows.filter(r=>r.date===d);
     const impr = dayRows.reduce((s,r)=>s+r.impr,0);
@@ -1716,7 +1757,7 @@ function drawEfficiencyChart(dates, rows, curs){
       ...cpaSets ]},
     options:{ responsive:true, maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
-      plugins:{legend:{labels:{color:'#87878f',font:{family:'Golos Text',size:12},boxWidth:12}}},
+      plugins:{legend:{labels:{color:'#87878f',font:{family:'Golos Text',size:12},boxWidth:12}},tooltip:{callbacks:{afterLabel:moneyChartOriginalLine}}},
       scales:{
         x:{grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}},
         y1:{position:'left',grid:{color:'rgba(255,255,255,.05)'},ticks:{color:'#87878f',font:{family:'Golos Text',size:11}}},
@@ -1856,16 +1897,16 @@ function drawTable(rows, isEcom, ecomCampaignRows, previousRows, previousEcomCam
             <div class="m"><span class="mlabel">Показы</span><span class="mval">${fmtN(r.impr)}${deltaBadge(r.impr,r.previous.impr)}</span></div>
             <div class="m"><span class="mlabel">Клики</span><span class="mval">${fmtN(r.clicks)}${deltaBadge(r.clicks,r.previous.clicks)}</span></div>
             <div class="m"><span class="mlabel">CTR</span><span class="mval">${r.impr?(r.clicks/r.impr*100).toFixed(2)+'%':'—'}${deltaBadge(r.impr?r.clicks/r.impr*100:null,r.previous.impr?r.previous.clicks/r.previous.impr*100:null)}</span></div>
-            <div class="m"><span class="mlabel">Расход</span><span class="mval">${fmtM(r.cost)} ${sym(r.currency)}${deltaBadge(r.cost,r.previous.cost)}</span></div>
+            <div class="m"><span class="mlabel">Расход</span><span class="mval">${moneyAmountHtml(r.cost,r.currency,deltaBadge(r.cost,r.previous.cost))}</span></div>
             ${isEcom ? `
             <div class="m"><span class="mlabel">В корзину</span><span class="mval">${fmtM(r.funnel.addToCart)}${deltaBadge(r.funnel.addToCart,r.previousFunnel.addToCart)}</span></div>
             <div class="m"><span class="mlabel">Оформление</span><span class="mval">${fmtM(r.funnel.checkout)}${deltaBadge(r.funnel.checkout,r.previousFunnel.checkout)}</span></div>
             <div class="m"><span class="mlabel">Покупки</span><span class="mval">${fmtM(r.funnel.purchase)}${deltaBadge(r.funnel.purchase,r.previousFunnel.purchase)}</span></div>
-            <div class="m"><span class="mlabel">Выручка</span><span class="mval">${fmtM(r.funnel.purchaseValue)} ${sym(r.currency)}${deltaBadge(r.funnel.purchaseValue,r.previousFunnel.purchaseValue)}</span></div>
-            <div class="m"><span class="mlabel">Цена покупки</span><span class="mval">${r.funnel.purchase?fmtM(r.cost/r.funnel.purchase)+' '+sym(r.currency):'—'}${deltaBadge(r.funnel.purchase?r.cost/r.funnel.purchase:null,r.previousFunnel.purchase?r.previous.cost/r.previousFunnel.purchase:null,{invert:true})}</span></div>
+            <div class="m"><span class="mlabel">Выручка</span><span class="mval">${moneyAmountHtml(r.funnel.purchaseValue,r.currency,deltaBadge(r.funnel.purchaseValue,r.previousFunnel.purchaseValue))}</span></div>
+            <div class="m"><span class="mlabel">Цена покупки</span><span class="mval">${r.funnel.purchase?moneyAmountHtml(r.cost/r.funnel.purchase,r.currency,deltaBadge(r.cost/r.funnel.purchase,r.previousFunnel.purchase?r.previous.cost/r.previousFunnel.purchase:null,{invert:true})):'—'}</span></div>
             <div class="m"><span class="mlabel">ROAS</span><span class="mval">${r.cost?(r.funnel.purchaseValue/r.cost).toFixed(2)+'×':'—'}${deltaBadge(r.cost?r.funnel.purchaseValue/r.cost:null,r.previous.cost?r.previousFunnel.purchaseValue/r.previous.cost:null)}</span></div>` : `
             <div class="m"><span class="mlabel">${esc(CONVERSION_SHORT_LABEL)}</span><span class="mval">${fmtM(r.conv)}${deltaBadge(r.conv,r.previous.conv)}</span></div>
-            <div class="m"><span class="mlabel">CPA</span><span class="mval">${r.conv?fmtM(r.cost/r.conv)+' '+sym(r.currency):'—'}${deltaBadge(r.conv?r.cost/r.conv:null,r.previous.conv?r.previous.cost/r.previous.conv:null,{invert:true})}</span></div>`}
+            <div class="m"><span class="mlabel">CPA</span><span class="mval">${r.conv?moneyAmountHtml(r.cost/r.conv,r.currency,deltaBadge(r.cost/r.conv,r.previous.conv?r.previous.cost/r.previous.conv:null,{invert:true})):'—'}</span></div>`}
           </div>
         </div>`).join('')}
     </div>`).join('') : '<div class="state">Нет активных кампаний за последние 30 дней</div>';

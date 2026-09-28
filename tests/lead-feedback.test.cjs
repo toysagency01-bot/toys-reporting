@@ -33,7 +33,7 @@ ok(!core.includes('lead-feedback-frame'), 'lead app must not embed Apps Script d
 ok(!core.includes('id="leadAccess"'), 'HOUSEVIP lead access code prompt must be absent');
 ok(!core.includes("script.id='leadRequestScript'"), 'lead loading must not use the broken Apps Script JSONP route');
 ok(!core.includes("form.id='leadRequestForm'"), 'lead loading must not use the broken iframe POST route');
-ok(housevip.includes('20260928-housevip-fx3-theme1'), 'HOUSEVIP cache version missing');
+ok(housevip.includes('20260928-housevip-fx4-theme1'), 'HOUSEVIP cache version missing');
 ok(weekly.includes("'Бронь / задаток'"), 'server real-estate statuses missing');
 ok(weekly.includes("'housevip-cxp7': {sourceSheet:'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source missing');
 ok(weekly.includes("title:'HOUSEVIP', publicAccess:true"), 'HOUSEVIP public lead access flag missing');

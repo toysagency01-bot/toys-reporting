@@ -56,7 +56,7 @@
   const overviewGrid = document.createElement('div');
   overviewGrid.className = 'ux-overview-grid';
   overviewGrid.appendChild(chartPanel);
-  overviewGrid.insertAdjacentHTML('beforeend',`<aside class="panel ux-period-panel"><div class="ux-panel-heading"><div><h2>Итог периода</h2><p>Ключевые показатели HOUSEVIP</p></div></div><div class="ux-period-metrics"><div><span>Лиды</span><strong id="uxLeads">—</strong></div><div><span>Цена лида</span><strong id="uxCpa">—</strong></div><div><span>Расход</span><strong id="uxSpend">—</strong><small id="uxSpendFx"></small></div></div><div class="ux-attention" id="uxAttention"><b>НА КОНТРОЛЕ</b><strong>Данные кампаний загружаются…</strong><p></p></div></aside>`);
+  overviewGrid.insertAdjacentHTML('beforeend',`<aside class="panel ux-period-panel"><div class="ux-panel-heading"><div><h2>Итог периода</h2><p>Ключевые показатели HOUSEVIP</p></div></div><div class="ux-period-metrics"><div><span>Лиды</span><strong id="uxLeads">—</strong></div><div><span>Цена лида</span><strong id="uxCpa">—</strong><small id="uxCpaOriginal"></small></div><div><span>Расход</span><strong id="uxSpend">—</strong><small id="uxSpendOriginal"></small></div></div><div class="ux-attention" id="uxAttention"><b>НА КОНТРОЛЕ</b><strong>Данные кампаний загружаются…</strong><p></p></div></aside>`);
   overview.appendChild(overviewGrid);
   if(insightsPanel) overview.appendChild(insightsPanel);
 
@@ -164,14 +164,15 @@
     const node=byId(id); if(!node) return '—';
     const clone=node.cloneNode(true);
     clone.querySelectorAll('.delta').forEach(item=>item.remove());
-    if(dropFx) clone.querySelectorAll('.spend-fx').forEach(item=>item.remove());
+    if(dropFx) clone.querySelectorAll('.spend-fx,.money-secondary').forEach(item=>item.remove());
     return clone.textContent.replace(/\s+/g,' ').trim()||'—';
   }
+  function metricSecondary(id){ return byId(id)?.querySelector('.money-secondary,.spend-fx')?.textContent.replace(/\s+/g,' ').trim()||''; }
   function metricDelta(id){ const node=byId(id)?.querySelector('.delta'); return node?node.textContent.replace(/\s+/g,' ').trim():''; }
   function campaignMetric(row,label){
     const item=[...row.querySelectorAll('.m')].find(block=>block.querySelector('.mlabel')?.textContent.trim().toLowerCase()===label.toLowerCase());
     if(!item) return '';
-    const clone=item.querySelector('.mval').cloneNode(true); clone.querySelectorAll('.delta').forEach(node=>node.remove());
+    const clone=item.querySelector('.mval').cloneNode(true); clone.querySelectorAll('.delta,.money-secondary').forEach(node=>node.remove());
     return clone.textContent.replace(/\s+/g,' ').trim();
   }
   function numberFrom(text){ return Number(String(text||'').replace(/[^\d,.-]/g,'').replace(/\s/g,'').replace(',','.'))||0; }
@@ -181,13 +182,15 @@
     updateQueued=false;
     const leads=metricText('kConv');
     const spend=metricText('kSpend',true);
-    const spendFx=byId('kSpend')?.querySelector('.spend-fx')?.textContent.trim()||'';
-    const cpa=metricText('kCpa');
+    const spendOriginal=metricSecondary('kSpend');
+    const cpa=metricText('kCpa',true);
+    const cpaOriginal=metricSecondary('kCpa');
     const delta=metricDelta('kConv');
     byId('uxLeads').textContent=leads;
     byId('uxCpa').textContent=cpa;
+    byId('uxCpaOriginal').textContent=cpaOriginal;
     byId('uxSpend').textContent=spend;
-    byId('uxSpendFx').textContent=spendFx;
+    byId('uxSpendOriginal').textContent=spendOriginal;
     byId('uxInsightTitle').textContent=`Получено ${leads} лидов при расходе ${spend}`;
     byId('uxInsightText').textContent=`Средняя цена лида — ${cpa}${delta?`. Динамика лидов: ${delta}.`:'.'}`;
 
