@@ -24,7 +24,10 @@ ok(core.includes('<b>Комментарий</b>'), 'visible comment label missin
 ok(!core.includes('Комментарий клиента'), 'old comment label must be removed');
 ok(core.includes('sheets.googleapis.com/v4/spreadsheets/'), 'Google Sheets values API missing');
 ok(core.includes("leadSheetValues(LEAD_SOURCE_SHEET,'A:F')"), 'HOUSEVIP source range missing');
-ok(core.includes("leadSheetValues(LEAD_FEEDBACK_SHEET,'A:D')"), 'HOUSEVIP feedback range missing');
+ok(core.includes("leadSheetValues(LEAD_FEEDBACK_SHEET,'A:E')"), 'HOUSEVIP status timestamp range missing');
+ok(core.includes('statusUpdatedAt'), 'HOUSEVIP status timestamp model missing');
+ok(core.includes('leadStatusDate(item.statusUpdatedAt)'), 'visible HOUSEVIP status timestamp missing');
+ok(core.includes('data-lead-stage='), 'HOUSEVIP funnel stage color hook missing');
 ok(core.includes('leadLoadFromSheets()'), 'automatic HOUSEVIP lead loading missing');
 ok(core.includes("leadSubmit('lead-save'"), 'lead feedback save bridge missing');
 ok(core.includes("mode:'no-cors'"), 'lead feedback save must tolerate Google multi-account redirects');
@@ -33,12 +36,14 @@ ok(!core.includes('lead-feedback-frame'), 'lead app must not embed Apps Script d
 ok(!core.includes('id="leadAccess"'), 'HOUSEVIP lead access code prompt must be absent');
 ok(!core.includes("script.id='leadRequestScript'"), 'lead loading must not use the broken Apps Script JSONP route');
 ok(!core.includes("form.id='leadRequestForm'"), 'lead loading must not use the broken iframe POST route');
-ok(housevip.includes('20260928-housevip-fx4-theme1'), 'HOUSEVIP cache version missing');
+ok(housevip.includes('20260928-housevip-lead-stages1'), 'HOUSEVIP cache version missing');
 ok(weekly.includes("'Бронь / задаток'"), 'server real-estate statuses missing');
 ok(weekly.includes("'housevip-cxp7': {sourceSheet:'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source missing');
 ok(weekly.includes("title:'HOUSEVIP', publicAccess:true"), 'HOUSEVIP public lead access flag missing');
 ok(weekly.includes('function listLeadDashboard(project, accessCode)'), 'list function missing');
 ok(weekly.includes('function saveLeadFeedback(project, accessCode, leadId, status, comment)'), 'feedback save function missing');
+ok(weekly.includes("'status_updated_at'"), 'feedback status timestamp column missing');
+ok(weekly.includes('previousStatus !== status'), 'status timestamp must change only with the status');
 ok(weekly.includes("mode === 'lead-list'"), 'lead-list POST mode missing');
 ok(weekly.includes("mode === 'lead-save'"), 'lead-save POST mode missing');
 ok(weekly.includes('function wcsJsonp_(callback, payload)'), 'lead JSONP response helper missing');

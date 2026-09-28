@@ -2242,13 +2242,13 @@ async function leadModelFromSheets(sourceValues,feedbackValues){
   const sourceRows=leadDataRows(sourceValues,expected,true);
   const feedbackRows=leadDataRows(feedbackValues,['lead_id','status','client_comment','updated_at'],false);
   const feedback={};
-  feedbackRows.forEach(row=>{const id=String(row[0]||'').trim();if(id)feedback[id]={status:String(row[1]||''),comment:String(row[2]||''),updatedAt:String(row[3]||'')};});
+  feedbackRows.forEach(row=>{const id=String(row[0]||'').trim();if(id)feedback[id]={status:String(row[1]||''),comment:String(row[2]||''),updatedAt:String(row[3]||''),statusUpdatedAt:String(row[4]||row[3]||'')};});
   const leads=[];
   for(const values of sourceRows){
     const row=values.slice(0,6).map(value=>String(value==null?'':value));
     if(!row.some(value=>value.trim())) continue;
     const id=await leadId(row), saved=feedback[id]||{};
-    leads.push({id,date:row[0],name:row[1],phone:row[2],email:row[3],contactMethod:row[4],budget:row[5],status:LEAD_STATUS_ALIASES[saved.status]||saved.status||'Новый',comment:saved.comment||'',updatedAt:saved.updatedAt||''});
+    leads.push({id,date:row[0],name:row[1],phone:row[2],email:row[3],contactMethod:row[4],budget:row[5],status:LEAD_STATUS_ALIASES[saved.status]||saved.status||'Новый',comment:saved.comment||'',updatedAt:saved.updatedAt||'',statusUpdatedAt:saved.statusUpdatedAt||''});
   }
   return {title:'HOUSEVIP',statuses:LEAD_STATUSES.slice(),leads};
 }
@@ -2256,7 +2256,7 @@ async function leadLoadFromSheets(){
   try{
     const source=await leadSheetValues(LEAD_SOURCE_SHEET,'A:F');
     let feedback=[];
-    try{feedback=await leadSheetValues(LEAD_FEEDBACK_SHEET,'A:D')}catch(_e){}
+    try{feedback=await leadSheetValues(LEAD_FEEDBACK_SHEET,'A:E')}catch(_e){}
     leadShowModel(await leadModelFromSheets(source,feedback));
   }catch(error){leadSetStatus(error&&error.message||'Не удалось открыть лиды',true);}
 }
@@ -2270,13 +2270,28 @@ function leadField(label,value,kind){
   const body=kind==='tel'&&value?`<a href="tel:${esc(String(value).replace(/[^+\d]/g,''))}">${safe}</a>`:kind==='mail'&&value?`<a href="mailto:${encodeURIComponent(value)}">${safe}</a>`:`<span>${safe}</span>`;
   return `<div class="lead-field"><b>${esc(label)}</b>${body}</div>`;
 }
+function leadStage(status){
+  return ({'Новый':'new','Не удалось связаться':'unreachable','Связались':'contacted','Квалифицирован':'qualified','Подбор объекта':'selection','Просмотр назначен':'viewing','Просмотр проведён':'viewed','Переговоры':'negotiation','Бронь / задаток':'reserved','Сделка':'won','Отложен':'paused','Неактуален':'lost'})[status]||'new';
+}
+function leadStatusDate(value){
+  if(!value)return 'дата не указана';
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return `изменён ${value}`;
+  return `изменён ${new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(date)}`;
+}
+function leadApplyStage(card,status){
+  if(!card)return;
+  const stage=leadStage(status);card.dataset.leadStage=stage;
+  const wrap=card.querySelector('.lead-status-select');if(wrap)wrap.dataset.leadStage=stage;
+}
 function renderLeadRows(){
   if(!LEAD_MODEL || !el('leadList')) return;
   const query=(el('leadSearch').value||'').trim().toLowerCase(), status=el('leadStatusFilter').value;
   const rows=LEAD_MODEL.leads.filter(item=>(!status||item.status===status)&&(!query||[item.name,item.phone,item.email,item.contactMethod,item.budget].join(' ').toLowerCase().includes(query)));
   el('leadCount').textContent=`${rows.length} из ${LEAD_MODEL.leads.length}`;
-  el('leadList').innerHTML=rows.length?rows.map(item=>`<article class="lead-card" data-lead-id="${esc(item.id)}"><div class="lead-head"><span class="lead-name">${esc(item.name||'—')}</span><span class="lead-date">${esc(item.date||'')}</span></div><div class="lead-grid">${leadField('Телефон',item.phone,'tel')}${leadField('Почта',item.email,'mail')}${leadField('Способ связи',item.contactMethod)}${leadField('Бюджет',item.budget)}</div><div class="lead-actions"><label class="lead-control"><b>Статус</b><select data-role="status">${LEAD_MODEL.statuses.map(value=>`<option value="${esc(value)}"${value===item.status?' selected':''}>${esc(value)}</option>`).join('')}</select></label><label class="lead-control"><b>Комментарий</b><textarea data-role="comment" maxlength="3000" placeholder="Комментарий">${esc(item.comment||'')}</textarea></label><div><button class="lead-save" type="button">Сохранить</button><div class="lead-saved" aria-live="polite"></div></div></div></article>`).join(''):'<div class="state">Ничего не найдено</div>';
+  el('leadList').innerHTML=rows.length?rows.map(item=>`<article class="lead-card" data-lead-id="${esc(item.id)}" data-lead-stage="${leadStage(item.status)}"><div class="lead-head"><span class="lead-name">${esc(item.name||'—')}</span><span class="lead-date">${esc(item.date||'')}</span></div><div class="lead-grid">${leadField('Телефон',item.phone,'tel')}${leadField('Почта',item.email,'mail')}${leadField('Способ связи',item.contactMethod)}${leadField('Бюджет',item.budget)}</div><div class="lead-actions"><label class="lead-control"><span class="lead-status-heading"><b>Статус</b><span class="lead-status-date" data-role="status-date">${esc(leadStatusDate(item.statusUpdatedAt))}</span></span><span class="lead-status-select" data-lead-stage="${leadStage(item.status)}"><select data-role="status">${LEAD_MODEL.statuses.map(value=>`<option value="${esc(value)}" data-stage="${leadStage(value)}"${value===item.status?' selected':''}>${esc(value)}</option>`).join('')}</select></span></label><label class="lead-control"><b>Комментарий</b><textarea data-role="comment" maxlength="3000" placeholder="Комментарий">${esc(item.comment||'')}</textarea></label><div><button class="lead-save" type="button">Сохранить</button><div class="lead-saved" aria-live="polite"></div></div></div></article>`).join(''):'<div class="state">Ничего не найдено</div>';
   document.querySelectorAll('.lead-save').forEach(button=>button.addEventListener('click',()=>leadSave(button.closest('.lead-card'))));
+  document.querySelectorAll('[data-role="status"]').forEach(select=>select.addEventListener('change',()=>leadApplyStage(select.closest('.lead-card'),select.value)));
 }
 function leadShowModel(model){
   LEAD_MODEL=model; el('leadAuth').classList.add('hidden'); el('leadApp').classList.remove('hidden');
@@ -2296,10 +2311,10 @@ async function leadSubmit(mode, extra={}){
   try{
     const body=new URLSearchParams({mode,project:WEEKLY_PROJECT_KEY,replyToken:leadSubmitToken,...extra});
     await fetch(WEEKLY_FORM_URL,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:body.toString()});
-    const feedback=await leadSheetValues(LEAD_FEEDBACK_SHEET,'A:D'), rows=leadDataRows(feedback,['lead_id','status','client_comment','updated_at'],false);
-    const saved=rows.some(row=>String(row[0]||'').trim()===extra.leadId&&String(row[1]||'')===extra.status&&String(row[2]||'')===extra.comment);
+    const feedback=await leadSheetValues(LEAD_FEEDBACK_SHEET,'A:E'), rows=leadDataRows(feedback,['lead_id','status','client_comment','updated_at'],false);
+    const savedRow=rows.find(row=>String(row[0]||'').trim()===extra.leadId&&String(row[1]||'')===extra.status&&String(row[2]||'')===extra.comment), saved=!!savedRow;
     leadFinishSave(saved,saved?'Сохранено':'Не удалось подтвердить сохранение');
-    if(saved){const item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===extra.leadId);if(item){item.status=extra.status;item.comment=extra.comment;}}
+    if(saved){const item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===extra.leadId);if(item){const changed=item.status!==extra.status;item.status=extra.status;item.comment=extra.comment;item.statusUpdatedAt=String(savedRow[4]||(changed?savedRow[3]:item.statusUpdatedAt)||'');const card=document.querySelector(`[data-lead-id="${extra.leadId}"]`);if(card){leadApplyStage(card,item.status);const date=card.querySelector('[data-role="status-date"]');if(date)date.textContent=leadStatusDate(item.statusUpdatedAt);}}}
   }catch(_error){leadFinishSave(false,'Не удалось сохранить');}
 }
 function leadFinishSave(ok,message){
