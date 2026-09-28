@@ -67,21 +67,21 @@ body.housevip-ux-v2 #projectSubNav{margin-bottom:16px}
 body.housevip-ux-v2 .lead-toolbar{top:12px;padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--panel);box-shadow:var(--ui-shadow-soft)}
 body.housevip-ux-v2 .lead-card{border-radius:14px;padding:16px}
 body.housevip-ux-v2 .lead-card[data-lead-stage]{--lead-stage:#4f8cff;--lead-stage-bg:rgba(79,140,255,.13);border-left:4px solid var(--lead-stage)}
-body.housevip-ux-v2 [data-lead-stage="unreachable"]{--lead-stage:#f06a7d;--lead-stage-bg:rgba(240,106,125,.13)}
-body.housevip-ux-v2 [data-lead-stage="contacted"]{--lead-stage:#4bb8e8;--lead-stage-bg:rgba(75,184,232,.13)}
-body.housevip-ux-v2 [data-lead-stage="qualified"]{--lead-stage:#28c7ad;--lead-stage-bg:rgba(40,199,173,.13)}
-body.housevip-ux-v2 [data-lead-stage="selection"]{--lead-stage:#a978f4;--lead-stage-bg:rgba(169,120,244,.13)}
-body.housevip-ux-v2 [data-lead-stage="viewing"]{--lead-stage:#8377ee;--lead-stage-bg:rgba(131,119,238,.13)}
-body.housevip-ux-v2 [data-lead-stage="viewed"]{--lead-stage:#687fe0;--lead-stage-bg:rgba(104,127,224,.13)}
-body.housevip-ux-v2 [data-lead-stage="negotiation"]{--lead-stage:#e6b64b;--lead-stage-bg:rgba(230,182,75,.14)}
-body.housevip-ux-v2 [data-lead-stage="reserved"]{--lead-stage:#f18a45;--lead-stage-bg:rgba(241,138,69,.14)}
-body.housevip-ux-v2 [data-lead-stage="won"]{--lead-stage:#39c978;--lead-stage-bg:rgba(57,201,120,.14)}
-body.housevip-ux-v2 [data-lead-stage="paused"]{--lead-stage:#9898a5;--lead-stage-bg:rgba(152,152,165,.13)}
-body.housevip-ux-v2 [data-lead-stage="lost"]{--lead-stage:#d95770;--lead-stage-bg:rgba(217,87,112,.13)}
+body.housevip-ux-v2 :is(.lead-card,.lead-status-select)[data-lead-stage="unreachable"]{--lead-stage:#f06a7d;--lead-stage-bg:rgba(240,106,125,.13)}
+body.housevip-ux-v2 :is(.lead-card,.lead-status-select)[data-lead-stage="contacted"]{--lead-stage:#4bb8e8;--lead-stage-bg:rgba(75,184,232,.13)}
+body.housevip-ux-v2 :is(.lead-card,.lead-status-select)[data-lead-stage="qualified"]{--lead-stage:#28c7ad;--lead-stage-bg:rgba(40,199,173,.13)}
+body.housevip-ux-v2 :is(.lead-card,.lead-status-select)[data-lead-stage="selection"]{--lead-stage:#a978f4;--lead-stage-bg:rgba(169,120,244,.13)}
+body.housevip-ux-v2 :is(.lead-card,.lead-status-select)[data-lead-stage="viewing"]{--lead-stage:#8377ee;--lead-stage-bg:rgba(131,119,238,.13)}
+body.housevip-ux-v2 :is(.lead-card,.lead-status-select)[data-lead-stage="viewed"]{--lead-stage:#687fe0;--lead-stage-bg:rgba(104,127,224,.13)}
+body.housevip-ux-v2 :is(.lead-card,.lead-status-select)[data-lead-stage="negotiation"]{--lead-stage:#e6b64b;--lead-stage-bg:rgba(230,182,75,.14)}
+body.housevip-ux-v2 :is(.lead-card,.lead-status-select)[data-lead-stage="reserved"]{--lead-stage:#f18a45;--lead-stage-bg:rgba(241,138,69,.14)}
+body.housevip-ux-v2 :is(.lead-card,.lead-status-select)[data-lead-stage="won"]{--lead-stage:#39c978;--lead-stage-bg:rgba(57,201,120,.14)}
+body.housevip-ux-v2 :is(.lead-card,.lead-status-select)[data-lead-stage="paused"]{--lead-stage:#9898a5;--lead-stage-bg:rgba(152,152,165,.13)}
+body.housevip-ux-v2 :is(.lead-card,.lead-status-select)[data-lead-stage="lost"]{--lead-stage:#d95770;--lead-stage-bg:rgba(217,87,112,.13)}
 body.housevip-ux-v2 .lead-status-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
 body.housevip-ux-v2 .lead-status-heading>b{color:var(--muted);font-size:10px;text-transform:uppercase}
 body.housevip-ux-v2 .lead-status-date{color:var(--muted);font-size:9px;font-weight:500;text-transform:none;white-space:nowrap}
-body.housevip-ux-v2 .lead-status-select{position:relative;display:block;--lead-stage:#4f8cff;--lead-stage-bg:rgba(79,140,255,.13)}
+body.housevip-ux-v2 .lead-status-select{position:relative;display:block}
 body.housevip-ux-v2 .lead-status-select::before{content:'';position:absolute;left:12px;top:50%;z-index:1;width:9px;height:9px;border-radius:50%;background:var(--lead-stage);box-shadow:0 0 0 3px var(--lead-stage-bg);transform:translateY(-50%);pointer-events:none}
 body.housevip-ux-v2 .lead-card .lead-status-select select{width:100%;padding-left:33px;background:var(--lead-stage-bg)!important;border-color:var(--lead-stage)!important;font-weight:650}
 body.housevip-ux-v2 .lead-auth input,
