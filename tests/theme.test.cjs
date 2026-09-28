@@ -18,7 +18,7 @@ const indexFiles = [path.join(root, 'index.html')]
 
 indexFiles.forEach(file => {
   const html = fs.readFileSync(file, 'utf8');
-  ok(html.includes('theme.js?v=20260928-theme1'), `theme module missing: ${path.relative(root, file)}`);
+  ok(html.includes('theme.js?v=20260928-ui2'), `theme module missing: ${path.relative(root, file)}`);
 });
 
 ok(theme.includes("localStorage.setItem(STORAGE_KEY, theme)"), 'theme choice persistence missing');
@@ -26,6 +26,13 @@ ok(theme.includes("root.dataset.theme = storedTheme() || 'dark'"), 'dark default
 ok(theme.includes("id = 'toysThemeToggle'"), 'theme toggle button missing');
 ok(theme.includes(':root[data-theme="light"]'), 'light palette missing');
 ok(theme.includes("window.dispatchEvent(new CustomEvent('toys-theme-change'"), 'theme redraw event missing');
+ok(theme.includes('google:`<svg'), 'Google platform icon missing');
+ok(theme.includes('meta:`<svg'), 'Meta platform icon missing');
+ok(theme.includes('instagram:`<svg'), 'Instagram platform icon missing');
+ok(theme.includes("document.querySelectorAll('#viewTabs button,#platformSeg button,#projectSubNav button')"), 'navigation icon decoration missing');
+ok(theme.includes('html body .tabs{width:max-content'), 'dashboard pill navigation styling missing');
+ok(theme.includes('html body .card{position:relative'), 'dashboard KPI card styling missing');
+ok(theme.includes('new MutationObserver(scheduleDecoration)'), 'dynamic UI decoration observer missing');
 ok(sharedCore.includes("window.addEventListener('toys-theme-change'"), 'shared dashboard redraw hook missing');
 ok(housevipCore.includes("window.addEventListener('toys-theme-change'"), 'HOUSEVIP redraw hook missing');
 ok(instashopCore.includes("window.addEventListener('toys-theme-change'"), 'Instashop redraw hook missing');
