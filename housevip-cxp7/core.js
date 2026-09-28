@@ -74,6 +74,7 @@ color-scheme:dark;cursor:pointer;min-width:108px}
 .card .label{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px}
 .card .value{font-size:clamp(20px,2.4vw,28px);font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15}
 .card .value small{display:block;font-size:15px;font-weight:600;opacity:.85;margin-top:2px}
+.card .value .spend-fx{color:var(--accent);font-size:14px;margin-top:6px;opacity:.9}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:22px}
 .panel h2{font-size:14px;font-weight:600;color:var(--muted);margin-bottom:16px;letter-spacing:.04em;text-transform:uppercase}
 .chart-wrap{position:relative;height:280px}
@@ -509,6 +510,43 @@ const LEAD_SOURCE_SHEET = 'ЛИДЫ(Meta)';
 const LEAD_FEEDBACK_SHEET = 'LeadFeedback';
 const LEAD_STATUSES = ['Новый','Не удалось связаться','Связались','Квалифицирован','Подбор объекта','Просмотр назначен','Просмотр проведён','Переговоры','Бронь / задаток','Сделка','Отложен','Неактуален'];
 const LEAD_STATUS_ALIASES = {'Показ':'Просмотр проведён'};
+
+/* Опциональный справочный пересчёт расхода в дополнительную валюту.
+   Включается только через DASH_CONFIG.spendFx конкретного проекта. */
+const SPEND_FX = C.spendFx || null;
+let SPEND_FX_RATE = null, SPEND_FX_DATE = '';
+
+function loadSpendFx(){
+  if(!SPEND_FX || !SPEND_FX.from || !SPEND_FX.to) return;
+  const from = String(SPEND_FX.from).trim().toUpperCase();
+  const to = String(SPEND_FX.to).trim().toUpperCase();
+  if(!from || !to || from === to) return;
+
+  fetch(`https://api.frankfurter.dev/v2/rate/${encodeURIComponent(from.toLowerCase())}/${encodeURIComponent(to.toLowerCase())}`, {cache:'no-store'})
+    .then(r => {
+      if(!r.ok) throw new Error(`FX ${r.status}`);
+      return r.json();
+    })
+    .then(data => {
+      const rate = Number(data && data.rate);
+      if(!(rate > 0)) return;
+      SPEND_FX_RATE = rate;
+      SPEND_FX_DATE = String((data && data.date) || '');
+      if(DATA.length) render();
+    })
+    .catch(() => {});
+}
+
+function spendFxLine(amount, currency){
+  if(!SPEND_FX || !(SPEND_FX_RATE > 0)) return '';
+  const from = String(SPEND_FX.from || '').trim().toUpperCase();
+  const to = String(SPEND_FX.to || '').trim().toUpperCase();
+  if(String(currency || '').trim().toUpperCase() !== from) return '';
+  const title = SPEND_FX_DATE ? `Справочный курс на ${SPEND_FX_DATE}` : 'Актуальный справочный курс';
+  return `<small class="spend-fx" title="${esc(title)}">≈ ${fmtM(amount * SPEND_FX_RATE)} ${sym(to)}</small>`;
+}
+
+loadSpendFx();
 
 /* ---------- boot: Chart.js -> данные (оба канала) -> insights -> квал-лиды (опционально) ---------- */
 loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
@@ -1038,10 +1076,12 @@ function render(){
   const pCost = prevRows.reduce((s,r)=>s+r.cost,0);
   const pCpa = pConv ? pCost/pConv : null;
 
-  el('kSpend').innerHTML = (curs.length===1
-      ? `${fmtM(byCur[curs[0]])} ${sym(curs[0])}`
-      : curs.map(c=>`<small>${fmtM(byCur[c])} ${sym(c)}</small>`).join(''))
-    + (curs.length===1 ? deltaBadge(byCur[curs[0]], pCost, {neutral:true}) : '');
+  const spendMainHtml = curs.length===1
+    ? `${fmtM(byCur[curs[0]])} ${sym(curs[0])}`
+    : curs.map(c=>`<small>${fmtM(byCur[c])} ${sym(c)}</small>`).join('');
+  const spendDeltaHtml = curs.length===1 ? deltaBadge(byCur[curs[0]], pCost, {neutral:true}) : '';
+  const spendFxHtml = curs.length===1 ? spendFxLine(byCur[curs[0]], curs[0]) : '';
+  el('kSpend').innerHTML = spendMainHtml + spendDeltaHtml + spendFxHtml;
   el('kImpr').innerHTML = fmtN(impr) + deltaBadge(impr, pImpr, {});
   el('kClicks').innerHTML = fmtN(clicks) + deltaBadge(clicks, pClicks, {});
   const ctr = impr ? clicks/impr*100 : null;
