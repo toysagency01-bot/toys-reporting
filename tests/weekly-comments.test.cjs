@@ -35,6 +35,7 @@ assert.match(
 
 const coreVersions = new Map();
 for (const slug of activeProjects) {
+  if (slug === 'amklinika-k8m2') continue; // isolated AM Klinika lead renderer cache-bust
   const indexPath = path.join(root, slug, 'index.html');
   if (!fs.existsSync(indexPath)) continue;
   const html = fs.readFileSync(indexPath, 'utf8');
@@ -45,6 +46,11 @@ assert.equal(
   new Set(coreVersions.values()).size,
   1,
   `all dashboards must use the same core cache version: ${JSON.stringify([...coreVersions])}`,
+);
+assert.match(
+  fs.readFileSync(path.join(root, 'amklinika-k8m2', 'index.html'), 'utf8'),
+  /\.\.\/core\/core\.js\?v=20260930-amleads1/,
+  'AM Klinika must load the lead-aware core build',
 );
 
 const backendMappings = new Map(

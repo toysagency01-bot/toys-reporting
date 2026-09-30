@@ -16,6 +16,7 @@ ok(!html.includes('План работы (Google)'), 'AM Klinika must not expose
 });
 ok(html.includes("key: 'leads'"), 'AM Klinika leads channel missing');
 ok(html.includes('./amklinika.js?v=20260930-leads1'), 'AM Klinika lead renderer missing');
+ok(html.includes('../core/core.js?v=20260930-amleads1'), 'AM Klinika lead-aware core cache-bust missing');
 ok(html.includes('../core/ux-v2.js?v=20260930-amleads1'), 'AM Klinika nested route fix missing');
 ok(core.includes("tabDef.mode === 'am-leads' && typeof window.renderAmLeads === 'function'"), 'AM Klinika lead mode guard missing');
 ok(app.includes('window.renderAmLeads = function'), 'AM Klinika lead renderer must register explicitly');
