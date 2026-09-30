@@ -58,6 +58,17 @@ const HOUSEVIP_STATUSES = [
   'Сделка', 'Отложен', 'Неактуален',
 ];
 
+function projectLeadStatuses(project) {
+  try {
+    const values = JSON.parse(project?.settingsJson || '{}')?.leadStatuses;
+    if (Array.isArray(values)) {
+      const statuses = values.map(value => String(value || '').trim()).filter(Boolean);
+      if (statuses.length) return statuses;
+    }
+  } catch (_) {}
+  return HOUSEVIP_STATUSES;
+}
+
 async function activeProject(env, slug) {
   return env.TOYS_DB.prepare(
     `SELECT id, slug, name, project_type AS projectType, currency, settings_json AS settingsJson
@@ -141,14 +152,23 @@ async function publicLeads(env, slug) {
   const project = await activeProject(env, slug);
   if (!project) return null;
   const result = await env.TOYS_DB.prepare(
-    `SELECT l.id, l.created_at AS date, l.name, l.phone, l.email,
+    `SELECT l.id, l.created_at AS date, l.name, l.phone, l.email, l.source_provider AS sourceProvider,
             l.contact_method AS contactMethod, l.budget, l.current_status AS status,
             l.status_updated_at AS statusUpdatedAt, l.updated_at AS updatedAt,
+            json_extract(l.metadata_json, '$.service') AS service,
+            json_extract(l.metadata_json, '$.description') AS description,
+            json_extract(l.metadata_json, '$.language') AS language,
+            json_extract(l.metadata_json, '$.page') AS page,
+            json_extract(l.metadata_json, '$.campaign') AS campaign,
+            json_extract(l.metadata_json, '$.adset') AS adset,
+            json_extract(l.metadata_json, '$.ad') AS ad,
+            COALESCE(json_extract(l.metadata_json, '$.isTest'), 0) AS isTest,
             COALESCE((SELECT body FROM lead_comments c WHERE c.lead_id = l.id
                        ORDER BY c.updated_at DESC, c.created_at DESC LIMIT 1), '') AS comment
-       FROM leads l WHERE l.project_id = ? ORDER BY l.created_at DESC, l.id`,
+       FROM leads l WHERE l.project_id = ? AND COALESCE(json_extract(l.metadata_json, '$.isTest'), 0) = 0
+       ORDER BY l.created_at DESC, l.id`,
   ).bind(project.id).all();
-  return { title: project.name, statuses: HOUSEVIP_STATUSES, leads: result.results || [] };
+  return { title: project.name, statuses: projectLeadStatuses(project), leads: result.results || [] };
 }
 
 async function updateLead(request, env, slug, leadId, id) {
@@ -159,7 +179,7 @@ async function updateLead(request, env, slug, leadId, id) {
   try { body = await request.json(); } catch (_) { return json({ ok: false, error: 'invalid_json', requestId: id }, 400); }
   const status = String(body.status || '').trim();
   const comment = String(body.comment || '').trim();
-  if (!HOUSEVIP_STATUSES.includes(status) || comment.length > 3000) return json({ ok: false, error: 'invalid_input', requestId: id }, 400);
+  if (!projectLeadStatuses(project).includes(status) || comment.length > 3000) return json({ ok: false, error: 'invalid_input', requestId: id }, 400);
   const lead = await env.TOYS_DB.prepare(
     'SELECT current_status AS currentStatus FROM leads WHERE id = ? AND project_id = ?',
   ).bind(leadId, project.id).first();
@@ -470,6 +490,6 @@ export default {
 
 export {
   activeProject, databaseHealth, handleApi, internalAuthorized, listProjects, publicDashboard,
-  publicExchangeRate, publicLeads, publicTab, sameOriginWrite, validDate,
+  projectLeadStatuses, publicExchangeRate, publicLeads, publicTab, sameOriginWrite, validDate,
 };
 

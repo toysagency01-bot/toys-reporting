@@ -6,6 +6,12 @@
   const projectView = byId('projectView');
   const legacyTabs = byId('viewTabs');
   if(!content || !metricsView || !projectView || !legacyTabs) return;
+  const uxConfig=window.DASH_CONFIG||{};
+  const uxTitle=uxConfig.title||'Проект';
+  const uxChannels=Array.isArray(uxConfig.projectChannels)?uxConfig.projectChannels:[];
+  const uxDefaultChannel=uxChannels[0]?.key||'project';
+  const uxLeadChannel=uxChannels.find(channel=>(channel.tabs||[]).some(tab=>tab.mode==='lead-feedback'))?.key||uxDefaultChannel;
+  const uxLeadLabel=uxChannels.find(channel=>channel.key===uxLeadChannel)?.tabs?.find(tab=>tab.mode==='lead-feedback')?.label||'ЛИДЫ';
 
   document.body.classList.add('housevip-ux-v2');
   legacyTabs.classList.add('ux-legacy-tabs');
@@ -56,7 +62,7 @@
   const overviewGrid = document.createElement('div');
   overviewGrid.className = 'ux-overview-grid';
   overviewGrid.appendChild(chartPanel);
-  overviewGrid.insertAdjacentHTML('beforeend',`<aside class="panel ux-period-panel"><div class="ux-panel-heading"><div><h2>Итог периода</h2><p>Ключевые показатели HOUSEVIP</p></div></div><div class="ux-period-metrics"><div><span>Лиды</span><strong id="uxLeads">—</strong></div><div><span>Цена лида</span><strong id="uxCpa">—</strong><small id="uxCpaOriginal"></small></div><div><span>Расход</span><strong id="uxSpend">—</strong><small id="uxSpendOriginal"></small></div></div><div class="ux-attention" id="uxAttention"><b>НА КОНТРОЛЕ</b><strong>Данные кампаний загружаются…</strong><p></p></div></aside>`);
+  overviewGrid.insertAdjacentHTML('beforeend',`<aside class="panel ux-period-panel"><div class="ux-panel-heading"><div><h2>Итог периода</h2><p>Ключевые показатели ${uxTitle}</p></div></div><div class="ux-period-metrics"><div><span>Лиды</span><strong id="uxLeads">—</strong></div><div><span>Цена лида</span><strong id="uxCpa">—</strong><small id="uxCpaOriginal"></small></div><div><span>Расход</span><strong id="uxSpend">—</strong><small id="uxSpendOriginal"></small></div></div><div class="ux-attention" id="uxAttention"><b>НА КОНТРОЛЕ</b><strong>Данные кампаний загружаются…</strong><p></p></div></aside>`);
   overview.appendChild(overviewGrid);
   if(insightsPanel) overview.appendChild(insightsPanel);
 
@@ -95,7 +101,7 @@
   const projectChannels = document.createElement('div');
   projectChannels.id = 'uxProjectChannels';
   projectChannels.className = 'ux-project-channels';
-  projectChannels.innerHTML = '<button type="button" data-channel="smm">SMM</button><button type="button" data-channel="meta">Meta</button>';
+  projectChannels.innerHTML = uxChannels.map(channel=>`<button type="button" data-channel="${channel.key}">${channel.label}</button>`).join('');
   projectView.insertBefore(projectHeader,projectView.firstChild);
   projectView.insertBefore(projectChannels,projectHeader.nextSibling);
 
@@ -131,7 +137,7 @@
     projectView.classList.remove('hidden');
     projectView.dataset.uxMode=mode;
     projectHeader.querySelector('p').textContent=mode==='leads'?'ОБРАТНАЯ СВЯЗЬ':'РАБОТА ПО ПРОЕКТУ';
-    projectHeader.querySelector('h1').textContent=mode==='leads'?'Лиды Meta':'Проект';
+    projectHeader.querySelector('h1').textContent=mode==='leads'?'Лиды':'Проект';
     projectHeader.querySelector('span').textContent=mode==='leads'?'Статусы и комментарии по обращениям клиента.':'Планы, материалы и рабочие таблицы по каналам.';
     projectChannels.querySelectorAll('button').forEach(button=>button.classList.toggle('active',button.dataset.channel===channel));
     setActiveNav(mode);
@@ -145,8 +151,8 @@
     if(!button) return;
     const view=button.dataset.uxView;
     if(['overview','campaigns','funnel','weekly'].includes(view)) showAnalytics(view);
-    else if(view==='leads') showProject('leads','meta','ЛИДЫ');
-    else showProject('project','smm','');
+    else if(view==='leads') showProject('leads',uxLeadChannel,uxLeadLabel);
+    else showProject('project',uxDefaultChannel,'');
   });
   document.addEventListener('click',event=>{
     const button=event.target.closest('[data-ux-open]');
@@ -217,8 +223,8 @@
   const [initialView,initialSubRaw]=initial.split('/');
   const initialSub=initialSubRaw?decodeURIComponent(initialSubRaw):'';
   if(initial==='campaigns'||initial==='funnel'||initial==='weekly') showAnalytics(initial);
-  else if(initial==='leads') showProject('leads','meta','ЛИДЫ');
-  else if(initial==='project') showProject('project','smm','');
+  else if(initial==='leads') showProject('leads',uxLeadChannel,uxLeadLabel);
+  else if(initial==='project') showProject('project',uxDefaultChannel,'');
   else if(initialView==='smm'||initialView==='meta') showProject(initialSub.toLowerCase().includes('лид')?'leads':'project',initialView,initialSub);
   else showAnalytics('overview');
 })();

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker, { sameOriginWrite, validDate } from '../src/index.js';
+import worker, { projectLeadStatuses, sameOriginWrite, validDate } from '../src/index.js';
 
 function database(projects = []) {
   return {
@@ -140,5 +140,11 @@ test('date validation rejects impossible calendar dates', () => {
 test('public write endpoints accept same-origin requests and reject cross-origin requests', () => {
   assert.equal(sameOriginWrite(new Request('https://app.test/api', { headers: { origin: 'https://app.test' } })), true);
   assert.equal(sameOriginWrite(new Request('https://app.test/api', { headers: { origin: 'https://evil.test' } })), false);
+});
+
+test('lead statuses are project-specific and fall back to the HOUSEVIP funnel', () => {
+  const am = projectLeadStatuses({ settingsJson: '{"leadStatuses":["Новый","Диагностика назначена","Завершён"]}' });
+  assert.deepEqual(am, ['Новый', 'Диагностика назначена', 'Завершён']);
+  assert.ok(projectLeadStatuses({ settingsJson: '{}' }).includes('Просмотр назначен'));
 });
 

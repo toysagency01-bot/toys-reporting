@@ -2218,9 +2218,9 @@ function loadGenericTab(tabDef){
   gShow('gLoading');
   el('gTitle').textContent = tabDef.label;
 
-  // HOUSEVIP открывает лиды по индивидуальной ссылке проекта без кода.
-  // Исходный импорт Meta читаем напрямую, а статусы/комментарии держим в LeadFeedback.
-  if(WEEKLY_PROJECT_KEY === 'housevip-cxp7' && tabDef.mode === 'lead-feedback') return renderLeadFeedback(tabDef);
+  // D1 projects open the unified leads view by their individual project URL.
+  // Imported source rows stay immutable; statuses and comments are stored separately.
+  if(DATA_API_BASE && tabDef.mode === 'lead-feedback') return renderLeadFeedback(tabDef);
 
   if(genericCache[tabDef.tab]){ renderGenericByMode(tabDef, genericCache[tabDef.tab]); return; }
 
@@ -2235,8 +2235,8 @@ function loadGenericTab(tabDef){
 function renderLeadFeedback(tabDef){
   if(!WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY){ gShow('gError'); return; }
   el('gTitle').textContent = tabDef.label;
-  el('gWrap').innerHTML = `<div class="lead-feedback-note">Контакты загружаются по индивидуальной ссылке проекта. Статусы и комментарии сохраняются отдельно и не меняют исходный импорт Meta.</div>
-    <section id="leadAuth" class="lead-auth"><h3>Лиды Meta</h3><p class="lead-feedback-note">Загружаю обращения и обратную связь…</p><div id="leadAuthStatus" class="lead-status" aria-live="polite"></div></section>
+  el('gWrap').innerHTML = `<div class="lead-feedback-note">Контакты загружаются по индивидуальной ссылке проекта. Статусы и комментарии сохраняются отдельно и не меняют исходный импорт.</div>
+    <section id="leadAuth" class="lead-auth"><h3>Лиды</h3><p class="lead-feedback-note">Загружаю обращения и обратную связь…</p><div id="leadAuthStatus" class="lead-status" aria-live="polite"></div></section>
     <section id="leadApp" class="hidden"><div class="lead-toolbar"><input id="leadSearch" type="search" placeholder="Поиск по имени, телефону или почте"><select id="leadStatusFilter"><option value="">Все статусы</option></select><span id="leadCount" class="lead-count"></span></div><div id="leadList" class="lead-list"></div></section>`;
   gShow('gPanel');
   if(DATA_API_BASE) leadLoadFromApi(); else leadLoadFromSheets();
@@ -2312,7 +2312,7 @@ function leadField(label,value,kind){
   return `<div class="lead-field"><b>${esc(label)}</b>${body}</div>`;
 }
 function leadStage(status){
-  return ({'Новый':'new','Не удалось связаться':'unreachable','Связались':'contacted','Квалифицирован':'qualified','Подбор объекта':'selection','Просмотр назначен':'viewing','Просмотр проведён':'viewed','Переговоры':'negotiation','Бронь / задаток':'reserved','Сделка':'won','Отложен':'paused','Неактуален':'lost'})[status]||'new';
+  return ({'Новый':'new','Не удалось связаться':'unreachable','Связались':'contacted','Квалифицирован':'qualified','Подбор объекта':'selection','В работе':'selection','Просмотр назначен':'viewing','Диагностика назначена':'viewing','Просмотр проведён':'viewed','Автомобиль принят':'viewed','Переговоры':'negotiation','Смета отправлена':'negotiation','Бронь / задаток':'reserved','Согласовано':'reserved','Готов к выдаче':'reserved','Сделка':'won','Завершён':'won','Отложен':'paused','Неактуален':'lost'})[status]||'new';
 }
 function leadStatusDate(value){
   if(!value)return 'дата не указана';
@@ -2335,9 +2335,9 @@ function leadApplyStage(card,status){
 function renderLeadRows(){
   if(!LEAD_MODEL || !el('leadList')) return;
   const query=(el('leadSearch').value||'').trim().toLowerCase(), status=el('leadStatusFilter').value;
-  const rows=LEAD_MODEL.leads.filter(item=>(!status||item.status===status)&&(!query||[item.name,item.phone,item.email,item.contactMethod,item.budget].join(' ').toLowerCase().includes(query)));
+  const rows=LEAD_MODEL.leads.filter(item=>(!status||item.status===status)&&(!query||[item.name,item.phone,item.email,item.contactMethod,item.budget,item.service,item.description,item.language,item.campaign,item.adset,item.ad].join(' ').toLowerCase().includes(query)));
   el('leadCount').textContent=`${rows.length} из ${LEAD_MODEL.leads.length}`;
-  el('leadList').innerHTML=rows.length?rows.map(item=>`<article class="lead-card" data-lead-id="${esc(item.id)}" data-lead-stage="${leadStage(item.status)}"><div class="lead-head"><span class="lead-name">${esc(item.name||'—')}</span><span class="lead-date">${esc(leadCreatedDate(item.date))}</span></div><div class="lead-grid">${leadField('Телефон',item.phone,'tel')}${leadField('Почта',item.email,'mail')}${leadField('Способ связи',item.contactMethod)}${leadField('Бюджет',String(item.budget||'').replace(/_/g,' '))}</div><div class="lead-actions"><label class="lead-control"><span class="lead-status-heading"><b>Статус</b><span class="lead-status-date" data-role="status-date">${esc(leadStatusDate(item.statusUpdatedAt))}</span></span><span class="lead-status-select" data-lead-stage="${leadStage(item.status)}"><select data-role="status">${LEAD_MODEL.statuses.map(value=>`<option value="${esc(value)}" data-stage="${leadStage(value)}"${value===item.status?' selected':''}>${esc(value)}</option>`).join('')}</select></span></label><label class="lead-control"><b>Комментарий</b><textarea data-role="comment" maxlength="3000" placeholder="Комментарий">${esc(item.comment||'')}</textarea></label><div><button class="lead-save" type="button">Сохранить</button><div class="lead-saved" aria-live="polite"></div></div></div></article>`).join(''):'<div class="state">Ничего не найдено</div>';
+  el('leadList').innerHTML=rows.length?rows.map(item=>{const source=item.sourceProvider==='google_sheets_site'?'Сайт':item.sourceProvider==='meta_ads'?'Meta Ads':item.sourceProvider||'—';return `<article class="lead-card" data-lead-id="${esc(item.id)}" data-lead-stage="${leadStage(item.status)}"><div class="lead-head"><span class="lead-name">${esc(item.name||'—')}</span><span class="lead-date">${esc(leadCreatedDate(item.date))}</span></div><div class="lead-grid">${leadField('Телефон',item.phone,'tel')}${leadField('Почта',item.email,'mail')}${leadField('Источник',source)}${leadField('Язык',item.language)}${leadField('Услуга / проблема',item.service||item.description)}${item.contactMethod?leadField('Способ связи',item.contactMethod):''}${item.budget?leadField('Бюджет',String(item.budget||'').replace(/_/g,' ')):''}${item.campaign?leadField('Кампания',item.campaign):''}</div><div class="lead-actions"><label class="lead-control"><span class="lead-status-heading"><b>Статус</b><span class="lead-status-date" data-role="status-date">${esc(leadStatusDate(item.statusUpdatedAt))}</span></span><span class="lead-status-select" data-lead-stage="${leadStage(item.status)}"><select data-role="status">${LEAD_MODEL.statuses.map(value=>`<option value="${esc(value)}" data-stage="${leadStage(value)}"${value===item.status?' selected':''}>${esc(value)}</option>`).join('')}</select></span></label><label class="lead-control"><b>Комментарий</b><textarea data-role="comment" maxlength="3000" placeholder="Комментарий">${esc(item.comment||'')}</textarea></label><div><button class="lead-save" type="button">Сохранить</button><div class="lead-saved" aria-live="polite"></div></div></div></article>`}).join(''):'<div class="state">Ничего не найдено</div>';
   document.querySelectorAll('.lead-save').forEach(button=>button.addEventListener('click',()=>leadSave(button.closest('.lead-card'))));
   document.querySelectorAll('[data-role="status"]').forEach(select=>select.addEventListener('change',()=>leadApplyStage(select.closest('.lead-card'),select.value)));
 }

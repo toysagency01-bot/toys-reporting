@@ -31,14 +31,19 @@ test('all migrations execute and create the required platform tables', () => {
   db.close();
 });
 
-test('the registry keeps all projects draft except the explicit HOUSEVIP pilot', () => {
+test('the registry activates only the migrated D1 projects', () => {
   const db = migratedDatabase();
   const count = db.prepare('SELECT COUNT(*) AS count FROM projects').get().count;
   const active = db.prepare("SELECT COUNT(*) AS count FROM projects WHERE status = 'active'").get().count;
   assert.equal(count, 15);
-  assert.equal(active, 1);
+  assert.equal(active, 2);
   assert.equal(db.prepare("SELECT project_type FROM projects WHERE slug = 'housevip-cxp7'").get().project_type, 'leadgen');
   assert.equal(db.prepare("SELECT status FROM projects WHERE slug = 'housevip-cxp7'").get().status, 'active');
+  assert.equal(db.prepare("SELECT project_type FROM projects WHERE slug = 'amklinika-k8m2'").get().project_type, 'leadgen');
+  assert.equal(db.prepare("SELECT status FROM projects WHERE slug = 'amklinika-k8m2'").get().status, 'active');
+  assert.equal(db.prepare("SELECT currency FROM projects WHERE slug = 'amklinika-k8m2'").get().currency, 'CZK');
+  assert.equal(db.prepare("SELECT external_account_id FROM integrations WHERE id = 'int_amklinika_meta'").get().external_account_id, '1830858661278666');
+  assert.equal(db.prepare("SELECT external_account_id FROM integrations WHERE id = 'int_amklinika_google'").get().external_account_id, '9632942627');
   db.close();
 });
 
