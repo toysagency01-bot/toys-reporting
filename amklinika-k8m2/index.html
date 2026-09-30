@@ -32,14 +32,14 @@ window.DASH_CONFIG = {
       ]
     },
     {
-      key: 'google',
-      label: 'Google',
+      key: 'leads',
+      label: 'Лиды',
       tabs: [
-        {tab: 'План работы (Google)', label: 'План работы', kind: 'plan'},
-        {tab: 'Еженедельная сводка (Google)', label: 'Сводка (неделя)', mode: 'weekly-report'},
-        {tab: 'Месячная сводка (Google)', label: 'Сводка (месяц)', mode: 'weekly-report'},
-        {tab: 'Ключевые слова (Google)', label: 'Ключевые слова'},
-        {tab: 'Объявления (Google)', label: 'Объявления'}
+        {tab: 'Lead Site', label: 'Сайт', mode: 'am-leads', leadSource: 'site'},
+        {tab: 'Lead_meta_new', label: 'Meta · Кузов (CZ)', mode: 'am-leads', leadSource: 'meta'},
+        {tab: 'Lead_meta_ru', label: 'Meta · Кузов (RU)', mode: 'am-leads', leadSource: 'meta'},
+        {tab: 'Lead_meta_ru_mechanic', label: 'Meta · Механик (RU)', mode: 'am-leads', leadSource: 'meta'},
+        {tab: 'Lead_meta_cz_mechanic', label: 'Meta · Механик (CZ)', mode: 'am-leads', leadSource: 'meta'}
       ]
     }
   ]
@@ -47,7 +47,9 @@ window.DASH_CONFIG = {
 </script>
 <script src="../core/theme.js?v=20260928-ui2"></script>
 <script src="../core/core.js?v=20260928-theme1"></script>
+<link rel="stylesheet" href="./amklinika.css?v=20260930-leads1">
+<script src="./amklinika.js?v=20260930-leads1"></script>
 <link rel="stylesheet" href="../core/ux-v2.css?v=20260928-global-ux1">
-<script src="../core/ux-v2.js?v=20260928-global-ux1"></script>
+<script src="../core/ux-v2.js?v=20260930-amleads1"></script>
 </body>
 </html>

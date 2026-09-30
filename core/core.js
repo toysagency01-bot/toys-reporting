@@ -1846,6 +1846,7 @@ const DEFAULT_EXTRA_TABS = [
 ];
 const EXTRA_TABS = C.projectExtraTabs || DEFAULT_EXTRA_TABS;
 const genericCache = {};
+let activeGenericRequest = '';
 
 // список планов-по-каналам — опционально задаётся в конфиге клиента:
 // projectPlanTabs: [{tab:'План работы (SMM)', label:'SMM'}, ...]
@@ -2097,6 +2098,7 @@ function applyChannelHashRoute(){
 // 'weekly-report' — повторяющиеся блоки период/таблица/итого/заметки
 // 'competitors' — карточки конкурентов из атрибутных блоков
 function loadGenericTab(tabDef){
+  activeGenericRequest = tabDef.tab;
   gShow('gLoading');
   el('gTitle').textContent = tabDef.label;
 
@@ -2106,12 +2108,15 @@ function loadGenericTab(tabDef){
   // режимы (weekly-report/competitors/creative-brief) полагаются на
   // автоопределение Google как и раньше, их не трогаем
   gvizFrom(C.projectSheetId, tabDef.tab,
-    j => { genericCache[tabDef.tab] = j; renderGenericByMode(tabDef, j); },
-    () => gShow('gError'), !!tabDef.raw || !tabDef.mode);
+    j => { genericCache[tabDef.tab] = j; if(activeGenericRequest === tabDef.tab) renderGenericByMode(tabDef, j); },
+    () => { if(activeGenericRequest === tabDef.tab) gShow('gError'); }, !!tabDef.raw || !tabDef.mode);
 }
 
 function renderGenericByMode(tabDef, json){
   try{
+    // Проектные рендереры подключаются отдельным файлом клиента. Пока
+    // ни один проект явно не запросил такой mode, общий интерфейс не меняется.
+    if(tabDef.mode === 'am-leads' && typeof window.renderAmLeads === 'function') return window.renderAmLeads(json, tabDef);
     if(tabDef.mode === 'weekly-report') return renderWeeklyReport(json, tabDef.tab);
     if(tabDef.mode === 'competitors') return renderCompetitors(json);
     if(tabDef.mode === 'creative-brief') return renderCreativeBrief(json);
