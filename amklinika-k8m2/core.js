@@ -2226,15 +2226,44 @@ function leadLoadFromApi(){
   const script=document.createElement('script');
   let finished=false;
   const cleanup=()=>{ if(finished)return; finished=true; clearTimeout(timer); delete window[callback]; script.remove(); };
-  const timer=setTimeout(()=>{ cleanup(); leadSetStatus('Сервис лидов долго не отвечает. Попробуйте обновить страницу.',true); },30000);
+  const fallback=()=>{ cleanup(); leadLoadFromBridge(); };
+  const timer=setTimeout(fallback,12000);
   window[callback]=payload=>{
     cleanup();
     if(!payload||payload.ok===false||!payload.model){ leadSetStatus(payload&&payload.message||'Не удалось открыть лиды',true); return; }
     leadShowModel(payload.model);
   };
-  script.onerror=()=>{ cleanup(); leadSetStatus('Не удалось подключиться к сервису лидов',true); };
+  script.onerror=fallback;
   script.src=LEAD_API_URL+(LEAD_API_URL.includes('?')?'&':'?')+new URLSearchParams({mode:'lead-list',project:WEEKLY_PROJECT_KEY,callback,_:Date.now()}).toString();
   document.head.appendChild(script);
+}
+
+// Некоторые встроенные браузеры блокируют JSONP-редирект Apps Script.
+// В этом случае используем тот же подтверждённый form/iframe transport,
+// на котором уже работает сохранение недельных итогов. Ответ принимается
+// только от доменов Google и только с одноразовым replyToken.
+function leadLoadFromBridge(){
+  const replyToken=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const frameName=`toysLeadLoadFrame_${Date.now()}`;
+  const frame=document.createElement('iframe'), form=document.createElement('form');
+  frame.name=frameName; frame.className='hidden'; frame.title='Загрузка лидов';
+  form.method='post'; form.action=LEAD_API_URL; form.target=frameName; form.className='hidden';
+  [['mode','lead-list'],['project',WEEKLY_PROJECT_KEY],['replyToken',replyToken]].forEach(([name,value])=>{
+    const input=document.createElement('input'); input.type='hidden'; input.name=name; input.value=value; form.appendChild(input);
+  });
+  let done=false;
+  const cleanup=()=>{ if(done)return; done=true; clearTimeout(timer); window.removeEventListener('message',onMessage); form.remove(); frame.remove(); };
+  const onMessage=event=>{
+    if(!event.data||event.data.replyToken!==replyToken)return;
+    const trusted=event.origin==='https://script.google.com'||/^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/.test(event.origin);
+    if(!trusted)return;
+    cleanup();
+    if(event.data.type==='lead-dashboard-loaded'&&event.data.ok!==false&&event.data.model){ leadShowModel(event.data.model); return; }
+    leadSetStatus(event.data.message||'Не удалось открыть лиды',true);
+  };
+  const timer=setTimeout(()=>{ cleanup(); leadSetStatus('Сервис лидов долго не отвечает. Попробуйте обновить страницу.',true); },30000);
+  window.addEventListener('message',onMessage);
+  document.body.append(frame,form); form.submit();
 }
 
 async function leadSheetValues(sheetName,columns){
