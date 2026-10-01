@@ -19,6 +19,8 @@ let period = 7;
 let chart = null;
 let weeklySubmitPending = false;
 let weeklySubmitTimer = null;
+let weeklySubmitToken = '';
+let weeklySubmittedRecord = null;
 
 window.addEventListener('toys-theme-change', () => {
   if(META.length || SALES.length) render();
@@ -56,7 +58,7 @@ document.body.innerHTML = `
   <div class="panel"><h2>Кампании Meta Ads</h2><div id="campaigns"></div><div class="note">Продажи и выручка приходят общей суммой за день и не распределяются по рекламным кампаниям. В строках кампаний показаны только рекламные метрики и атрибуция Meta.</div></div>
   <div class="panel"><h2>Методика</h2><div class="source-note">Расход Meta Ads переводится из USD в UAH по официальному курсу НБУ на каждую дату. ROAS = выручка Instagram Direct в UAH / расход Meta Ads в UAH.</div></div>
 </div>`;
-document.body.insertAdjacentHTML('beforeend', `<div id="weeklyModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Недельный итог"><div class="modal-card"><button id="closeWeekly" class="modal-close" aria-label="Закрыть">×</button><form id="weeklyForm" class="weekly-form" method="post" target="weeklySubmitFrame"><h3>Недельный итог ${esc(C.title || 'PROFKIT')}</h3><div class="modal-help">Одна запись на период. Повторное сохранение обновит существующий итог.</div><input type="hidden" name="mode" value="save"><input type="hidden" name="project" value="profkit-instashop-r4vk"><label>Код доступа<input id="weeklyAccess" name="accessCode" type="password" autocomplete="current-password" required></label><div class="weekly-form-grid"><label>Начало периода<input id="weeklyStart" name="periodStart" type="date" required></label><label>Конец периода<input id="weeklyEnd" name="periodEnd" type="date" required></label></div><label>Общий итог<textarea id="weeklySummary" name="summary" class="summary" maxlength="5000" required></textarea></label><label>Что сработало<textarea id="weeklyWins" name="wins" maxlength="5000"></textarea></label><label>Что не сработало<textarea id="weeklyIssues" name="issues" maxlength="5000"></textarea></label><label>Какие изменения внесли<textarea id="weeklyChanges" name="changes" maxlength="5000"></textarea></label><label>План на следующую неделю<textarea id="weeklyNextSteps" name="nextSteps" maxlength="5000"></textarea></label><label>Статус<select id="weeklyStatusSelect" name="status"><option value="published">Опубликовано</option><option value="draft">Черновик</option></select></label><div class="weekly-actions"><button id="weeklySave" class="weekly-save" type="submit">Сохранить итог</button><div id="weeklyFormStatus" class="weekly-status" aria-live="polite"></div></div></form><iframe id="weeklySubmitFrame" class="weekly-submit-frame" name="weeklySubmitFrame" title="Результат сохранения"></iframe></div></div>`);
+document.body.insertAdjacentHTML('beforeend', `<div id="weeklyModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Недельный итог"><div class="modal-card"><button id="closeWeekly" class="modal-close" aria-label="Закрыть">×</button><form id="weeklyForm" class="weekly-form" method="post" target="weeklySubmitFrame"><h3>Недельный итог ${esc(C.title || 'PROFKIT')}</h3><div class="modal-help">Одна запись на период. Повторное сохранение обновит существующий итог.</div><input type="hidden" name="mode" value="save"><input type="hidden" name="project" value="profkit-instashop-r4vk"><input id="weeklyReplyToken" type="hidden" name="replyToken" value=""><label>Код доступа<input id="weeklyAccess" name="accessCode" type="password" autocomplete="current-password" required></label><div class="weekly-form-grid"><label>Начало периода<input id="weeklyStart" name="periodStart" type="date" required></label><label>Конец периода<input id="weeklyEnd" name="periodEnd" type="date" required></label></div><label>Общий итог<textarea id="weeklySummary" name="summary" class="summary" maxlength="5000" required></textarea></label><label>Что сработало<textarea id="weeklyWins" name="wins" maxlength="5000"></textarea></label><label>Что не сработало<textarea id="weeklyIssues" name="issues" maxlength="5000"></textarea></label><label>Какие изменения внесли<textarea id="weeklyChanges" name="changes" maxlength="5000"></textarea></label><label>План на следующую неделю<textarea id="weeklyNextSteps" name="nextSteps" maxlength="5000"></textarea></label><label>Статус<select id="weeklyStatusSelect" name="status"><option value="published">Опубликовано</option><option value="draft">Черновик</option></select></label><div class="weekly-actions"><button id="weeklySave" class="weekly-save" type="submit">Сохранить итог</button><div id="weeklyFormStatus" class="weekly-status" aria-live="polite"></div></div></form><iframe id="weeklySubmitFrame" class="weekly-submit-frame" name="weeklySubmitFrame" title="Результат сохранения"></iframe></div></div>`);
 
 function gviz(sheet, ok, fail){
   const cb = '__instashopGviz' + Math.random().toString(36).slice(2);
@@ -130,30 +132,26 @@ function bind(){
       return;
     }
     sessionStorage.setItem('profkitWeeklyAccess', el('weeklyAccess').value);
+    weeklySubmitToken = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    el('weeklyReplyToken').value = weeklySubmitToken;
+    const record = weeklyFormRecord();
+    weeklySubmittedRecord = record;
     weeklySubmitPending = true;
     weeklySetStatus('Сохраняю…');
     clearTimeout(weeklySubmitTimer);
-    weeklySubmitTimer = setTimeout(()=>{
-      if(!weeklySubmitPending) return;
-      weeklySubmitPending = false;
-      el('weeklySave').disabled = false;
-      weeklySetStatus('Сервис долго не отвечает. Попробуйте ещё раз.', true);
-    }, 20000);
     el('weeklyForm').submit();
-  });
-  el('weeklySubmitFrame').addEventListener('load', ()=>{
-    if(weeklySubmitPending) weeklySaveSucceeded();
+    weeklySubmitTimer = setTimeout(()=>weeklyVerifyStored(record, Date.now() + 60000), 2500);
   });
   window.addEventListener('message', event=>{
     if(!weeklySubmitPending || !event.data) return;
+    const googleReplyOrigin = event.origin === 'https://script.google.com' || /^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/.test(event.origin);
+    if(!googleReplyOrigin || event.data.replyToken !== weeklySubmitToken) return;
     if(event.data.type === 'weekly-comment-error'){
-      weeklySubmitPending = false;
-      el('weeklySave').disabled = false;
-      weeklySetStatus(event.data.message || 'Не удалось сохранить', true);
+      weeklySaveFailed(event.data.message || 'Не удалось сохранить');
       return;
     }
     if(event.data.type !== 'weekly-comment-saved') return;
-    weeklySaveSucceeded();
+    weeklySaveSucceeded(weeklySubmittedRecord);
   });
 }
 
@@ -196,11 +194,45 @@ async function weeklyAccessValid(value){
   return Array.from(new Uint8Array(digest)).map(byte=>byte.toString(16).padStart(2,'0')).join('') === WEEKLY_ACCESS_SHA256;
 }
 
-function weeklySaveSucceeded(){
+function weeklyRecordMatches(actual, expected){
+  const clean = value => String(value == null ? '' : value).trim();
+  return ['periodStart','periodEnd','summary','wins','issues','changes','nextSteps','status']
+    .every(key => clean(actual && actual[key]) === clean(expected && expected[key]));
+}
+
+function weeklySaveFailed(message){
+  clearTimeout(weeklySubmitTimer);
+  weeklySubmitPending = false;
+  weeklySubmittedRecord = null;
+  el('weeklySave').disabled = false;
+  weeklySetStatus(message || 'Не удалось подтвердить сохранение. Проверьте итог в таблице и попробуйте ещё раз.', true);
+}
+
+function weeklyVerifyStored(record, deadline){
+  if(!weeklySubmitPending) return;
+  const retry = ()=>{
+    if(!weeklySubmitPending) return;
+    if(Date.now() >= deadline){
+      weeklySaveFailed('Не удалось подтвердить сохранение за минуту. Проверьте итог в таблице и попробуйте ещё раз.');
+      return;
+    }
+    weeklySetStatus('Сохраняю… проверяю запись…');
+    clearTimeout(weeklySubmitTimer);
+    weeklySubmitTimer = setTimeout(()=>weeklyVerifyStored(record, deadline), 3000);
+  };
+  gviz('WeeklyComments', json=>{
+    if(!weeklySubmitPending) return;
+    const saved = M.parseWeeklyComments(json).find(item=>item.periodEnd === record.periodEnd);
+    if(saved && weeklyRecordMatches(saved, record)) weeklySaveSucceeded(record); else retry();
+  }, retry);
+}
+
+function weeklySaveSucceeded(record){
   clearTimeout(weeklySubmitTimer);
   weeklySubmitPending = false;
   el('weeklySave').disabled = false;
-  const record = weeklyFormRecord();
+  record = record || weeklySubmittedRecord || weeklyFormRecord();
+  weeklySubmittedRecord = null;
   COMMENTS = COMMENTS.filter(item=>item.periodEnd !== record.periodEnd).concat(record);
   renderWeekly();
   closeWeeklyForm();

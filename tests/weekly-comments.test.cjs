@@ -27,6 +27,9 @@ assert.match(
   /googleusercontent\\?\.com|googleusercontent/,
   'weekly-comment responses must be restricted to the Apps Script sandbox origin',
 );
+assert.match(core, /function weeklyVerifyStored\(/, 'weekly writes must be verified against the storage sheet');
+assert.match(core, /parseWeeklyComments\(json,true\)/, 'weekly verification must include draft rows');
+assert.match(core, /cacheBust=\$\{Date\.now\(\)\}/, 'weekly verification must bypass stale GViz caches');
 assert.match(
   backend,
   /replyToken:replyToken/g,
@@ -49,9 +52,13 @@ assert.equal(
 );
 assert.match(
   fs.readFileSync(path.join(root, 'amklinika-k8m2', 'index.html'), 'utf8'),
-  /\.\/core\.js\?v=20261001-am-housevip4/,
+  /\.\/core\.js\?v=20261001-am-weekly1/,
   'AM Klinika must load its HouseVIP-based client core',
 );
+const instashop = fs.readFileSync(path.join(root, 'core', 'instashop.js'), 'utf8');
+assert.doesNotMatch(instashop, /weeklySubmitFrame'\)\.addEventListener\('load'/, 'Instashop must not trust iframe load as save success');
+assert.match(instashop, /event\.data\.replyToken !== weeklySubmitToken/, 'Instashop responses must match the one-time token');
+assert.match(instashop, /function weeklyVerifyStored\(/, 'Instashop writes must be verified against the storage sheet');
 assert.match(backend, /'amklinika-k8m2': \{/, 'shared backend must configure AM Klinika');
 assert.match(backend, /function wcsMultiSourceLeadExists_/, 'lead saves must validate AM Klinika source rows');
 

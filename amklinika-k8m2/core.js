@@ -507,7 +507,7 @@ const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}
 
 let DATA = [], INSIGHTS = [], QUALIFIED = [], WEEKLY_COMMENTS = [];
 let period = 7, account = '__all', platform = '__all', chart = null, chartMode = 'volume';
-let weeklySubmitPending = false, weeklySubmitTimer = null, weeklySubmitToken = '';
+let weeklySubmitPending = false, weeklySubmitTimer = null, weeklySubmitToken = '', weeklySubmittedRecord = null;
 let LEAD_MODEL = null, leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '';
 const LEAD_SOURCE_SHEET = 'ЛИДЫ(Meta)';
 const LEAD_FEEDBACK_SHEET = 'LeadFeedback';
@@ -759,7 +759,7 @@ function parseQualified(json){
 }
 
 /* ---------- недельные итоги ---------- */
-function parseWeeklyComments(json){
+function parseWeeklyComments(json, includeDrafts){
   const cols = ((json && json.table && json.table.cols) || []).map(c =>
     String((c && c.label) || '').trim().toLowerCase());
   const expected = ['id','period_start','period_end','summary','wins','issues','changes','next_steps','status'];
@@ -772,7 +772,8 @@ function parseWeeklyComments(json){
     id: row[0] || row[2], periodStart: row[1] || '', periodEnd: row[2] || '',
     summary: row[3] || '', wins: row[4] || '', issues: row[5] || '',
     changes: row[6] || '', nextSteps: row[7] || '', status: (row[8] || 'draft').toLowerCase(),
-  })).filter(row => row.status === 'published').sort((a,b) => b.periodEnd.localeCompare(a.periodEnd));
+    createdAt: row[9] || '', updatedAt: row[10] || '',
+  })).filter(row => includeDrafts || row.status === 'published').sort((a,b) => b.periodEnd.localeCompare(a.periodEnd));
 }
 function weeklyLines(value){ return esc(value).replace(/\n/g, '<br>'); }
 function renderWeeklyComments(){
@@ -838,9 +839,34 @@ function weeklyFormRecord(){
     summary:el('weeklySummary').value.trim(),wins:el('weeklyWins').value.trim(),issues:el('weeklyIssues').value.trim(),
     changes:el('weeklyChanges').value.trim(),nextSteps:el('weeklyNextSteps').value.trim(),status:el('weeklyStatusSelect').value};
 }
-function weeklySaveSucceeded(){
+function weeklyRecordMatches(actual, expected){
+  const clean = value => String(value == null ? '' : value).trim();
+  return ['periodStart','periodEnd','summary','wins','issues','changes','nextSteps','status']
+    .every(key => clean(actual && actual[key]) === clean(expected && expected[key]));
+}
+function weeklySaveFailed(message){
+  clearTimeout(weeklySubmitTimer); weeklySubmitPending=false; weeklySubmittedRecord=null; el('weeklySave').disabled=false;
+  weeklySetStatus(message || 'Не удалось подтвердить сохранение. Проверьте итог в таблице и попробуйте ещё раз.',true);
+}
+function weeklyVerifyStored(record, deadline){
+  if(!weeklySubmitPending) return;
+  const storageId = C.weeklyStorageSheetId || SHEET_ID || C.projectSheetId;
+  const retry = () => {
+    if(!weeklySubmitPending) return;
+    if(Date.now() >= deadline){ weeklySaveFailed('Не удалось подтвердить сохранение за минуту. Проверьте итог в таблице и попробуйте ещё раз.'); return; }
+    weeklySetStatus('Сохраняю… проверяю запись…');
+    clearTimeout(weeklySubmitTimer); weeklySubmitTimer=setTimeout(()=>weeklyVerifyStored(record,deadline),3000);
+  };
+  if(!storageId){ weeklySaveFailed('Не настроена таблица для недельных итогов'); return; }
+  gvizFrom(storageId, C.weeklyCommentsSheet || 'WeeklyComments', json => {
+    if(!weeklySubmitPending) return;
+    const saved = parseWeeklyComments(json,true).find(item => item.periodEnd === record.periodEnd);
+    if(saved && weeklyRecordMatches(saved,record)) weeklySaveSucceeded(record); else retry();
+  }, retry, false, true);
+}
+function weeklySaveSucceeded(record){
   clearTimeout(weeklySubmitTimer); weeklySubmitPending=false; el('weeklySave').disabled=false;
-  const record=weeklyFormRecord(); WEEKLY_COMMENTS=WEEKLY_COMMENTS.filter(item=>item.periodEnd!==record.periodEnd).concat(record)
+  record=record || weeklySubmittedRecord || weeklyFormRecord(); weeklySubmittedRecord=null; WEEKLY_COMMENTS=WEEKLY_COMMENTS.filter(item=>item.periodEnd!==record.periodEnd).concat(record)
     .filter(item=>item.status==='published').sort((a,b)=>b.periodEnd.localeCompare(a.periodEnd));
   renderWeeklyComments(); closeWeeklyForm();
   setTimeout(loadWeeklyComments,800);
@@ -856,9 +882,11 @@ function bindWeeklyComments(){
     sessionStorage.setItem('toysWeeklyAccess',el('weeklyAccess').value);
     weeklySubmitToken = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     el('weeklyReplyToken').value = weeklySubmitToken;
+    const record=weeklyFormRecord(); weeklySubmittedRecord=record;
     weeklySubmitPending=true; weeklySetStatus('Сохраняю…');
-    clearTimeout(weeklySubmitTimer); weeklySubmitTimer=setTimeout(()=>{ if(!weeklySubmitPending)return; weeklySubmitPending=false; el('weeklySave').disabled=false; weeklySetStatus('Сервис долго не отвечает. Попробуйте ещё раз.',true); },20000);
+    clearTimeout(weeklySubmitTimer);
     el('weeklyForm').submit();
+    weeklySubmitTimer=setTimeout(()=>weeklyVerifyStored(record,Date.now()+60000),2500);
   });
   // A form-target iframe fires `load` for both successful and failed Apps Script
   // responses. Treating that event as success creates a phantom card which
@@ -868,8 +896,8 @@ function bindWeeklyComments(){
     if(!weeklySubmitPending || !event.data) return;
     const googleReplyOrigin = event.origin === 'https://script.google.com' || /^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/.test(event.origin);
     if(!googleReplyOrigin || event.data.replyToken !== weeklySubmitToken) return;
-    if(event.data.type==='weekly-comment-error'){ weeklySubmitPending=false; el('weeklySave').disabled=false; weeklySetStatus(event.data.message||'Не удалось сохранить',true); return; }
-    if(event.data.type==='weekly-comment-saved') weeklySaveSucceeded();
+    if(event.data.type==='weekly-comment-error'){ weeklySaveFailed(event.data.message||'Не удалось сохранить'); return; }
+    if(event.data.type==='weekly-comment-saved') weeklySaveSucceeded(weeklySubmittedRecord);
   });
 }
 
@@ -960,7 +988,7 @@ function gviz(sheetName, ok, fail){ gvizFrom(SHEET_ID, sheetName, ok, fail); }
 // для листов с нестандартной раскладкой (пустые первые колонки, шапка не
 // в первой строке) автоопределение Google иногда промахивается и отдаёт
 // пустые заголовки; тогда шапку ищем сами в renderGeneric
-function gvizFrom(spreadsheetId, sheetName, ok, fail, raw){
+function gvizFrom(spreadsheetId, sheetName, ok, fail, raw, fresh){
   const cb = '__gvizCb' + (++cbSeq);
   const timer = setTimeout(()=>{ cleanup(); fail(); }, 12000);
   window[cb] = json => {
@@ -969,7 +997,7 @@ function gvizFrom(spreadsheetId, sheetName, ok, fail, raw){
   };
   const s = document.createElement('script');
   s.src = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=responseHandler%3A${cb}&sheet=${encodeURIComponent(sheetName)}` +
-    (raw ? '&headers=0' : '');
+    (raw ? '&headers=0' : '') + (fresh ? `&cacheBust=${Date.now()}` : '');
   s.onerror = ()=>{ cleanup(); fail(); };
   document.head.appendChild(s);
   function cleanup(){ clearTimeout(timer); delete window[cb]; s.remove(); }

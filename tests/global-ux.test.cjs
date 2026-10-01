@@ -17,7 +17,7 @@ sharedProjects.forEach(project => {
   const html = read(project, 'index.html');
   ok(html.includes('../core/ux-v2.css?v=20260928-global-ux1'), `${project}: global UX CSS missing`);
   ok(html.includes('../core/ux-v2.js?v=20260928-global-ux1'), `${project}: global UX controller missing`);
-  ok(html.indexOf('../core/core.js?v=20260928-theme1') < html.indexOf('../core/ux-v2.js?v=20260928-global-ux1'), `${project}: UX must run after the data engine`);
+  ok(html.indexOf('../core/core.js?v=20261001-weekly-confirm1') < html.indexOf('../core/ux-v2.js?v=20260928-global-ux1'), `${project}: UX must run after the data engine`);
 });
 
 const sharedUx = read('core', 'ux-v2.js');
@@ -29,7 +29,7 @@ ok(sharedUx.includes("routeView=route.split('/')[0]"), 'nested project route gua
 ok(sharedUx.includes("current.startsWith(`${target}/`)"), 'nested project route preservation missing');
 const instashop = read('profkit-instashop-r4vk','index.html');
 ok(instashop.includes('../core/ux-v2-instashop.js?v=20260928-global-ux1'), 'Instashop UX controller missing');
-ok(instashop.includes('../core/instashop.js?v=20260928-theme1'), 'Instashop data engine missing');
+ok(instashop.includes('../core/instashop.js?v=20261001-instashop-weekly1'), 'Instashop data engine missing');
 
 const housevip = read('housevip-cxp7','index.html');
 ok(housevip.includes('./ux-v2.js?v=20260928-housevip-ux3'), 'HOUSEVIP individual UX must remain enabled');
