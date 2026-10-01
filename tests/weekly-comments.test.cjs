@@ -49,7 +49,7 @@ assert.equal(
 );
 assert.match(
   fs.readFileSync(path.join(root, 'amklinika-k8m2', 'index.html'), 'utf8'),
-  /\.\/core\.js\?v=20261001-am-housevip2/,
+  /\.\/core\.js\?v=20261001-am-housevip3/,
   'AM Klinika must load its HouseVIP-based client core',
 );
 assert.match(backend, /'amklinika-k8m2': \{/, 'shared backend must configure AM Klinika');

@@ -2217,7 +2217,8 @@ function renderLeadFeedback(tabDef){
     <section id="leadAuth" class="lead-auth"><h3>Лиды</h3><p class="lead-feedback-note">Загружаю обращения и обратную связь…</p><div id="leadAuthStatus" class="lead-status" aria-live="polite"></div></section>
     <section id="leadApp" class="hidden"><div class="lead-toolbar"><input id="leadSearch" type="search" placeholder="Поиск по имени, телефону, услуге или кампании"><select id="leadSourceFilter" class="hidden"><option value="">Все источники</option></select><select id="leadStatusFilter"><option value="">Все статусы</option></select><span id="leadCount" class="lead-count"></span></div><div id="leadList" class="lead-list"></div></section>`;
   gShow('gPanel');
-  leadLoadFromApi();
+  if(WEEKLY_PROJECT_KEY==='amklinika-k8m2'&&C.projectApiKey) leadLoadAmFromSheets();
+  else leadLoadFromApi();
 }
 
 function leadLoadFromApi(){
@@ -2306,6 +2307,50 @@ async function leadLoadFromSheets(){
     let feedback=[];
     try{feedback=await leadSheetValues(LEAD_FEEDBACK_SHEET,'A:E')}catch(_e){}
     leadShowModel(await leadModelFromSheets(source,feedback));
+  }catch(error){leadSetStatus(error&&error.message||'Не удалось открыть лиды',true);}
+}
+
+const AM_LEAD_SOURCES=[
+  {sheet:'Lead Site',key:'site',label:'Сайт',type:'site',width:8,range:'A:H'},
+  {sheet:'Lead_meta_new',key:'meta_bodywork_cz',label:'Meta · Кузов (CZ)',type:'meta',width:16,range:'A:P'},
+  {sheet:'Lead_meta_ru',key:'meta_bodywork_ru',label:'Meta · Кузов (RU)',type:'meta',width:16,range:'A:P'},
+  {sheet:'Lead_meta_ru_mechanic',key:'meta_mechanic_ru',label:'Meta · Механик (RU)',type:'meta',width:16,range:'A:P'},
+  {sheet:'Lead_meta_cz_mechanic',key:'meta_mechanic_cz',label:'Meta · Механик (CZ)',type:'meta',width:16,range:'A:P'}
+];
+function amLeadSortValue(value){
+  const text=String(value||'').trim(),iso=text.match(/^(\d{4})-(\d{2})-(\d{2})[T ]?(\d{2})?:?(\d{2})?/),local=text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:,?\s*(\d{1,2}):(\d{2}))?/);
+  if(iso)return iso[1]+iso[2]+iso[3]+(iso[4]||'00')+(iso[5]||'00');
+  if(local)return local[3]+String(local[2]).padStart(2,'0')+String(local[1]).padStart(2,'0')+String(local[4]||'0').padStart(2,'0')+(local[5]||'00');
+  return '';
+}
+async function amLeadFromRow(source,values){
+  const row=Array.from({length:source.width},(_,index)=>String(values[index]==null?'':values[index]));
+  let lead=null;
+  if(source.type==='site'){
+    if(!row[0]||row[0].trim().toLowerCase()==='дата'||(!row[1].trim()&&!row[3].trim()))return null;
+    lead={date:row[0],name:[row[1],row[2]].map(value=>value.trim()).filter(Boolean).join(' ')||'Без имени',phone:row[3].trim(),email:'',service:row[4].trim(),description:row[5].trim(),language:row[6].trim().toUpperCase(),page:row[7].trim(),platform:'Сайт',campaign:'',adset:'',ad:''};
+  }else{
+    if(!/^l:/i.test(row[0].trim()))return null;
+    const adset=row[5].trim(),language=/(?:^|\W)ru(?:\W|$)/i.test(adset)?'RU':/(?:^|\W)cz(?:\W|$)/i.test(adset)?'CZ':'';
+    lead={date:row[1]==='0'?'':row[1],name:row[13].trim()||'Без имени',phone:row[14].trim().replace(/^p:/i,''),email:row[15].trim(),service:row[9].trim(),description:row[12].trim(),language,page:'',platform:row[11].trim().toUpperCase()||'META',campaign:row[7].trim(),adset,ad:row[3].trim()};
+  }
+  lead.id=await leadId([source.sheet].concat(row)); lead.sourceKey=source.key; lead.sourceLabel=source.label; lead.dateSort=amLeadSortValue(lead.date); return lead;
+}
+async function leadLoadAmFromSheets(){
+  try{
+    const [sourceValues,feedbackValues]=await Promise.all([
+      Promise.all(AM_LEAD_SOURCES.map(source=>leadSheetValues(source.sheet,source.range))),
+      leadSheetValues(LEAD_FEEDBACK_SHEET,'A:E').catch(()=>[])
+    ]);
+    const feedbackRows=leadDataRows(feedbackValues,['lead_id','status','client_comment','updated_at'],false),feedback={};
+    feedbackRows.forEach(row=>{const id=String(row[0]||'').trim();if(id)feedback[id]={status:String(row[1]||''),comment:String(row[2]||''),updatedAt:String(row[3]||''),statusUpdatedAt:String(row[4]||row[3]||'')};});
+    const leads=[];
+    for(let sourceIndex=0;sourceIndex<AM_LEAD_SOURCES.length;sourceIndex++)for(const row of sourceValues[sourceIndex]){
+      const lead=await amLeadFromRow(AM_LEAD_SOURCES[sourceIndex],row);if(!lead)continue;const saved=feedback[lead.id]||{};
+      lead.status=saved.status||'Новый';lead.comment=saved.comment||'';lead.updatedAt=saved.updatedAt||'';lead.statusUpdatedAt=saved.statusUpdatedAt||'';leads.push(lead);
+    }
+    leads.sort((a,b)=>b.dateSort.localeCompare(a.dateSort));leads.forEach(lead=>delete lead.dateSort);
+    leadShowModel({title:'AM Klinika',statuses:['Новый','Не удалось связаться','Связались','Записан на диагностику','Диагностика проведена','Смета отправлена','Согласовано','Ожидает запчасти','В работе','Работа завершена','Отложен','Нецелевой'],leads,sources:AM_LEAD_SOURCES.map(({key,label})=>({key,label}))});
   }catch(error){leadSetStatus(error&&error.message||'Не удалось открыть лиды',true);}
 }
 

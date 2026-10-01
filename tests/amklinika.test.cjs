@@ -13,7 +13,7 @@ const backend = read('..','artifacts','weekly-comments','Code.gs');
 
 ok(html.includes("title: 'AM Klinika'"), 'AM Klinika title missing');
 ok(html.includes("locked: true"), 'AM Klinika must use the same client mode as HouseVIP');
-ok(html.includes('./core.js?v=20261001-am-housevip2'), 'AM Klinika must load its HouseVIP-based core copy');
+ok(html.includes('./core.js?v=20261001-am-housevip3'), 'AM Klinika must load its HouseVIP-based core copy');
 ok(html.includes('./ux-v2.js?v=20261001-am-housevip1'), 'AM Klinika must load its HouseVIP-based UX copy');
 ok(html.includes('./ux-v2.css?v=20261001-am-housevip1'), 'AM Klinika must load its HouseVIP-based styles');
 ok(!html.includes('./amklinika.js'), 'the abandoned custom AM CRM bundle must not load');
@@ -28,6 +28,9 @@ ok(html.includes("leadApiUrl: 'https://script.google.com/macros/s/"), 'shared le
 
 ok(core.includes("if(tabDef.mode === 'lead-feedback') return renderLeadFeedback(tabDef)"), 'HouseVIP lead view was not generalized for AM Klinika');
 ok(core.includes("mode:'lead-list',project:WEEKLY_PROJECT_KEY"), 'AM Klinika must load leads from the shared backend');
+ok(core.includes("WEEKLY_PROJECT_KEY==='amklinika-k8m2'&&C.projectApiKey"), 'AM Klinika must have a direct Sheets read path');
+ok(core.includes("{sheet:'Lead Site',key:'site'"), 'AM Klinika site leads source missing');
+ok(core.includes("{sheet:'Lead_meta_cz_mechanic',key:'meta_mechanic_cz'"), 'AM Klinika Meta sources missing');
 ok(core.includes('if(C.projectApiKey && !hasConfiguredTabs) discoverChannelTabs(bootReady)'), 'configured AM tabs must not be overwritten by sheet discovery');
 ok(core.includes('data-role="status"'), 'lead status dropdown is missing');
 ok(core.includes('data-role="comment"'), 'editable lead comment is missing');
