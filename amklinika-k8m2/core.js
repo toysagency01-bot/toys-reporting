@@ -2217,7 +2217,7 @@ function renderLeadFeedback(tabDef){
     <section id="leadAuth" class="lead-auth"><h3>Лиды</h3><p class="lead-feedback-note">Загружаю обращения и обратную связь…</p><div id="leadAuthStatus" class="lead-status" aria-live="polite"></div></section>
     <section id="leadApp" class="hidden"><div class="lead-toolbar"><input id="leadSearch" type="search" placeholder="Поиск по имени, телефону, услуге или кампании"><select id="leadSourceFilter" class="hidden"><option value="">Все источники</option></select><select id="leadStatusFilter"><option value="">Все статусы</option></select><span id="leadCount" class="lead-count"></span></div><div id="leadList" class="lead-list"></div></section>`;
   gShow('gPanel');
-  if(WEEKLY_PROJECT_KEY==='amklinika-k8m2'&&C.projectApiKey) leadLoadAmFromSheets();
+  if(WEEKLY_PROJECT_KEY==='amklinika-k8m2') leadLoadAmFromSheets();
   else leadLoadFromApi();
 }
 
@@ -2339,8 +2339,8 @@ async function amLeadFromRow(source,values){
 async function leadLoadAmFromSheets(){
   try{
     const [sourceValues,feedbackValues]=await Promise.all([
-      Promise.all(AM_LEAD_SOURCES.map(source=>leadSheetValues(source.sheet,source.range))),
-      leadSheetValues(LEAD_FEEDBACK_SHEET,'A:E').catch(()=>[])
+      Promise.all(AM_LEAD_SOURCES.map(source=>leadGvizValues(source.sheet))),
+      leadGvizValues(LEAD_FEEDBACK_SHEET).catch(()=>[])
     ]);
     const feedbackRows=leadDataRows(feedbackValues,['lead_id','status','client_comment','updated_at'],false),feedback={};
     feedbackRows.forEach(row=>{const id=String(row[0]||'').trim();if(id)feedback[id]={status:String(row[1]||''),comment:String(row[2]||''),updatedAt:String(row[3]||''),statusUpdatedAt:String(row[4]||row[3]||'')};});
@@ -2352,6 +2352,10 @@ async function leadLoadAmFromSheets(){
     leads.sort((a,b)=>b.dateSort.localeCompare(a.dateSort));leads.forEach(lead=>delete lead.dateSort);
     leadShowModel({title:'AM Klinika',statuses:['Новый','Не удалось связаться','Связались','Записан на диагностику','Диагностика проведена','Смета отправлена','Согласовано','Ожидает запчасти','В работе','Работа завершена','Отложен','Нецелевой'],leads,sources:AM_LEAD_SOURCES.map(({key,label})=>({key,label}))});
   }catch(error){leadSetStatus(error&&error.message||'Не удалось открыть лиды',true);}
+}
+function leadGvizValues(sheetName){
+  return new Promise((resolve,reject)=>gvizFrom(C.projectSheetId,sheetName,
+    json=>resolve(((json.table&&json.table.rows)||[]).map(rawRow)),reject,true));
 }
 
 function leadSetStatus(text, error){
