@@ -49,9 +49,11 @@ assert.equal(
 );
 assert.match(
   fs.readFileSync(path.join(root, 'amklinika-k8m2', 'index.html'), 'utf8'),
-  /\.\.\/core\/core\.js\?v=20260930-amleads1/,
-  'AM Klinika must load the lead-aware core build',
+  /\.\/core\.js\?v=20261001-am-housevip1/,
+  'AM Klinika must load its HouseVIP-based client core',
 );
+assert.match(backend, /'amklinika-k8m2': \{/, 'shared backend must configure AM Klinika');
+assert.match(backend, /function wcsMultiSourceLeadExists_/, 'lead saves must validate AM Klinika source rows');
 
 const backendMappings = new Map(
   [...backend.matchAll(/'([^']+)':\s*'([^']+)'/g)].map(([, slug, sheetId]) => [slug, sheetId]),

@@ -6,23 +6,27 @@
 <meta name="robots" content="noindex, nofollow">
 <title>TOYS × amklinika — Дашборд результатов</title>
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./ux-v2.css?v=20261001-am-housevip1">
 </head>
 <body>
 <script>
 window.DASH_CONFIG = {
   sheetId: '1hjFCy8GCZUzeSJ-fuXBhLzakOeDrhvXJYg0O6E6IWs4',
-  title: 'amklinika',
-  locked: false,
+  title: 'AM Klinika',
+  locked: true,
   showDrafts: false,
   conversionLabel: 'Лиды',
   conversionShortLabel: 'Лиды',
   projectSheetId: '1CUG7bljcemLqnKNq0nv4tpKtNGH4GDIbeQB2fDH5sSM',
+  projectApiKey: 'AIzaSyDNyWsZHHweeCSqnEe0-2ls4tlDvmCOstg',
   weeklyStorageSheetId: '1CUG7bljcemLqnKNq0nv4tpKtNGH4GDIbeQB2fDH5sSM',
+  leadApiUrl: 'https://script.google.com/macros/s/AKfycbyK9gtL224H-MTZZwHdb9cq_2-zQzPs4QyEh_XFxaspR_kYG59iNLTBN29plKUeltfpVQ/exec',
   projectChannels: [
     {
       key: 'meta',
       label: 'Meta',
       tabs: [
+        {tab: 'ЛИДЫ', label: 'ЛИДЫ', mode: 'lead-feedback'},
         {tab: 'План работы (Meta)', label: 'План работы', kind: 'plan'},
         {tab: 'Еженедельная сводка (Meta)', label: 'Сводка (неделя)', mode: 'weekly-report'},
         {tab: 'Месячная сводка (Meta)', label: 'Сводка (месяц)', mode: 'weekly-report'},
@@ -32,24 +36,21 @@ window.DASH_CONFIG = {
       ]
     },
     {
-      key: 'leads',
-      label: 'Лиды',
+      key: 'google',
+      label: 'Google',
       tabs: [
-        {tab: 'Lead Site', label: 'Сайт', mode: 'am-leads', leadSource: 'site'},
-        {tab: 'Lead_meta_new', label: 'Meta · Кузов (CZ)', mode: 'am-leads', leadSource: 'meta'},
-        {tab: 'Lead_meta_ru', label: 'Meta · Кузов (RU)', mode: 'am-leads', leadSource: 'meta'},
-        {tab: 'Lead_meta_ru_mechanic', label: 'Meta · Механик (RU)', mode: 'am-leads', leadSource: 'meta'},
-        {tab: 'Lead_meta_cz_mechanic', label: 'Meta · Механик (CZ)', mode: 'am-leads', leadSource: 'meta'}
+        {tab: 'План работы (Google)', label: 'План работы', kind: 'plan'},
+        {tab: 'Еженедельная сводка (Google)', label: 'Сводка (неделя)', mode: 'weekly-report'},
+        {tab: 'Месячная сводка (Google)', label: 'Сводка (месяц)', mode: 'weekly-report'},
+        {tab: 'Ключевые слова (Google)', label: 'Ключевые слова'},
+        {tab: 'Объявления (Google)', label: 'Объявления'}
       ]
     }
   ]
 };
 </script>
 <script src="../core/theme.js?v=20260928-ui2"></script>
-<script src="../core/core.js?v=20260930-amleads1"></script>
-<link rel="stylesheet" href="./amklinika.css?v=20260930-leads1">
-<script src="./amklinika.js?v=20260930-leads1"></script>
-<link rel="stylesheet" href="../core/ux-v2.css?v=20260928-global-ux1">
-<script src="../core/ux-v2.js?v=20260930-amleads1"></script>
+<script src="./core.js?v=20261001-am-housevip1"></script>
+<script src="./ux-v2.js?v=20261001-am-housevip1"></script>
 </body>
 </html>
