@@ -31,10 +31,10 @@ const sales = model.parseSales(gviz(
   ]
 ));
 const weekly = model.parseWeeklyComments(gviz(
-  ['id','period_start','period_end','summary','wins','issues','changes','next_steps','status','created_at','updated_at'],
+  ['id','period_start','period_end','summary','wins','issues','changes','next_steps','status','created_at','updated_at','channel'],
   [
-    ['2026-09-16','2026-09-10','2026-09-16','Неделя закрыта','Рост продаж','','Снизили бюджет','Тест оффера','published','',''],
-    ['2026-09-09','2026-09-03','2026-09-09','Черновик','','','','','draft','',''],
+    ['2026-09-16:meta','2026-09-10','2026-09-16','Неделя закрыта','Рост продаж','','Снизили бюджет','Тест оффера','published','','','meta'],
+    ['2026-09-09','2026-09-03','2026-09-09','Черновик','','','','','draft','','',''],
   ]
 ));
 
@@ -42,6 +42,8 @@ assert.equal(meta.length, 3);
 assert.equal(sales.length, 2);
 assert.equal(weekly.length, 2);
 assert.equal(weekly[0].nextSteps, 'Тест оффера');
+assert.equal(weekly[0].channel, 'meta');
+assert.equal(weekly[1].channel, 'all');
 assert.equal(model.publishedWeeklyComments(weekly).length, 1);
 assert.equal(model.publishedWeeklyComments(weekly)[0].periodEnd, '2026-09-16');
 assert.deepEqual(model.isoRange('2026-09-10','2026-09-12'), ['2026-09-10','2026-09-11','2026-09-12']);

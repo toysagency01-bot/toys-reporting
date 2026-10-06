@@ -103,6 +103,7 @@
         status: text('status').toLowerCase(),
         createdAt: text('created_at'),
         updatedAt: text('updated_at'),
+        channel: text('channel').toLowerCase() === 'google' ? 'google' : text('channel').toLowerCase() === 'meta' ? 'meta' : 'all',
       };
     }).filter(Boolean);
   }

@@ -13,9 +13,9 @@ const backend = read('..','artifacts','weekly-comments','Code.gs');
 
 ok(html.includes("title: 'AM Klinika'"), 'AM Klinika title missing');
 ok(html.includes("locked: true"), 'AM Klinika must use the same client mode as HouseVIP');
-ok(html.includes('./core.js?v=20261001-am-weekly1'), 'AM Klinika must load its HouseVIP-based core copy');
-ok(html.includes('./ux-v2.js?v=20261001-am-housevip1'), 'AM Klinika must load its HouseVIP-based UX copy');
-ok(html.includes('./ux-v2.css?v=20261001-am-housevip1'), 'AM Klinika must load its HouseVIP-based styles');
+ok(html.includes('./core.js?v=20261006-am-draftguard1'), 'AM Klinika must load its HouseVIP-based core copy');
+ok(html.includes('./ux-v2.js?v=20261001-am-conclusions1'), 'AM Klinika must load its HouseVIP-based UX copy');
+ok(html.includes('./ux-v2.css?v=20261001-am-conclusions1'), 'AM Klinika must load its HouseVIP-based styles');
 ok(!html.includes('./amklinika.js'), 'the abandoned custom AM CRM bundle must not load');
 ok(!html.includes('./amklinika.css'), 'the abandoned custom AM CRM styles must not load');
 

@@ -21,6 +21,11 @@ let weeklySubmitPending = false;
 let weeklySubmitTimer = null;
 let weeklySubmitToken = '';
 let weeklySubmittedRecord = null;
+let weeklyDraftDirty = false;
+let weeklyDraftTimer = null;
+let weeklyDraftBaseline = '';
+const WEEKLY_DRAFT_KEY = 'toysWeeklyDraft:v1:profkit-instashop-r4vk';
+const WEEKLY_DRAFT_FIELDS = ['weeklyStart','weeklyEnd','weeklySummary','weeklyWins','weeklyIssues','weeklyChanges','weeklyNextSteps','weeklyStatusSelect'];
 
 window.addEventListener('toys-theme-change', () => {
   if(META.length || SALES.length) render();
@@ -47,18 +52,18 @@ document.body.innerHTML = `
 <div id="loading" class="state">Загружаю данные…</div>
 <div id="error" class="state hidden"><b>Не удалось загрузить данные.</b><br>Проверь доступ к отчётной таблице.</div>
 <div id="content" class="hidden">
-  <div class="controls"><div class="seg" id="periodSeg"><button data-days="1">Вчера</button><button data-days="7" class="active">7 дней</button><button data-days="30">30 дней</button><button data-days="max">Максимум</button></div><div class="range"><input id="from" type="date" aria-label="С"><span>–</span><input id="to" type="date" aria-label="По"></div><button id="openWeekly" class="weekly-open${C.weeklyFormUrl?'':' hidden'}">Добавить итог недели</button></div>
+  <div class="controls"><div class="seg" id="periodSeg"><button data-days="1">Вчера</button><button data-days="7" class="active">7 дней</button><button data-days="30">30 дней</button><button data-days="max">Максимум</button></div><div class="range" id="dateRange"><input id="from" type="date" aria-label="С"><span>–</span><input id="to" type="date" aria-label="По"></div><button id="openWeekly" class="weekly-open${C.weeklyFormUrl?'':' hidden'}">Добавить вывод</button></div>
   <div class="cards" id="cards"></div>
   <div class="grid2">
     <div class="panel"><h2>Instashop-воронка</h2><div id="funnel"></div></div>
     <div class="panel"><h2>Качество обращений</h2><div id="quality"></div><div class="note">«Заявки» — квалифицированные обращения. «Ціна» — неквалифицированные обращения.</div></div>
   </div>
-  <div class="panel"><h2>Еженедельные итоги</h2><div id="weekly"></div></div>
+  <div class="panel"><h2>Выводы и планы</h2><div id="weekly"></div></div>
   <div class="panel"><h2>Динамика по дням</h2><div class="chart-wrap"><canvas id="chart"></canvas></div></div>
   <div class="panel"><h2>Кампании Meta Ads</h2><div id="campaigns"></div><div class="note">Продажи и выручка приходят общей суммой за день и не распределяются по рекламным кампаниям. В строках кампаний показаны только рекламные метрики и атрибуция Meta.</div></div>
   <div class="panel"><h2>Методика</h2><div class="source-note">Расход Meta Ads переводится из USD в UAH по официальному курсу НБУ на каждую дату. ROAS = выручка Instagram Direct в UAH / расход Meta Ads в UAH.</div></div>
 </div>`;
-document.body.insertAdjacentHTML('beforeend', `<div id="weeklyModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Недельный итог"><div class="modal-card"><button id="closeWeekly" class="modal-close" aria-label="Закрыть">×</button><form id="weeklyForm" class="weekly-form" method="post" target="weeklySubmitFrame"><h3>Недельный итог ${esc(C.title || 'PROFKIT')}</h3><div class="modal-help">Одна запись на период. Повторное сохранение обновит существующий итог.</div><input type="hidden" name="mode" value="save"><input type="hidden" name="project" value="profkit-instashop-r4vk"><input id="weeklyReplyToken" type="hidden" name="replyToken" value=""><label>Код доступа<input id="weeklyAccess" name="accessCode" type="password" autocomplete="current-password" required></label><div class="weekly-form-grid"><label>Начало периода<input id="weeklyStart" name="periodStart" type="date" required></label><label>Конец периода<input id="weeklyEnd" name="periodEnd" type="date" required></label></div><label>Общий итог<textarea id="weeklySummary" name="summary" class="summary" maxlength="5000" required></textarea></label><label>Что сработало<textarea id="weeklyWins" name="wins" maxlength="5000"></textarea></label><label>Что не сработало<textarea id="weeklyIssues" name="issues" maxlength="5000"></textarea></label><label>Какие изменения внесли<textarea id="weeklyChanges" name="changes" maxlength="5000"></textarea></label><label>План на следующую неделю<textarea id="weeklyNextSteps" name="nextSteps" maxlength="5000"></textarea></label><label>Статус<select id="weeklyStatusSelect" name="status"><option value="published">Опубликовано</option><option value="draft">Черновик</option></select></label><div class="weekly-actions"><button id="weeklySave" class="weekly-save" type="submit">Сохранить итог</button><div id="weeklyFormStatus" class="weekly-status" aria-live="polite"></div></div></form><iframe id="weeklySubmitFrame" class="weekly-submit-frame" name="weeklySubmitFrame" title="Результат сохранения"></iframe></div></div>`);
+document.body.insertAdjacentHTML('beforeend', `<div id="weeklyModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Итог периода"><div class="modal-card"><button id="closeWeekly" class="modal-close" aria-label="Закрыть">×</button><form id="weeklyForm" class="weekly-form" method="post" target="weeklySubmitFrame"><h3>Выводы и планы · ${esc(C.title || 'PROFKIT')}</h3><div class="modal-help">Одна запись на период. Повторное сохранение обновит существующую запись.</div><input type="hidden" name="mode" value="save"><input type="hidden" name="project" value="profkit-instashop-r4vk"><input id="weeklyReplyToken" type="hidden" name="replyToken" value=""><input id="weeklyChannel" type="hidden" name="channel" value="meta"><label>Код доступа<input id="weeklyAccess" name="accessCode" type="password" autocomplete="current-password" required></label><div class="weekly-form-grid"><label>Начало периода<input id="weeklyStart" name="periodStart" type="date" required></label><label>Конец периода<input id="weeklyEnd" name="periodEnd" type="date" required></label></div><label>Общий итог<textarea id="weeklySummary" name="summary" class="summary" maxlength="5000" required></textarea></label><label>Что сработало<textarea id="weeklyWins" name="wins" maxlength="5000"></textarea></label><label>Что не сработало<textarea id="weeklyIssues" name="issues" maxlength="5000"></textarea></label><label>Какие изменения внесли<textarea id="weeklyChanges" name="changes" maxlength="5000"></textarea></label><label>План на следующий период<textarea id="weeklyNextSteps" name="nextSteps" maxlength="5000"></textarea></label><label>Статус<select id="weeklyStatusSelect" name="status"><option value="published">Опубликовано</option><option value="draft">Черновик</option></select></label><div class="weekly-actions"><button id="weeklySave" class="weekly-save" type="submit">Сохранить</button><div id="weeklyFormStatus" class="weekly-status" aria-live="polite"></div></div></form><iframe id="weeklySubmitFrame" class="weekly-submit-frame" name="weeklySubmitFrame" title="Результат сохранения"></iframe></div></div>`);
 
 function gviz(sheet, ok, fail){
   const cb = '__instashopGviz' + Math.random().toString(36).slice(2);
@@ -116,11 +121,20 @@ function bind(){
     }
   }); });
   el('openWeekly').addEventListener('click', openWeeklyForm);
-  el('closeWeekly').addEventListener('click', closeWeeklyForm);
-  el('weeklyModal').addEventListener('click', event=>{ if(event.target === el('weeklyModal')) closeWeeklyForm(); });
+  el('closeWeekly').addEventListener('click', ()=>closeWeeklyForm());
+  el('weeklyModal').addEventListener('click', event=>{ if(event.target === el('weeklyModal')) weeklySetStatus('Форма не закрыта — используйте крестик. Черновик сохраняется автоматически.'); });
   el('weeklyEnd').addEventListener('change', ()=>{
     el('weeklyStart').value = shiftIso(el('weeklyEnd').value, -6);
     fillWeeklyForm();
+  });
+  el('weeklyForm').addEventListener('input', event=>{ if(WEEKLY_DRAFT_FIELDS.includes(event.target.id)) weeklyScheduleDraft(); });
+  el('weeklyForm').addEventListener('change', event=>{ if(WEEKLY_DRAFT_FIELDS.includes(event.target.id)) weeklyScheduleDraft(); });
+  document.addEventListener('keydown', event=>{ if(event.key === 'Escape' && !el('weeklyModal').classList.contains('hidden')) closeWeeklyForm(); });
+  window.addEventListener('beforeunload', event=>{
+    if(!weeklyDraftDirty) return;
+    weeklyPersistDraft(true);
+    event.preventDefault();
+    event.returnValue = '';
   });
   el('weeklyForm').addEventListener('submit', async event=>{
     event.preventDefault();
@@ -164,13 +178,19 @@ function openWeeklyForm(){
   el('weeklyStart').value = shiftIso(end, -6);
   fillWeeklyForm();
   weeklySetStatus('');
+  weeklyDraftBaseline = weeklyDraftFingerprint(weeklyDraftData());
+  weeklyDraftDirty = false;
+  weeklyRestoreDraft();
   el('weeklyModal').classList.remove('hidden');
   document.body.style.overflow='hidden';
   setTimeout(()=>el(el('weeklyAccess').value ? 'weeklySummary' : 'weeklyAccess').focus(), 0);
 }
 
-function closeWeeklyForm(){
+function closeWeeklyForm(force){
   if(weeklySubmitPending) return;
+  if(weeklyDraftTimer) weeklyPersistDraft(true);
+  if(!force && weeklyDraftDirty && !window.confirm('Есть несохранённые изменения. Закрыть форму? Черновик останется в этом браузере.')) return;
+  weeklyDraftDirty = false;
   el('weeklyModal').classList.add('hidden');
   document.body.style.overflow='';
 }
@@ -187,6 +207,73 @@ function weeklySetStatus(text, error){
   el('weeklyFormStatus').classList.toggle('error', !!error);
 }
 
+function weeklyDraftData(){
+  return {
+    periodStart:el('weeklyStart').value,
+    periodEnd:el('weeklyEnd').value,
+    summary:el('weeklySummary').value,
+    wins:el('weeklyWins').value,
+    issues:el('weeklyIssues').value,
+    changes:el('weeklyChanges').value,
+    nextSteps:el('weeklyNextSteps').value,
+    status:el('weeklyStatusSelect').value,
+    channel:'meta',
+    savedAt:new Date().toISOString(),
+  };
+}
+
+function weeklyDraftFingerprint(data){
+  return JSON.stringify(['periodStart','periodEnd','channel','summary','wins','issues','changes','nextSteps','status']
+    .map(key=>String((data && data[key]) == null ? '' : data[key])));
+}
+
+function weeklyDraftTime(value){
+  const date = new Date(value || Date.now());
+  return isFinite(date.getTime()) ? date.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : '';
+}
+
+function weeklyPersistDraft(quiet){
+  clearTimeout(weeklyDraftTimer);
+  weeklyDraftTimer = null;
+  const data = weeklyDraftData();
+  weeklyDraftDirty = weeklyDraftFingerprint(data) !== weeklyDraftBaseline;
+  try{
+    if(weeklyDraftDirty) localStorage.setItem(WEEKLY_DRAFT_KEY, JSON.stringify(data));
+    else localStorage.removeItem(WEEKLY_DRAFT_KEY);
+  }catch(error){
+    if(!quiet && !weeklySubmitPending) weeklySetStatus('Не удалось сохранить локальный черновик', true);
+    return;
+  }
+  if(!quiet && !weeklySubmitPending) weeklySetStatus(weeklyDraftDirty ? `Черновик сохранён локально · ${weeklyDraftTime(data.savedAt)}` : '');
+}
+
+function weeklyScheduleDraft(){
+  weeklyDraftDirty = true;
+  clearTimeout(weeklyDraftTimer);
+  weeklyDraftTimer = setTimeout(()=>weeklyPersistDraft(false), 300);
+}
+
+function weeklyRestoreDraft(){
+  let draft = null;
+  try{ draft = JSON.parse(localStorage.getItem(WEEKLY_DRAFT_KEY) || 'null'); }catch(error){ draft = null; }
+  if(!draft || typeof draft !== 'object') return false;
+  const values = {weeklyStart:draft.periodStart,weeklyEnd:draft.periodEnd,weeklySummary:draft.summary,
+    weeklyWins:draft.wins,weeklyIssues:draft.issues,weeklyChanges:draft.changes,
+    weeklyNextSteps:draft.nextSteps,weeklyStatusSelect:draft.status};
+  Object.entries(values).forEach(([id,value])=>{ if(el(id) && value != null) el(id).value = String(value); });
+  weeklyDraftDirty = weeklyDraftFingerprint(draft) !== weeklyDraftBaseline;
+  if(!weeklyDraftDirty){ try{ localStorage.removeItem(WEEKLY_DRAFT_KEY); }catch(error){} return false; }
+  weeklySetStatus(`Черновик восстановлен · ${weeklyDraftTime(draft.savedAt)}`);
+  return true;
+}
+
+function weeklyClearDraft(){
+  clearTimeout(weeklyDraftTimer);
+  weeklyDraftTimer = null;
+  weeklyDraftDirty = false;
+  try{ localStorage.removeItem(WEEKLY_DRAFT_KEY); }catch(error){}
+}
+
 async function weeklyAccessValid(value){
   if(!window.crypto || !window.crypto.subtle) return false;
   const bytes = new TextEncoder().encode(String(value || '').trim().toUpperCase());
@@ -196,7 +283,7 @@ async function weeklyAccessValid(value){
 
 function weeklyRecordMatches(actual, expected){
   const clean = value => String(value == null ? '' : value).trim();
-  return ['periodStart','periodEnd','summary','wins','issues','changes','nextSteps','status']
+  return ['periodStart','periodEnd','summary','wins','issues','changes','nextSteps','status','channel']
     .every(key => clean(actual && actual[key]) === clean(expected && expected[key]));
 }
 
@@ -222,7 +309,7 @@ function weeklyVerifyStored(record, deadline){
   };
   gviz('WeeklyComments', json=>{
     if(!weeklySubmitPending) return;
-    const saved = M.parseWeeklyComments(json).find(item=>item.periodEnd === record.periodEnd);
+    const saved = M.parseWeeklyComments(json).find(item=>item.periodEnd === record.periodEnd && item.channel === record.channel);
     if(saved && weeklyRecordMatches(saved, record)) weeklySaveSucceeded(record); else retry();
   }, retry);
 }
@@ -233,14 +320,15 @@ function weeklySaveSucceeded(record){
   el('weeklySave').disabled = false;
   record = record || weeklySubmittedRecord || weeklyFormRecord();
   weeklySubmittedRecord = null;
-  COMMENTS = COMMENTS.filter(item=>item.periodEnd !== record.periodEnd).concat(record);
+  COMMENTS = COMMENTS.filter(item=>!(item.periodEnd === record.periodEnd && item.channel === record.channel)).concat(record);
+  weeklyClearDraft();
   renderWeekly();
-  closeWeeklyForm();
+  closeWeeklyForm(true);
   setTimeout(()=>gviz('WeeklyComments', json=>{ COMMENTS=M.parseWeeklyComments(json); renderWeekly(); }, ()=>{}), 800);
 }
 
 function fillWeeklyForm(){
-  const item = COMMENTS.find(row=>row.periodEnd === el('weeklyEnd').value);
+  const item = COMMENTS.find(row=>row.periodEnd === el('weeklyEnd').value && row.channel === 'meta');
   if(item){
     el('weeklyStart').value = item.periodStart;
     el('weeklySummary').value = item.summary;
@@ -257,7 +345,7 @@ function fillWeeklyForm(){
 
 function weeklyFormRecord(){
   return {
-    id: el('weeklyEnd').value,
+    id: el('weeklyEnd').value + ':meta',
     periodStart: el('weeklyStart').value,
     periodEnd: el('weeklyEnd').value,
     summary: el('weeklySummary').value.trim(),
@@ -266,6 +354,7 @@ function weeklyFormRecord(){
     changes: el('weeklyChanges').value.trim(),
     nextSteps: el('weeklyNextSteps').value.trim(),
     status: el('weeklyStatusSelect').value,
+    channel: 'meta',
     createdAt: '',
     updatedAt: new Date().toISOString()
   };
@@ -318,9 +407,9 @@ function render(){
 function renderWeekly(){
   const comments = M.publishedWeeklyComments(COMMENTS);
   el('weekly').innerHTML = comments.length ? `<div class="weekly-list">${comments.map((item,index)=>{
-    const fields = [['Что сработало',item.wins],['Что не сработало',item.issues],['Что изменили',item.changes],['План на следующую неделю',item.nextSteps]].filter(row=>row[1]);
+    const fields = [['Что сработало',item.wins],['Что не сработало',item.issues],['Что изменили',item.changes],['План на следующий период',item.nextSteps]].filter(row=>row[1]);
     return `<details class="weekly-card" name="weekly-summary"${index===0?' open':''}><summary><span class="weekly-period">${esc(item.periodStart)} — ${esc(item.periodEnd)}</span><span class="weekly-preview">${esc(item.summary)}</span></summary><div class="weekly-body"><div class="weekly-summary">${lines(item.summary)}</div>${fields.length?`<div class="weekly-fields">${fields.map(row=>`<div class="weekly-field"><b>${esc(row[0])}</b>${lines(row[1])}</div>`).join('')}</div>`:''}</div></details>`;
-  }).join('')}</div>` : '<div class="state">Опубликованных недельных итогов пока нет</div>';
+  }).join('')}</div>` : '<div class="state">Опубликованных выводов пока нет</div>';
 }
 
 function drawChart(series){

@@ -1,138 +1,100 @@
 (function(){
-  const byId = id => document.getElementById(id);
+  const C=window.DASH_CONFIG||{};
+  const PROJECT='amklinika-k8m2';
+  const API=C.leadApiUrl;
+  const byId=id=>document.getElementById(id);
+  const safe=value=>String(value==null?'':value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  let model=null,loadToken='',saveToken='',saveLeadId='',saveTimer=null;
 
-  function safe(value){
-    return String(value == null ? '' : value).replace(/[&<>"']/g,char=>({
-      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-    })[char]);
+  function icon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm10 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>'}
+  function stage(status){return ({'Новый':'new','Не удалось связаться':'unreachable','Связались':'contacted','Записан на диагностику':'booked','Диагностика проведена':'diagnosed','Смета отправлена':'estimate','Согласовано':'approved','Ожидает запчасти':'waiting','В работе':'working','Работа завершена':'won','Отложен':'paused','Нецелевой':'lost'})[status]||'new'}
+  function statusDate(value){
+    if(!value)return 'дата не указана';
+    const date=new Date(value);
+    if(Number.isNaN(date.getTime()))return `изменён ${value}`;
+    return `изменён ${new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(date)}`;
   }
-
-  function cellValue(cell){
-    if(!cell) return '';
-    if(cell.f != null) return String(cell.f);
-    if(cell.v != null) return String(cell.v);
-    return '';
+  function field(label,value,kind){
+    if(!String(value||'').trim())return '';
+    const body=kind==='tel'?`<a href="tel:${safe(String(value).replace(/[^+\d]/g,''))}">${safe(value)}</a>`:kind==='mail'?`<a href="mailto:${encodeURIComponent(value)}">${safe(value)}</a>`:`<span>${safe(value)}</span>`;
+    return `<div class="am-lead-field"><b>${safe(label)}</b>${body}</div>`;
   }
-
-  function rowValues(row){
-    return (row && row.c || []).map(cellValue);
+  function details(item){
+    return [field('Телефон',item.phone,'tel'),field('Почта',item.email,'mail'),field('Услуга / форма',item.service),field('Язык',item.language),field('Кампания',item.campaign),field('Группа объявлений',item.adset),field('Объявление',item.ad),field('Страница',item.page)].join('');
   }
-
-  function showPanel(id){
-    ['gLoading','gError','gPanel'].forEach(key=>{
-      const node=byId(key);if(node)node.classList.toggle('hidden',key!==id);
-    });
-  }
-
-  function clean(value){
-    return String(value == null ? '' : value).trim();
-  }
-
-  function isHeader(row){
-    const first = clean(row[0]).toLowerCase();
-    return first === 'id' || first === 'дата';
-  }
-
-  function prettyDate(value){
-    const raw = clean(value);
-    if(!raw || raw === '0') return 'Дата не передана';
-    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-    if(iso) return `${iso[3]}.${iso[2]}.${iso[1]} ${iso[4]}:${iso[5]}`;
-    return raw;
-  }
-
-  function stripPhonePrefix(value){
-    return clean(value).replace(/^p:/i, '');
-  }
-
-  function stripEntityPrefix(value){
-    return clean(value).replace(/^[a-z]+:/i, '');
-  }
-
-  function siteLead(row, index){
-    const firstName = clean(row[1]);
-    const lastName = clean(row[2]);
-    return {
-      id: `site-${index}-${clean(row[0])}-${clean(row[3])}`,
-      date: prettyDate(row[0]),
-      name: [firstName,lastName].filter(Boolean).join(' ') || 'Без имени',
-      phone: clean(row[3]),
-      email: '',
-      service: clean(row[4]),
-      details: clean(row[5]),
-      language: clean(row[6]).toUpperCase(),
-      page: clean(row[7]),
-      platform: 'Сайт',
-      campaign: '', adset: '', ad: '', status: ''
-    };
-  }
-
-  function metaLead(row, index){
-    return {
-      id: stripEntityPrefix(row[0]) || `meta-${index}`,
-      date: prettyDate(row[1]),
-      name: clean(row[13]) || 'Без имени',
-      phone: stripPhonePrefix(row[14]),
-      email: clean(row[15]),
-      service: clean(row[9]),
-      details: clean(row[12]),
-      language: /(?:^|\W)ru(?:\W|$)/i.test(clean(row[5])) ? 'RU' : /(?:^|\W)cz(?:\W|$)/i.test(clean(row[5])) ? 'CZ' : '',
-      page: '',
-      platform: clean(row[11]).toUpperCase() || 'META',
-      campaign: clean(row[7]),
-      adset: clean(row[5]),
-      ad: clean(row[3]),
-      status: /^created$/i.test(clean(row[16])) ? '' : clean(row[16])
-    };
-  }
-
-  function leadField(label, value, options){
-    const text = clean(value);
-    if(!text) return '';
-    let body = safe(text);
-    if(options === 'phone') body = `<a href="tel:${safe(text.replace(/[^+\d]/g,''))}">${safe(text)}</a>`;
-    if(options === 'email') body = `<a href="mailto:${safe(text)}">${safe(text)}</a>`;
-    return `<div class="am-lead-field"><b>${safe(label)}</b><span>${body}</span></div>`;
-  }
-
-  function leadCard(item){
-    const meta = [item.platform,item.language,item.status].filter(Boolean);
-    return `<article class="am-lead-card" data-search="${safe([item.name,item.phone,item.email,item.service,item.details,item.campaign,item.adset,item.ad,item.platform,item.language].join(' ').toLowerCase())}">
-      <div class="am-lead-head"><div><span class="am-lead-name">${safe(item.name)}</span><div class="am-lead-badges">${meta.map(value=>`<span>${safe(value)}</span>`).join('')}</div></div><time>${safe(item.date)}</time></div>
-      <div class="am-lead-grid">
-        ${leadField('Телефон',item.phone,'phone')}${leadField('Почта',item.email,'email')}
-        ${leadField('Услуга / форма',item.service)}${leadField('Страница',item.page)}
-        ${leadField('Кампания',item.campaign)}${leadField('Группа объявлений',item.adset)}${leadField('Объявление',item.ad)}
+  function card(item){
+    return `<article class="am-lead-card" data-lead-id="${safe(item.id)}" data-stage="${stage(item.status)}">
+      <div class="am-lead-head"><div><strong>${safe(item.name||'Без имени')}</strong><div class="am-lead-badges"><span>${safe(item.sourceLabel||item.platform||'Источник')}</span>${item.platform?`<span>${safe(item.platform)}</span>`:''}</div></div><time>${safe(item.date||'Дата не передана')}</time></div>
+      <div class="am-lead-grid">${details(item)}</div>
+      ${item.description?`<div class="am-lead-request"><b>Запрос клиента</b><p>${safe(item.description)}</p></div>`:''}
+      <div class="am-lead-actions">
+        <label class="am-lead-control"><span class="am-status-heading"><b>Статус</b><small data-role="status-date">${safe(statusDate(item.statusUpdatedAt))}</small></span><span class="am-status-select" data-stage="${stage(item.status)}"><select data-role="status" aria-label="Статус">${model.statuses.map(value=>`<option value="${safe(value)}"${value===item.status?' selected':''}>${safe(value)}</option>`).join('')}</select></span></label>
+        <label class="am-lead-control"><b>Комментарий</b><textarea data-role="comment" maxlength="3000" placeholder="Комментарий">${safe(item.comment||'')}</textarea></label>
+        <div class="am-save-wrap"><button class="am-lead-save" type="button">Сохранить</button><span class="am-save-state" aria-live="polite"></span></div>
       </div>
-      ${item.details?`<div class="am-lead-details"><b>Запрос клиента</b><p>${safe(item.details)}</p></div>`:''}
     </article>`;
   }
-
-  window.renderAmLeads = function(json, tabDef){
-    const raw = ((json.table && json.table.rows) || []).map(rowValues);
-    const dataRows = raw.filter(row => row.some(value => clean(value)) && !isHeader(row));
-    const mapper = tabDef.leadSource === 'site' ? siteLead : metaLead;
-    const leads = dataRows.map(mapper).filter(item => item.phone || item.email || item.name !== 'Без имени');
-    if(!leads.length){
-      byId('gWrap').innerHTML = '<div class="am-lead-empty">В этой вкладке пока нет лидов.</div>';
-      showPanel('gPanel');
-      return;
-    }
-
-    const cards = leads.map(leadCard).join('');
-    byId('gWrap').innerHTML = `<div class="am-lead-toolbar"><input type="search" placeholder="Поиск по имени, телефону, почте или услуге" aria-label="Поиск по лидам"><span>${leads.length} ${leads.length===1?'лид':'лидов'}</span></div><div class="am-lead-list">${cards}</div><div class="am-lead-empty hidden">Ничего не найдено</div>`;
-    const input = byId('gWrap').querySelector('input');
-    input.addEventListener('input',()=>{
-      const query = input.value.trim().toLowerCase();
-      let visible = 0;
-      byId('gWrap').querySelectorAll('.am-lead-card').forEach(card=>{
-        const show = !query || card.dataset.search.includes(query);
-        card.classList.toggle('hidden',!show);
-        if(show) visible++;
-      });
-      byId('gWrap').querySelector('.am-lead-empty').classList.toggle('hidden',visible!==0);
-      byId('gWrap').querySelector('.am-lead-toolbar span').textContent = `${visible} из ${leads.length}`;
-    });
-    showPanel('gPanel');
-  };
+  function render(){
+    if(!model)return;
+    const query=(byId('amLeadSearch').value||'').trim().toLowerCase(),source=byId('amLeadSource').value,status=byId('amLeadStatus').value;
+    const rows=model.leads.filter(item=>(!source||item.sourceKey===source)&&(!status||item.status===status)&&(!query||[item.name,item.phone,item.email,item.service,item.description,item.campaign,item.adset,item.ad,item.sourceLabel].join(' ').toLowerCase().includes(query)));
+    byId('amLeadCount').textContent=`${rows.length} из ${model.leads.length}`;
+    byId('amLeadList').innerHTML=rows.length?rows.map(card).join(''):'<div class="am-lead-empty">Ничего не найдено</div>';
+    byId('amLeadList').querySelectorAll('.am-lead-save').forEach(button=>button.addEventListener('click',()=>save(button.closest('.am-lead-card'))));
+    byId('amLeadList').querySelectorAll('[data-role="status"]').forEach(select=>select.addEventListener('change',()=>applyStage(select.closest('.am-lead-card'),select.value)));
+  }
+  function applyStage(cardNode,status){const value=stage(status);cardNode.dataset.stage=value;const wrap=cardNode.querySelector('.am-status-select');if(wrap)wrap.dataset.stage=value}
+  function setLoading(text,error){const node=byId('amLeadLoading');if(!node)return;node.textContent=text||'';node.classList.toggle('error',!!error)}
+  function showModel(next){
+    model=next;
+    byId('amLeadLoading').classList.add('hidden');byId('amLeadApp').classList.remove('hidden');
+    byId('amLeadSource').innerHTML='<option value="">Все источники</option>'+((model.sources||[]).map(source=>`<option value="${safe(source.key)}">${safe(source.label)}</option>`).join(''));
+    byId('amLeadStatus').innerHTML='<option value="">Все статусы</option>'+model.statuses.map(value=>`<option value="${safe(value)}">${safe(value)}</option>`).join('');
+    byId('amLeadSearch').addEventListener('input',render);byId('amLeadSource').addEventListener('change',render);byId('amLeadStatus').addEventListener('change',render);render();
+  }
+  function load(){
+    if(!API){setLoading('Раздел лидов не настроен.',true);return}
+    loadToken=crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const callback=`__amLeadLoaded_${Date.now()}`;
+    const script=document.createElement('script');
+    const timeout=setTimeout(()=>{cleanup();setLoading('Сервис долго не отвечает. Обновите страницу.',true)},30000);
+    function cleanup(){clearTimeout(timeout);script.remove();try{delete window[callback]}catch(_error){window[callback]=undefined}}
+    window[callback]=payload=>{cleanup();if(!payload||payload.replyToken!==loadToken)return setLoading('Ответ сервиса не прошёл проверку.',true);if(!payload.ok)return setLoading(payload.message||'Не удалось открыть лиды.',true);showModel(payload.model)};
+    script.onerror=()=>{cleanup();setLoading('Не удалось загрузить лиды.',true)};
+    script.src=`${API}?mode=lead-list&project=${encodeURIComponent(PROJECT)}&replyToken=${encodeURIComponent(loadToken)}&callback=${encodeURIComponent(callback)}&_=${Date.now()}`;
+    document.head.appendChild(script);
+  }
+  function save(cardNode){
+    if(saveToken)return;
+    const button=cardNode.querySelector('.am-lead-save'),state=cardNode.querySelector('.am-save-state');
+    button.disabled=true;state.textContent='Сохраняю…';state.classList.remove('error');saveLeadId=cardNode.dataset.leadId;
+    saveToken=crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    byId('amLeadMode').value='lead-save';byId('amLeadProject').value=PROJECT;byId('amLeadReplyToken').value=saveToken;byId('amLeadId').value=saveLeadId;byId('amLeadStatusValue').value=cardNode.querySelector('[data-role="status"]').value;byId('amLeadComment').value=cardNode.querySelector('[data-role="comment"]').value;
+    clearTimeout(saveTimer);saveTimer=setTimeout(()=>finish(false,'Сервис долго не отвечает. Попробуйте ещё раз.'),30000);byId('amLeadForm').submit();
+  }
+  function finish(ok,message,result){
+    if(!saveToken)return;clearTimeout(saveTimer);
+    const cardNode=document.querySelector(`[data-lead-id="${saveLeadId}"]`),item=model&&model.leads.find(row=>row.id===saveLeadId);
+    if(cardNode){const button=cardNode.querySelector('.am-lead-save'),stateNode=cardNode.querySelector('.am-save-state');button.disabled=false;stateNode.textContent=message;stateNode.classList.toggle('error',!ok)}
+    if(ok&&result&&item){item.status=result.status;item.comment=result.comment;item.updatedAt=result.updatedAt;item.statusUpdatedAt=result.statusUpdatedAt;if(cardNode){applyStage(cardNode,item.status);cardNode.querySelector('[data-role="status-date"]').textContent=statusDate(item.statusUpdatedAt)}}
+    saveToken='';saveLeadId='';
+  }
+  function addView(){
+    const nav=byId('uxNav'),content=byId('content');if(!nav||!content)return;
+    const projectButton=nav.querySelector('[data-ux-view="project"]'),button=document.createElement('button');button.type='button';button.dataset.uxView='leads';button.innerHTML=`${icon()}<span>Лиды</span>`;nav.insertBefore(button,projectButton||null);
+    const section=document.createElement('section');section.id='amLeads';section.className='ux-section';section.innerHTML=`<div class="ux-page-heading"><div><p>РАБОТА С ОБРАЩЕНИЯМИ</p><h1>Лиды</h1><span>Все обращения из проектной таблицы. Статусы и комментарии можно обновлять прямо здесь.</span></div></div><div class="panel am-lead-panel"><div id="amLeadLoading" class="am-lead-loading">Загружаю обращения…</div><div id="amLeadApp" class="hidden"><div class="am-lead-toolbar"><input id="amLeadSearch" type="search" placeholder="Поиск по имени, телефону, почте или услуге"><select id="amLeadSource"><option value="">Все источники</option></select><select id="amLeadStatus"><option value="">Все статусы</option></select><span id="amLeadCount"></span></div><div id="amLeadList" class="am-lead-list"></div></div></div>`;content.appendChild(section);
+    const form=document.createElement('form');form.id='amLeadForm';form.className='am-lead-bridge';form.method='post';form.action=API;form.target='amLeadFrame';form.innerHTML='<input id="amLeadMode" name="mode"><input id="amLeadProject" name="project"><input id="amLeadReplyToken" name="replyToken"><input id="amLeadId" name="leadId"><input id="amLeadStatusValue" name="status"><textarea id="amLeadComment" name="comment"></textarea>';document.body.appendChild(form);
+    const frame=document.createElement('iframe');frame.id='amLeadFrame';frame.name='amLeadFrame';frame.className='am-lead-bridge';frame.title='Результат сохранения лида';document.body.appendChild(frame);
+    const open=()=>{byId('metricsView').classList.remove('hidden');byId('projectView')?.classList.add('hidden');document.querySelectorAll('.ux-section').forEach(node=>node.classList.toggle('active',node===section));nav.querySelectorAll('button').forEach(node=>node.classList.toggle('active',node===button));history.replaceState(null,'','#leads');window.scrollTo({top:0,behavior:'smooth'})};
+    button.addEventListener('click',event=>{event.stopImmediatePropagation();open()});
+    window.addEventListener('hashchange',()=>{if(location.hash==='#leads')open()});
+    if(window.AM_INITIAL_HASH==='#leads'||location.hash==='#leads')open();
+    load();
+  }
+  window.addEventListener('message',event=>{
+    if(!saveToken||!event.data)return;
+    let trusted=false;try{trusted=/\.googleusercontent\.com$/.test(new URL(event.origin).hostname)}catch(_error){}if(!trusted||event.data.replyToken!==saveToken)return;
+    if(event.data.type==='lead-feedback-saved')finish(true,'Сохранено',event.data.result);else if(event.data.type==='lead-feedback-error')finish(false,event.data.message||'Не удалось сохранить');
+  });
+  addView();
 })();

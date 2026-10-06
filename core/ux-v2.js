@@ -16,7 +16,7 @@
   if(legacyTabs) legacyTabs.classList.add('ux-legacy-tabs');
   const weeklyPanel=byId('weeklyPanel'),projectView=byId('projectView');
   const navItems=[['overview','Обзор'],['campaigns','Кампании'],['funnel','Воронка']];
-  if(weeklyPanel&&!weeklyPanel.classList.contains('hidden')) navItems.push(['weekly','Недельные итоги']);
+  if(weeklyPanel&&!weeklyPanel.classList.contains('hidden')) navItems.push(['weekly','Выводы и планы']);
   if(projectView) navItems.push(['project','Проект']);
   const nav=document.createElement('nav');nav.id='uxNav';nav.className='ux-nav';nav.setAttribute('aria-label','Основные разделы');
   nav.innerHTML=navItems.map(([key,label],index)=>`<button type="button" data-ux-view="${key}"${index===0?' class="active"':''}>${icons[key]}<span>${label}</span></button>`).join('');
@@ -39,7 +39,7 @@
   const funnel=document.createElement('section');funnel.id='uxFunnel';funnel.className='ux-section';funnel.appendChild(heading('ПУТЬ ПОЛЬЗОВАТЕЛЯ','Воронка','Переход от контакта с рекламой к целевому действию.'));
   const funnelGrid=document.createElement('div');funnelGrid.className='ux-funnel-grid';if(ecomFunnelPanel)funnelGrid.appendChild(ecomFunnelPanel);funnelGrid.appendChild(funnelPanel);funnelGrid.appendChild(weekdayPanel);if(channelPanel)funnelGrid.appendChild(channelPanel);funnel.appendChild(funnelGrid);
   const weekly=document.createElement('section');weekly.id='uxWeekly';weekly.className='ux-section';
-  if(weeklyPanel){weekly.appendChild(heading('ИСТОРИЯ РЕШЕНИЙ','Недельные итоги','Что сработало, что изменили и какой план на следующую неделю.','<button class="ux-primary" id="uxWeeklyAdd" type="button">+ Добавить итог</button>'));weekly.appendChild(weeklyPanel);}
+  if(weeklyPanel){weekly.appendChild(heading('ИСТОРИЯ РЕШЕНИЙ','Выводы и планы','Итоги периода, принятые решения и следующие шаги.','<button class="ux-primary" id="uxWeeklyAdd" type="button">+ Добавить вывод</button>'));weekly.appendChild(weeklyPanel);}
   content.appendChild(overview);content.appendChild(campaigns);content.appendChild(funnel);if(weeklyPanel)content.appendChild(weekly);
   if(oldCardsRow&&!oldCardsRow.children.length)oldCardsRow.remove();
 
@@ -54,8 +54,9 @@
   }
 
   function setNav(name){nav.querySelectorAll('button').forEach(button=>button.classList.toggle('active',button.dataset.uxView===name));}
-  function showAnalytics(name){legacyTabs?.querySelector('[data-view="metrics"]')?.click();metricsView.classList.remove('hidden');projectView?.classList.add('hidden');document.querySelectorAll('.ux-section').forEach(section=>section.classList.toggle('active',section.id===`ux${name[0].toUpperCase()}${name.slice(1)}`));setNav(name);history.replaceState(null,'',`#${name}`);window.scrollTo({top:0,behavior:'smooth'});}
-  function showProject(channel){if(!projectView)return;metricsView.classList.add('hidden');projectView.classList.remove('hidden');setNav('project');const target=channel||projectChannels?.querySelector('button')?.dataset.legacyView;projectChannels?.querySelectorAll('button').forEach(button=>button.classList.toggle('active',button.dataset.legacyView===target));legacyTabs?.querySelector(`[data-view="${target}"]`)?.click();const current=location.hash.slice(1);if(!target||!current.startsWith(`${target}/`))history.replaceState(null,'',`#${target||'project'}`);window.scrollTo({top:0,behavior:'smooth'});}
+  function setPeriodControls(name){const hide=name==='weekly';byId('periodSeg')?.classList.toggle('hidden',hide);byId('dateRange')?.classList.toggle('hidden',hide);}
+  function showAnalytics(name){legacyTabs?.querySelector('[data-view="metrics"]')?.click();metricsView.classList.remove('hidden');projectView?.classList.add('hidden');document.querySelectorAll('.ux-section').forEach(section=>section.classList.toggle('active',section.id===`ux${name[0].toUpperCase()}${name.slice(1)}`));setPeriodControls(name);setNav(name);history.replaceState(null,'',`#${name}`);window.scrollTo({top:0,behavior:'smooth'});}
+  function showProject(channel){if(!projectView)return;setPeriodControls('project');metricsView.classList.add('hidden');projectView.classList.remove('hidden');setNav('project');const target=channel||projectChannels?.querySelector('button')?.dataset.legacyView;projectChannels?.querySelectorAll('button').forEach(button=>button.classList.toggle('active',button.dataset.legacyView===target));legacyTabs?.querySelector(`[data-view="${target}"]`)?.click();const current=location.hash.slice(1);if(!target||!current.startsWith(`${target}/`))history.replaceState(null,'',`#${target||'project'}`);window.scrollTo({top:0,behavior:'smooth'});}
   nav.addEventListener('click',event=>{const button=event.target.closest('[data-ux-view]');if(!button)return;button.dataset.uxView==='project'?showProject():showAnalytics(button.dataset.uxView);});
   document.addEventListener('click',event=>{const button=event.target.closest('[data-ux-open]');if(button)showAnalytics(button.dataset.uxOpen);});
   byId('uxWeeklyAdd')?.addEventListener('click',()=>byId('openWeekly')?.click());

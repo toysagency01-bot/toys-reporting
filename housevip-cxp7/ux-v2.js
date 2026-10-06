@@ -25,7 +25,7 @@
   nav.setAttribute('aria-label','Основные разделы');
   nav.innerHTML = [
     ['overview','Обзор'],['campaigns','Кампании'],['funnel','Воронка'],
-    ['leads','Лиды'],['weekly','Недельные итоги'],['project','Проект']
+    ['leads','Лиды'],['weekly','Выводы и планы'],['project','Проект']
   ].map(([key,label],index)=>`<button type="button" data-ux-view="${key}" class="${index===0?'active':''}">${icon[key]}<span>${label}</span></button>`).join('');
   legacyTabs.parentNode.insertBefore(nav,legacyTabs);
 
@@ -81,7 +81,7 @@
   const weekly = document.createElement('section');
   weekly.id = 'uxWeekly';
   weekly.className = 'ux-section';
-  weekly.appendChild(heading('ИСТОРИЯ РЕШЕНИЙ','Недельные итоги','Что сработало, что изменили и какой план на следующую неделю.','<button class="ux-primary" id="uxWeeklyAdd" type="button">+ Добавить итог</button>'));
+  weekly.appendChild(heading('ИСТОРИЯ РЕШЕНИЙ','Выводы и планы','Итоги периода, принятые решения и следующие шаги.','<button class="ux-primary" id="uxWeeklyAdd" type="button">+ Добавить вывод</button>'));
   weekly.appendChild(weeklyPanel);
 
   content.appendChild(overview);
@@ -102,6 +102,7 @@
   function legacyButton(view){ return legacyTabs.querySelector(`[data-view="${view}"]`); }
   function clickLegacy(view){ const button=legacyButton(view); if(button) button.click(); }
   function setActiveNav(name){ nav.querySelectorAll('button').forEach(button=>button.classList.toggle('active',button.dataset.uxView===name)); }
+  function setPeriodControls(name){ const hide=name==='weekly'; byId('periodSeg')?.classList.toggle('hidden',hide); byId('dateRange')?.classList.toggle('hidden',hide); }
 
   function showAnalytics(name){
     clickLegacy('metrics');
@@ -109,6 +110,7 @@
     projectView.classList.add('hidden');
     document.querySelectorAll('.ux-section').forEach(section=>section.classList.toggle('active',section.id===`ux${name[0].toUpperCase()}${name.slice(1)}`));
     projectView.dataset.uxMode='';
+    setPeriodControls(name);
     setActiveNav(name);
     history.replaceState(null,'',`#${name}`);
     window.scrollTo({top:0,behavior:'smooth'});
@@ -126,6 +128,7 @@
   }
 
   function showProject(mode,channel,label){
+    setPeriodControls('project');
     metricsView.classList.add('hidden');
     projectView.classList.remove('hidden');
     projectView.dataset.uxMode=mode;

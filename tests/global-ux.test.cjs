@@ -15,9 +15,9 @@ activeProjects.forEach(project => ok(!inactiveProjects.has(project), `${project}
 
 sharedProjects.forEach(project => {
   const html = read(project, 'index.html');
-  ok(html.includes('../core/ux-v2.css?v=20260928-global-ux1'), `${project}: global UX CSS missing`);
-  ok(html.includes('../core/ux-v2.js?v=20260928-global-ux1'), `${project}: global UX controller missing`);
-  ok(html.indexOf('../core/core.js?v=20261001-weekly-confirm1') < html.indexOf('../core/ux-v2.js?v=20260928-global-ux1'), `${project}: UX must run after the data engine`);
+  ok(html.includes('../core/ux-v2.css?v=20261001-conclusions1'), `${project}: global UX CSS missing`);
+  ok(html.includes('../core/ux-v2.js?v=20261001-conclusions1'), `${project}: global UX controller missing`);
+  ok(html.indexOf('../core/core.js?v=20261006-draftguard1') < html.indexOf('../core/ux-v2.js?v=20261001-conclusions1'), `${project}: UX must run after the data engine`);
 });
 
 const sharedUx = read('core', 'ux-v2.js');
@@ -28,11 +28,11 @@ ok(sharedUx.includes('MutationObserver(schedule)'), 'live data observer missing'
 ok(sharedUx.includes("routeView=route.split('/')[0]"), 'nested project route guard missing');
 ok(sharedUx.includes("current.startsWith(`${target}/`)"), 'nested project route preservation missing');
 const instashop = read('profkit-instashop-r4vk','index.html');
-ok(instashop.includes('../core/ux-v2-instashop.js?v=20260928-global-ux1'), 'Instashop UX controller missing');
-ok(instashop.includes('../core/instashop.js?v=20261001-instashop-weekly1'), 'Instashop data engine missing');
+ok(instashop.includes('../core/ux-v2-instashop.js?v=20261001-instashop-conclusions1'), 'Instashop UX controller missing');
+ok(instashop.includes('../core/instashop.js?v=20261006-instashop-draftguard1'), 'Instashop data engine missing');
 
 const housevip = read('housevip-cxp7','index.html');
-ok(housevip.includes('./ux-v2.js?v=20260928-housevip-ux3'), 'HOUSEVIP individual UX must remain enabled');
+ok(housevip.includes('./ux-v2.js?v=20261001-housevip-conclusions1'), 'HOUSEVIP individual UX must remain enabled');
 ok(!housevip.includes('../core/ux-v2.js'), 'HOUSEVIP must not load the shared UX on top of its individual UX');
 
 ['master','zzz-test-onboarding-dayy','karlovarska-v2-concept'].forEach(project => {

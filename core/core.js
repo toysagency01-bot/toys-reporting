@@ -270,7 +270,7 @@ flex-wrap:wrap;gap:10px;margin-bottom:16px}
 .cb-audience{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:6px}
 .cb-status{display:flex;flex-wrap:wrap;gap:6px}
 .weekly-open{margin-left:auto;border:1px solid rgba(37,221,204,.45);background:var(--accent-dim);color:var(--accent);border-radius:10px;padding:10px 15px;font:600 13px 'Golos Text';cursor:pointer}.weekly-open:hover{background:rgba(37,221,204,.2)}
-.weekly-list{display:grid;gap:8px}.weekly-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;overflow:hidden}.weekly-card[open]{background:#1a1a1f}.weekly-card summary{list-style:none;cursor:pointer;padding:15px 18px;display:grid;grid-template-columns:160px minmax(0,1fr) 24px;align-items:center;gap:14px}.weekly-card summary::-webkit-details-marker{display:none}.weekly-card summary::after{content:'+';display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#24242a;color:var(--accent);font-size:18px;line-height:1}.weekly-card[open] summary::after{content:'−'}.weekly-period{color:var(--accent);font-size:12px;font-weight:600}.weekly-preview{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d7d7dc;font-size:13px}.weekly-card[open] .weekly-preview{display:none}.weekly-card[open] summary{grid-template-columns:minmax(0,1fr) 24px}.weekly-body{padding:0 18px 18px}.weekly-summary{border-top:1px solid var(--line);padding-top:14px;font-size:16px;font-weight:600;line-height:1.45;margin-bottom:14px}.weekly-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.weekly-field{border-top:1px solid var(--line);padding-top:10px;color:#d7d7dc;font-size:13px;line-height:1.55}.weekly-field b{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}.weekly-form-modal{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.78);display:grid;place-items:center;padding:20px}.weekly-modal-card{position:relative;width:min(760px,100%);height:min(800px,92vh);background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.55);display:flex;flex-direction:column}.weekly-modal-close{position:absolute;right:12px;top:10px;z-index:2;width:34px;height:34px;border:0;border-radius:50%;background:#24242a;color:#fff;font-size:22px;cursor:pointer}.weekly-form{overflow:auto;padding:22px;display:grid;gap:14px}.weekly-form h3{font-size:20px;padding-right:44px}.weekly-form-help{color:var(--muted);font-size:12px;line-height:1.45}.weekly-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.weekly-form label{display:grid;gap:6px;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}.weekly-form input,.weekly-form textarea,.weekly-form select{width:100%;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);color:var(--text);font:500 13px 'Golos Text';padding:11px 12px;outline:none;color-scheme:dark}.weekly-form input:focus,.weekly-form textarea:focus,.weekly-form select:focus{border-color:rgba(37,221,204,.65)}.weekly-form textarea{min-height:82px;resize:vertical;line-height:1.5}.weekly-form textarea.summary{min-height:112px}.weekly-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.weekly-save{border:0;border-radius:9px;background:var(--accent);color:#06110f;padding:11px 18px;font:800 13px 'Golos Text';cursor:pointer}.weekly-save:disabled{opacity:.55;cursor:wait}.weekly-status{color:var(--muted);font-size:12px}.weekly-status.error{color:#ff6b81}.weekly-submit-frame{display:none}
+.weekly-list{display:grid;gap:8px}.weekly-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;overflow:hidden}.weekly-card[open]{background:#1a1a1f}.weekly-card summary{list-style:none;cursor:pointer;padding:15px 18px;display:grid;grid-template-columns:230px minmax(0,1fr) 24px;align-items:center;gap:14px}.weekly-card summary::-webkit-details-marker{display:none}.weekly-card summary::after{content:'+';display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#24242a;color:var(--accent);font-size:18px;line-height:1}.weekly-card[open] summary::after{content:'−'}.weekly-period{color:var(--accent);font-size:12px;font-weight:600}.weekly-channel{display:inline-flex;margin-left:7px;padding:3px 7px;border-radius:999px;font-size:10px;line-height:1;color:#bfc3ca;background:#2b2c32}.weekly-channel-google{color:#70b7ff;background:rgba(66,133,244,.14)}.weekly-channel-meta{color:#a790ff;background:rgba(124,93,250,.16)}.weekly-preview{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d7d7dc;font-size:13px}.weekly-card[open] .weekly-preview{display:none}.weekly-card[open] summary{grid-template-columns:minmax(0,1fr) 24px}.weekly-body{padding:0 18px 18px}.weekly-summary{border-top:1px solid var(--line);padding-top:14px;font-size:16px;font-weight:600;line-height:1.45;margin-bottom:14px}.weekly-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.weekly-field{border-top:1px solid var(--line);padding-top:10px;color:#d7d7dc;font-size:13px;line-height:1.55}.weekly-field b{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}.weekly-form-modal{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.78);display:grid;place-items:center;padding:20px}.weekly-modal-card{position:relative;width:min(760px,100%);height:min(800px,92vh);background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 28px 80px rgba(0,0,0,.55);display:flex;flex-direction:column}.weekly-modal-close{position:absolute;right:12px;top:10px;z-index:2;width:34px;height:34px;border:0;border-radius:50%;background:#24242a;color:#fff;font-size:22px;cursor:pointer}.weekly-form{overflow:auto;padding:22px;display:grid;gap:14px}.weekly-form h3{font-size:20px;padding-right:44px}.weekly-form-help{color:var(--muted);font-size:12px;line-height:1.45}.weekly-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.weekly-form label{display:grid;gap:6px;color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}.weekly-form input,.weekly-form textarea,.weekly-form select{width:100%;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);color:var(--text);font:500 13px 'Golos Text';padding:11px 12px;outline:none;color-scheme:dark}.weekly-form input:focus,.weekly-form textarea:focus,.weekly-form select:focus{border-color:rgba(37,221,204,.65)}.weekly-form textarea{min-height:82px;resize:vertical;line-height:1.5}.weekly-form textarea.summary{min-height:112px}.weekly-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.weekly-save{border:0;border-radius:9px;background:var(--accent);color:#06110f;padding:11px 18px;font:800 13px 'Golos Text';cursor:pointer}.weekly-save:disabled{opacity:.55;cursor:wait}.weekly-status{color:var(--muted);font-size:12px}.weekly-status.error{color:#ff6b81}.weekly-submit-frame{display:none}
 .weekly-form-modal.hidden{display:none}
 @media (max-width: 640px){
   .cards{grid-template-columns:repeat(2,1fr);gap:8px}
@@ -338,7 +338,7 @@ ${HAS_PROJECT ? `
     <span class="dr-sep">–</span>
     <input type="date" id="dateTo" aria-label="По">
   </div>
-  <button id="openWeekly" class="weekly-open${WEEKLY_FORM_URL && WEEKLY_PROJECT_KEY ? '' : ' hidden'}">Добавить итог недели</button>
+  <button id="openWeekly" class="weekly-open${WEEKLY_FORM_URL && WEEKLY_PROJECT_KEY ? '' : ' hidden'}">Добавить вывод</button>
 </div>
 <div class="state" id="loading">Загружаю данные…</div>
 <div class="state hidden" id="errorState"><b>Не удалось загрузить данные.</b><br>
@@ -366,7 +366,7 @@ ${HAS_PROJECT ? `
     <div id="insightsList"></div>
   </div>
   <div class="panel${WEEKLY_FORM_URL && WEEKLY_PROJECT_KEY ? '' : ' hidden'}" id="weeklyPanel">
-    <h2>Еженедельные итоги</h2>
+    <h2>Выводы и планы</h2>
     <div id="weeklyList"></div>
   </div>
   <div class="cards-row">
@@ -403,23 +403,24 @@ ${HAS_PROJECT ? `
   </div>
 </div>
 </div>
-<div id="weeklyModal" class="weekly-form-modal hidden" role="dialog" aria-modal="true" aria-label="Недельный итог">
+<div id="weeklyModal" class="weekly-form-modal hidden" role="dialog" aria-modal="true" aria-label="Итог периода">
   <div class="weekly-modal-card">
     <button id="closeWeekly" class="weekly-modal-close" aria-label="Закрыть">×</button>
     <form id="weeklyForm" class="weekly-form" method="post" target="weeklySubmitFrame">
-      <h3>Недельный итог ${esc(TITLE)}</h3>
-      <div class="weekly-form-help">Одна запись на период. Повторное сохранение обновит существующий итог.</div>
+      <h3>Выводы и планы · ${esc(TITLE)}</h3>
+      <div class="weekly-form-help">Одна запись на канал и период. Повторное сохранение обновит существующую запись.</div>
       <input type="hidden" name="project" value="${esc(WEEKLY_PROJECT_KEY)}">
       <input id="weeklyReplyToken" type="hidden" name="replyToken" value="">
       <label>Код доступа<input id="weeklyAccess" name="accessCode" type="password" autocomplete="current-password" required></label>
+      <label id="weeklyChannelWrap" class="hidden">Канал<select id="weeklyChannel" name="channel"><option value="google">Google</option><option value="meta">Meta</option><option value="all">Общий</option></select></label>
       <div class="weekly-form-grid"><label>Начало периода<input id="weeklyStart" name="periodStart" type="date" required></label><label>Конец периода<input id="weeklyEnd" name="periodEnd" type="date" required></label></div>
       <label>Общий итог<textarea id="weeklySummary" name="summary" class="summary" maxlength="5000" required></textarea></label>
       <label>Что сработало<textarea id="weeklyWins" name="wins" maxlength="5000"></textarea></label>
       <label>Что не сработало<textarea id="weeklyIssues" name="issues" maxlength="5000"></textarea></label>
       <label>Какие изменения внесли<textarea id="weeklyChanges" name="changes" maxlength="5000"></textarea></label>
-      <label>План на следующую неделю<textarea id="weeklyNextSteps" name="nextSteps" maxlength="5000"></textarea></label>
+      <label>План на следующий период<textarea id="weeklyNextSteps" name="nextSteps" maxlength="5000"></textarea></label>
       <label>Статус<select id="weeklyStatusSelect" name="status"><option value="published">Опубликовано</option><option value="draft">Черновик</option></select></label>
-      <div class="weekly-actions"><button id="weeklySave" class="weekly-save" type="submit">Сохранить итог</button><div id="weeklyFormStatus" class="weekly-status" aria-live="polite"></div></div>
+      <div class="weekly-actions"><button id="weeklySave" class="weekly-save" type="submit">Сохранить</button><div id="weeklyFormStatus" class="weekly-status" aria-live="polite"></div></div>
     </form>
     <iframe id="weeklySubmitFrame" class="weekly-submit-frame" name="weeklySubmitFrame" title="Результат сохранения"></iframe>
   </div>
@@ -502,6 +503,9 @@ const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}
 let DATA = [], INSIGHTS = [], QUALIFIED = [], WEEKLY_COMMENTS = [];
 let period = 7, account = '__all', platform = '__all', chart = null, chartMode = 'volume';
 let weeklySubmitPending = false, weeklySubmitTimer = null, weeklySubmitToken = '', weeklySubmittedRecord = null;
+let weeklyDraftDirty = false, weeklyDraftTimer = null, weeklyDraftBaseline = '';
+const WEEKLY_DRAFT_KEY = `toysWeeklyDraft:v1:${WEEKLY_PROJECT_KEY || 'dashboard'}`;
+const WEEKLY_DRAFT_FIELDS = ['weeklyStart','weeklyEnd','weeklyChannel','weeklySummary','weeklyWins','weeklyIssues','weeklyChanges','weeklyNextSteps','weeklyStatusSelect'];
 
 window.addEventListener('toys-theme-change', () => {
   if(DATA.length) render();
@@ -689,18 +693,30 @@ function parseWeeklyComments(json, includeDrafts){
     id: row[0] || row[2], periodStart: row[1] || '', periodEnd: row[2] || '',
     summary: row[3] || '', wins: row[4] || '', issues: row[5] || '',
     changes: row[6] || '', nextSteps: row[7] || '', status: (row[8] || 'draft').toLowerCase(),
-    createdAt: row[9] || '', updatedAt: row[10] || '',
+    createdAt: row[9] || '', updatedAt: row[10] || '', channel: weeklyChannel(row[11]),
   })).filter(row => includeDrafts || row.status === 'published').sort((a,b) => b.periodEnd.localeCompare(a.periodEnd));
 }
+function weeklyChannel(value){
+  const channel=String(value||'').trim().toLowerCase();
+  if(channel.includes('google')) return 'google';
+  if(channel.includes('meta')) return 'meta';
+  return channel==='google'||channel==='meta' ? channel : 'all';
+}
+function weeklyChannelLabel(channel){ return channel==='google'?'Google':channel==='meta'?'Meta':'Общий'; }
+function weeklyDataChannels(){ return new Set(DATA.map(row=>weeklyChannel(row.platform)).filter(channel=>channel!=='all')); }
+function weeklySelectedChannel(){ return platform==='__all' ? 'all' : weeklyChannel(platform); }
+function weeklyHasBothChannels(){ const channels=weeklyDataChannels(); return channels.has('google')&&channels.has('meta'); }
 function weeklyLines(value){ return esc(value).replace(/\n/g, '<br>'); }
 function renderWeeklyComments(){
   const panel = el('weeklyPanel'), list = el('weeklyList');
   if(!panel || !list || !WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY) return;
   panel.classList.remove('hidden');
-  list.innerHTML = WEEKLY_COMMENTS.length ? `<div class="weekly-list">${WEEKLY_COMMENTS.map((item,index)=>{
-    const fields = [['Что сработало',item.wins],['Что не сработало',item.issues],['Что изменили',item.changes],['План на следующую неделю',item.nextSteps]].filter(row=>row[1]);
-    return `<details class="weekly-card" name="weekly-summary"${index===0?' open':''}><summary><span class="weekly-period">${esc(item.periodStart)} — ${esc(item.periodEnd)}</span><span class="weekly-preview">${esc(item.summary)}</span></summary><div class="weekly-body"><div class="weekly-summary">${weeklyLines(item.summary)}</div>${fields.length?`<div class="weekly-fields">${fields.map(row=>`<div class="weekly-field"><b>${esc(row[0])}</b>${weeklyLines(row[1])}</div>`).join('')}</div>`:''}</div></details>`;
-  }).join('')}</div>` : '<div class="state">Опубликованных недельных итогов пока нет</div>';
+  const selected=weeklySelectedChannel();
+  const comments=WEEKLY_COMMENTS.filter(item=>selected==='all'||item.channel===selected);
+  list.innerHTML = comments.length ? `<div class="weekly-list">${comments.map((item,index)=>{
+    const fields = [['Что сработало',item.wins],['Что не сработало',item.issues],['Что изменили',item.changes],['План на следующий период',item.nextSteps]].filter(row=>row[1]);
+    return `<details class="weekly-card" name="weekly-summary"${index===0?' open':''}><summary><span class="weekly-period">${esc(item.periodStart)} — ${esc(item.periodEnd)} <span class="weekly-channel weekly-channel-${esc(item.channel)}">${weeklyChannelLabel(item.channel)}</span></span><span class="weekly-preview">${esc(item.summary)}</span></summary><div class="weekly-body"><div class="weekly-summary">${weeklyLines(item.summary)}</div>${fields.length?`<div class="weekly-fields">${fields.map(row=>`<div class="weekly-field"><b>${esc(row[0])}</b>${weeklyLines(row[1])}</div>`).join('')}</div>`:''}</div></details>`;
+  }).join('')}</div>` : '<div class="state">Для выбранного канала выводов пока нет</div>';
 }
 function loadWeeklyComments(){
   if(!WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY){ renderWeeklyComments(); return; }
@@ -727,8 +743,60 @@ function weeklySetStatus(text, error){
   if(!node) return;
   node.textContent = text || ''; node.classList.toggle('error', !!error);
 }
+function weeklyDraftData(){
+  return {
+    periodStart:el('weeklyStart').value, periodEnd:el('weeklyEnd').value,
+    channel:weeklyChannel(el('weeklyChannel').value), summary:el('weeklySummary').value,
+    wins:el('weeklyWins').value, issues:el('weeklyIssues').value,
+    changes:el('weeklyChanges').value, nextSteps:el('weeklyNextSteps').value,
+    status:el('weeklyStatusSelect').value, savedAt:new Date().toISOString(),
+  };
+}
+function weeklyDraftFingerprint(data){
+  return JSON.stringify(['periodStart','periodEnd','channel','summary','wins','issues','changes','nextSteps','status']
+    .map(key=>String((data && data[key]) == null ? '' : data[key])));
+}
+function weeklyDraftTime(value){
+  const date=new Date(value||Date.now());
+  return isFinite(date.getTime()) ? date.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : '';
+}
+function weeklyPersistDraft(quiet){
+  clearTimeout(weeklyDraftTimer); weeklyDraftTimer=null;
+  const data=weeklyDraftData(), fingerprint=weeklyDraftFingerprint(data);
+  weeklyDraftDirty=fingerprint!==weeklyDraftBaseline;
+  try{
+    if(weeklyDraftDirty) localStorage.setItem(WEEKLY_DRAFT_KEY,JSON.stringify(data));
+    else localStorage.removeItem(WEEKLY_DRAFT_KEY);
+  }catch(error){
+    if(!quiet&&!weeklySubmitPending) weeklySetStatus('Не удалось сохранить локальный черновик',true);
+    return;
+  }
+  if(!quiet&&!weeklySubmitPending) weeklySetStatus(weeklyDraftDirty?`Черновик сохранён локально · ${weeklyDraftTime(data.savedAt)}`:'');
+}
+function weeklyScheduleDraft(){
+  weeklyDraftDirty=true;
+  clearTimeout(weeklyDraftTimer);
+  weeklyDraftTimer=setTimeout(()=>weeklyPersistDraft(false),300);
+}
+function weeklyRestoreDraft(){
+  let draft=null;
+  try{ draft=JSON.parse(localStorage.getItem(WEEKLY_DRAFT_KEY)||'null'); }catch(error){ draft=null; }
+  if(!draft||typeof draft!=='object') return false;
+  const values={weeklyStart:draft.periodStart,weeklyEnd:draft.periodEnd,weeklyChannel:draft.channel,
+    weeklySummary:draft.summary,weeklyWins:draft.wins,weeklyIssues:draft.issues,
+    weeklyChanges:draft.changes,weeklyNextSteps:draft.nextSteps,weeklyStatusSelect:draft.status};
+  Object.entries(values).forEach(([id,value])=>{ if(el(id)&&value!=null) el(id).value=String(value); });
+  weeklyDraftDirty=weeklyDraftFingerprint(draft)!==weeklyDraftBaseline;
+  if(!weeklyDraftDirty){ try{ localStorage.removeItem(WEEKLY_DRAFT_KEY); }catch(error){} return false; }
+  weeklySetStatus(`Черновик восстановлен · ${weeklyDraftTime(draft.savedAt)}`);
+  return true;
+}
+function weeklyClearDraft(){
+  clearTimeout(weeklyDraftTimer); weeklyDraftTimer=null; weeklyDraftDirty=false;
+  try{ localStorage.removeItem(WEEKLY_DRAFT_KEY); }catch(error){}
+}
 function fillWeeklyForm(){
-  const item = WEEKLY_COMMENTS.find(row => row.periodEnd === el('weeklyEnd').value);
+  const item = WEEKLY_COMMENTS.find(row => row.periodEnd === el('weeklyEnd').value && row.channel === weeklyChannel(el('weeklyChannel').value));
   if(item){
     el('weeklyStart').value=item.periodStart; el('weeklySummary').value=item.summary; el('weeklyWins').value=item.wins;
     el('weeklyIssues').value=item.issues; el('weeklyChanges').value=item.changes; el('weeklyNextSteps').value=item.nextSteps;
@@ -741,24 +809,32 @@ function fillWeeklyForm(){
 function openWeeklyForm(){
   if(!WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY) return;
   const modal=el('weeklyModal'), end=el('dateTo').value || periodDates().slice(-1)[0] || '';
+  const channels=weeklyDataChannels(), selected=weeklySelectedChannel(), hasBoth=weeklyHasBothChannels();
   el('weeklyForm').action = WEEKLY_FORM_URL;
   el('weeklyAccess').value = sessionStorage.getItem('toysWeeklyAccess') || '';
+  el('weeklyChannelWrap').classList.toggle('hidden',!hasBoth);
+  el('weeklyChannel').value=hasBoth ? (selected==='google'||selected==='meta'?selected:'google') : (channels.has('google')?'google':channels.has('meta')?'meta':'all');
   el('weeklyEnd').value=end; el('weeklyStart').value=shiftWeeklyDate(end,-6); fillWeeklyForm(); weeklySetStatus('');
+  weeklyDraftBaseline=weeklyDraftFingerprint(weeklyDraftData()); weeklyDraftDirty=false; weeklyRestoreDraft();
   modal.classList.remove('hidden'); document.body.style.overflow='hidden';
   setTimeout(()=>el(el('weeklyAccess').value ? 'weeklySummary' : 'weeklyAccess').focus(),0);
 }
-function closeWeeklyForm(){
+function closeWeeklyForm(force){
   if(weeklySubmitPending) return;
+  if(weeklyDraftTimer) weeklyPersistDraft(true);
+  if(!force&&weeklyDraftDirty&&!window.confirm('Есть несохранённые изменения. Закрыть форму? Черновик останется в этом браузере.')) return;
+  weeklyDraftDirty=false;
   el('weeklyModal').classList.add('hidden'); document.body.style.overflow='';
 }
 function weeklyFormRecord(){
-  return {id:el('weeklyEnd').value,periodStart:el('weeklyStart').value,periodEnd:el('weeklyEnd').value,
+  const channel=weeklyChannel(el('weeklyChannel').value);
+  return {id:channel==='all'?el('weeklyEnd').value:`${el('weeklyEnd').value}:${channel}`,periodStart:el('weeklyStart').value,periodEnd:el('weeklyEnd').value,channel,
     summary:el('weeklySummary').value.trim(),wins:el('weeklyWins').value.trim(),issues:el('weeklyIssues').value.trim(),
     changes:el('weeklyChanges').value.trim(),nextSteps:el('weeklyNextSteps').value.trim(),status:el('weeklyStatusSelect').value};
 }
 function weeklyRecordMatches(actual, expected){
   const clean = value => String(value == null ? '' : value).trim();
-  return ['periodStart','periodEnd','summary','wins','issues','changes','nextSteps','status']
+  return ['periodStart','periodEnd','summary','wins','issues','changes','nextSteps','status','channel']
     .every(key => clean(actual && actual[key]) === clean(expected && expected[key]));
 }
 function weeklySaveFailed(message){
@@ -777,22 +853,30 @@ function weeklyVerifyStored(record, deadline){
   if(!storageId){ weeklySaveFailed('Не настроена таблица для недельных итогов'); return; }
   gvizFrom(storageId, C.weeklyCommentsSheet || 'WeeklyComments', json => {
     if(!weeklySubmitPending) return;
-    const saved = parseWeeklyComments(json,true).find(item => item.periodEnd === record.periodEnd);
+    const saved = parseWeeklyComments(json,true).find(item => item.periodEnd === record.periodEnd && item.channel === record.channel);
     if(saved && weeklyRecordMatches(saved,record)) weeklySaveSucceeded(record); else retry();
   }, retry, false, true);
 }
 function weeklySaveSucceeded(record){
   clearTimeout(weeklySubmitTimer); weeklySubmitPending=false; el('weeklySave').disabled=false;
-  record=record || weeklySubmittedRecord || weeklyFormRecord(); weeklySubmittedRecord=null; WEEKLY_COMMENTS=WEEKLY_COMMENTS.filter(item=>item.periodEnd!==record.periodEnd).concat(record)
+  record=record || weeklySubmittedRecord || weeklyFormRecord(); weeklySubmittedRecord=null; WEEKLY_COMMENTS=WEEKLY_COMMENTS.filter(item=>!(item.periodEnd===record.periodEnd&&item.channel===record.channel)).concat(record)
     .filter(item=>item.status==='published').sort((a,b)=>b.periodEnd.localeCompare(a.periodEnd));
-  renderWeeklyComments(); closeWeeklyForm();
+  weeklyClearDraft(); renderWeeklyComments(); closeWeeklyForm(true);
   setTimeout(loadWeeklyComments,800);
 }
 function bindWeeklyComments(){
   if(!WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY) return;
-  el('openWeekly').addEventListener('click',openWeeklyForm); el('closeWeekly').addEventListener('click',closeWeeklyForm);
-  el('weeklyModal').addEventListener('click',event=>{ if(event.target===el('weeklyModal')) closeWeeklyForm(); });
+  el('openWeekly').addEventListener('click',openWeeklyForm); el('closeWeekly').addEventListener('click',()=>closeWeeklyForm());
+  el('weeklyModal').addEventListener('click',event=>{ if(event.target===el('weeklyModal')) weeklySetStatus('Форма не закрыта — используйте крестик. Черновик сохраняется автоматически.'); });
   el('weeklyEnd').addEventListener('change',()=>{ el('weeklyStart').value=shiftWeeklyDate(el('weeklyEnd').value,-6); fillWeeklyForm(); });
+  el('weeklyChannel').addEventListener('change',fillWeeklyForm);
+  el('weeklyForm').addEventListener('input',event=>{ if(WEEKLY_DRAFT_FIELDS.includes(event.target.id)) weeklyScheduleDraft(); });
+  el('weeklyForm').addEventListener('change',event=>{ if(WEEKLY_DRAFT_FIELDS.includes(event.target.id)) weeklyScheduleDraft(); });
+  document.addEventListener('keydown',event=>{ if(event.key==='Escape'&&!el('weeklyModal').classList.contains('hidden')) closeWeeklyForm(); });
+  window.addEventListener('beforeunload',event=>{
+    if(!weeklyDraftDirty) return;
+    weeklyPersistDraft(true); event.preventDefault(); event.returnValue='';
+  });
   el('weeklyForm').addEventListener('submit',async event=>{
     event.preventDefault(); el('weeklySave').disabled=true; weeklySetStatus('Проверяю код…');
     if(!(await weeklyAccessValid(el('weeklyAccess').value))){ el('weeklySave').disabled=false; weeklySetStatus('Неверный код доступа',true); return; }
@@ -830,7 +914,7 @@ function start(){
     seg.querySelectorAll('button').forEach(b=>{
       b.addEventListener('click',()=>{
         seg.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
-        b.classList.add('active'); platform = b.dataset.platform; render();
+        b.classList.add('active'); platform = b.dataset.platform; render(); renderWeeklyComments();
       });
     });
   }
