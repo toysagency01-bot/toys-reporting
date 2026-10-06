@@ -17,6 +17,7 @@ sharedProjects.forEach(project => {
   const html = read(project, 'index.html');
   ok(html.includes('../core/ux-v2.css?v=20261001-conclusions1'), `${project}: global UX CSS missing`);
   ok(html.includes('../core/ux-v2.js?v=20261001-conclusions1'), `${project}: global UX controller missing`);
+  ok(html.includes('../core/nav-scroll.js?v=20261006-navscroll1'), `${project}: scrollable navigation missing`);
   ok(html.indexOf('../core/core.js?v=20261006-draftguard1') < html.indexOf('../core/ux-v2.js?v=20261001-conclusions1'), `${project}: UX must run after the data engine`);
 });
 
@@ -30,14 +31,34 @@ ok(sharedUx.includes("current.startsWith(`${target}/`)"), 'nested project route 
 const instashop = read('profkit-instashop-r4vk','index.html');
 ok(instashop.includes('../core/ux-v2-instashop.js?v=20261001-instashop-conclusions1'), 'Instashop UX controller missing');
 ok(instashop.includes('../core/instashop.js?v=20261006-instashop-draftguard1'), 'Instashop data engine missing');
+ok(instashop.includes('../core/nav-scroll.js?v=20261006-navscroll1'), 'Instashop scrollable navigation missing');
 
 const housevip = read('housevip-cxp7','index.html');
 ok(housevip.includes('./ux-v2.js?v=20261001-housevip-conclusions1'), 'HOUSEVIP individual UX must remain enabled');
 ok(!housevip.includes('../core/ux-v2.js'), 'HOUSEVIP must not load the shared UX on top of its individual UX');
+ok(housevip.includes('../core/nav-scroll.js?v=20261006-navscroll1'), 'HOUSEVIP scrollable navigation missing');
+
+const amklinika = read('amklinika-k8m2','index.html');
+ok(amklinika.includes('../core/nav-scroll.js?v=20261006-navscroll1'), 'AM Klinika scrollable navigation missing');
+
+const navScroll = read('core','nav-scroll.js');
+['ux-nav-shell','ux-nav-scroll','ux-nav-progress','ResizeObserver','scrollBy','scrollTo','wheel','touch'].forEach(token => {
+  if(token === 'touch') return;
+  ok(navScroll.includes(token), `scrollable navigation guard missing: ${token}`);
+});
+ok(navScroll.includes("NAV_SELECTOR='.ux-nav'"), 'scrollable navigation must target the universal dashboard nav');
+ok(navScroll.includes("aria-label','Прокрутить меню вправо'"), 'right navigation control must be accessible');
+ok(navScroll.includes("aria-label','Прокрутить меню влево'"), 'left navigation control must be accessible');
+
+inactiveProjects.forEach(project => {
+  const html = read(project,'index.html');
+  ok(!html.includes('nav-scroll.js'), `${project}: inactive page must not receive navigation rollout`);
+});
 
 ['master','zzz-test-onboarding-dayy','karlovarska-v2-concept'].forEach(project => {
   const html = read(project,'index.html');
   ok(!html.includes('global-ux1'), `${project}: non-production page must not receive rollout`);
+  ok(!html.includes('nav-scroll.js'), `${project}: non-production page must not receive navigation rollout`);
 });
 
 console.log(`global UX guards passed for ${activeProjects.length} active production dashboards`);
