@@ -32,8 +32,10 @@ assert.match(core, /function weeklyVerifyStored\(/, 'weekly writes must be verif
 assert.match(core, /parseWeeklyComments\(json,true\)/, 'weekly verification must include draft rows');
 assert.match(core, /cacheBust=\$\{Date\.now\(\)\}/, 'weekly verification must bypass stale GViz caches');
 assert.match(core, /channel:\s*weeklyChannel\(row\[11\]\)/, 'weekly rows must read their traffic channel');
-assert.match(core, /item\.channel===selected/, 'weekly conclusions must follow the selected traffic channel');
-assert.match(core, /item\.periodEnd\s*===\s*record\.periodEnd\s*&&\s*item\.channel\s*===\s*record\.channel/, 'weekly verification must match period and channel');
+assert.match(core, /function weeklyResolvedChannel\(/, 'legacy weekly rows must resolve to the only configured traffic channel');
+assert.match(core, /channels\.size===1\s*\?\s*\[\.\.\.channels\]\[0\]\s*:\s*'all'/, 'legacy channel inference must stay conservative on multi-channel projects');
+assert.match(core, /weeklyResolvedChannel\(item\.channel\)===selected/, 'weekly conclusions must follow the selected traffic channel');
+assert.match(core, /item\.periodEnd\s*===\s*record\.periodEnd\s*&&\s*weeklyResolvedChannel\(item\.channel\)\s*===\s*record\.channel/, 'weekly verification must match period and resolved channel');
 assert.match(ux, /setPeriodControls\(name\)/, 'weekly UX must hide period controls on the conclusions screen');
 assert.match(ux, /Выводы и планы/, 'weekly UX must use the universal conclusions label');
 assert.match(
@@ -61,13 +63,15 @@ assert.equal(
 );
 assert.match(
   fs.readFileSync(path.join(root, 'amklinika-k8m2', 'index.html'), 'utf8'),
-  /\.\/core\.js\?v=20261006-am-draftguard1/,
+  /\.\/core\.js\?v=20261006-am-weeklylegacy1/,
   'AM Klinika must load its HouseVIP-based client core',
 );
 const instashop = fs.readFileSync(path.join(root, 'core', 'instashop.js'), 'utf8');
 assert.doesNotMatch(instashop, /weeklySubmitFrame'\)\.addEventListener\('load'/, 'Instashop must not trust iframe load as save success');
 assert.match(instashop, /event\.data\.replyToken !== weeklySubmitToken/, 'Instashop responses must match the one-time token');
 assert.match(instashop, /function weeklyVerifyStored\(/, 'Instashop writes must be verified against the storage sheet');
+assert.match(instashop, /function weeklyResolvedChannel\(/, 'Instashop must accept legacy rows without a channel column');
+assert.match(instashop, /weeklyResolvedChannel\(item\.channel\) === record\.channel/, 'Instashop verification must resolve the legacy channel');
 assert.match(instashop, /name="channel" value="meta"/, 'Instashop conclusions must be stored as Meta');
 assert.match(instashop, /id="dateRange"/, 'Instashop date controls must be addressable by the conclusions route');
 

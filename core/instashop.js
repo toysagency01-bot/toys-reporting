@@ -287,6 +287,10 @@ function weeklyRecordMatches(actual, expected){
     .every(key => clean(actual && actual[key]) === clean(expected && expected[key]));
 }
 
+function weeklyResolvedChannel(value){
+  return String(value || '').trim().toLowerCase() === 'google' ? 'google' : 'meta';
+}
+
 function weeklySaveFailed(message){
   clearTimeout(weeklySubmitTimer);
   weeklySubmitPending = false;
@@ -309,8 +313,9 @@ function weeklyVerifyStored(record, deadline){
   };
   gviz('WeeklyComments', json=>{
     if(!weeklySubmitPending) return;
-    const saved = M.parseWeeklyComments(json).find(item=>item.periodEnd === record.periodEnd && item.channel === record.channel);
-    if(saved && weeklyRecordMatches(saved, record)) weeklySaveSucceeded(record); else retry();
+    const saved = M.parseWeeklyComments(json).find(item=>item.periodEnd === record.periodEnd && weeklyResolvedChannel(item.channel) === record.channel);
+    const comparable = saved ? {...saved, channel: weeklyResolvedChannel(saved.channel)} : null;
+    if(comparable && weeklyRecordMatches(comparable, record)) weeklySaveSucceeded(record); else retry();
   }, retry);
 }
 
@@ -320,7 +325,7 @@ function weeklySaveSucceeded(record){
   el('weeklySave').disabled = false;
   record = record || weeklySubmittedRecord || weeklyFormRecord();
   weeklySubmittedRecord = null;
-  COMMENTS = COMMENTS.filter(item=>!(item.periodEnd === record.periodEnd && item.channel === record.channel)).concat(record);
+  COMMENTS = COMMENTS.filter(item=>!(item.periodEnd === record.periodEnd && weeklyResolvedChannel(item.channel) === record.channel)).concat(record);
   weeklyClearDraft();
   renderWeekly();
   closeWeeklyForm(true);
@@ -328,7 +333,7 @@ function weeklySaveSucceeded(record){
 }
 
 function fillWeeklyForm(){
-  const item = COMMENTS.find(row=>row.periodEnd === el('weeklyEnd').value && row.channel === 'meta');
+  const item = COMMENTS.find(row=>row.periodEnd === el('weeklyEnd').value && weeklyResolvedChannel(row.channel) === 'meta');
   if(item){
     el('weeklyStart').value = item.periodStart;
     el('weeklySummary').value = item.summary;

@@ -704,6 +704,12 @@ function weeklyChannel(value){
 }
 function weeklyChannelLabel(channel){ return channel==='google'?'Google':channel==='meta'?'Meta':'Общий'; }
 function weeklyDataChannels(){ return new Set(DATA.map(row=>weeklyChannel(row.platform)).filter(channel=>channel!=='all')); }
+function weeklyResolvedChannel(value){
+  const channel=weeklyChannel(value);
+  if(channel!=='all') return channel;
+  const channels=weeklyDataChannels();
+  return channels.size===1 ? [...channels][0] : 'all';
+}
 function weeklySelectedChannel(){ return platform==='__all' ? 'all' : weeklyChannel(platform); }
 function weeklyHasBothChannels(){ const channels=weeklyDataChannels(); return channels.has('google')&&channels.has('meta'); }
 function weeklyLines(value){ return esc(value).replace(/\n/g, '<br>'); }
@@ -712,10 +718,11 @@ function renderWeeklyComments(){
   if(!panel || !list || !WEEKLY_FORM_URL || !WEEKLY_PROJECT_KEY) return;
   panel.classList.remove('hidden');
   const selected=weeklySelectedChannel();
-  const comments=WEEKLY_COMMENTS.filter(item=>selected==='all'||item.channel===selected);
+  const comments=WEEKLY_COMMENTS.filter(item=>selected==='all'||weeklyResolvedChannel(item.channel)===selected);
   list.innerHTML = comments.length ? `<div class="weekly-list">${comments.map((item,index)=>{
+    const itemChannel=weeklyResolvedChannel(item.channel);
     const fields = [['Что сработало',item.wins],['Что не сработало',item.issues],['Что изменили',item.changes],['План на следующий период',item.nextSteps]].filter(row=>row[1]);
-    return `<details class="weekly-card" name="weekly-summary"${index===0?' open':''}><summary><span class="weekly-period">${esc(item.periodStart)} — ${esc(item.periodEnd)} <span class="weekly-channel weekly-channel-${esc(item.channel)}">${weeklyChannelLabel(item.channel)}</span></span><span class="weekly-preview">${esc(item.summary)}</span></summary><div class="weekly-body"><div class="weekly-summary">${weeklyLines(item.summary)}</div>${fields.length?`<div class="weekly-fields">${fields.map(row=>`<div class="weekly-field"><b>${esc(row[0])}</b>${weeklyLines(row[1])}</div>`).join('')}</div>`:''}</div></details>`;
+    return `<details class="weekly-card" name="weekly-summary"${index===0?' open':''}><summary><span class="weekly-period">${esc(item.periodStart)} — ${esc(item.periodEnd)} <span class="weekly-channel weekly-channel-${esc(itemChannel)}">${weeklyChannelLabel(itemChannel)}</span></span><span class="weekly-preview">${esc(item.summary)}</span></summary><div class="weekly-body"><div class="weekly-summary">${weeklyLines(item.summary)}</div>${fields.length?`<div class="weekly-fields">${fields.map(row=>`<div class="weekly-field"><b>${esc(row[0])}</b>${weeklyLines(row[1])}</div>`).join('')}</div>`:''}</div></details>`;
   }).join('')}</div>` : '<div class="state">Для выбранного канала выводов пока нет</div>';
 }
 function loadWeeklyComments(){
@@ -796,7 +803,7 @@ function weeklyClearDraft(){
   try{ localStorage.removeItem(WEEKLY_DRAFT_KEY); }catch(error){}
 }
 function fillWeeklyForm(){
-  const item = WEEKLY_COMMENTS.find(row => row.periodEnd === el('weeklyEnd').value && row.channel === weeklyChannel(el('weeklyChannel').value));
+  const item = WEEKLY_COMMENTS.find(row => row.periodEnd === el('weeklyEnd').value && weeklyResolvedChannel(row.channel) === weeklyChannel(el('weeklyChannel').value));
   if(item){
     el('weeklyStart').value=item.periodStart; el('weeklySummary').value=item.summary; el('weeklyWins').value=item.wins;
     el('weeklyIssues').value=item.issues; el('weeklyChanges').value=item.changes; el('weeklyNextSteps').value=item.nextSteps;
@@ -853,13 +860,14 @@ function weeklyVerifyStored(record, deadline){
   if(!storageId){ weeklySaveFailed('Не настроена таблица для недельных итогов'); return; }
   gvizFrom(storageId, C.weeklyCommentsSheet || 'WeeklyComments', json => {
     if(!weeklySubmitPending) return;
-    const saved = parseWeeklyComments(json,true).find(item => item.periodEnd === record.periodEnd && item.channel === record.channel);
-    if(saved && weeklyRecordMatches(saved,record)) weeklySaveSucceeded(record); else retry();
+    const saved = parseWeeklyComments(json,true).find(item => item.periodEnd === record.periodEnd && weeklyResolvedChannel(item.channel) === record.channel);
+    const comparable=saved ? {...saved,channel:weeklyResolvedChannel(saved.channel)} : null;
+    if(comparable && weeklyRecordMatches(comparable,record)) weeklySaveSucceeded(record); else retry();
   }, retry, false, true);
 }
 function weeklySaveSucceeded(record){
   clearTimeout(weeklySubmitTimer); weeklySubmitPending=false; el('weeklySave').disabled=false;
-  record=record || weeklySubmittedRecord || weeklyFormRecord(); weeklySubmittedRecord=null; WEEKLY_COMMENTS=WEEKLY_COMMENTS.filter(item=>!(item.periodEnd===record.periodEnd&&item.channel===record.channel)).concat(record)
+  record=record || weeklySubmittedRecord || weeklyFormRecord(); weeklySubmittedRecord=null; WEEKLY_COMMENTS=WEEKLY_COMMENTS.filter(item=>!(item.periodEnd===record.periodEnd&&weeklyResolvedChannel(item.channel)===record.channel)).concat(record)
     .filter(item=>item.status==='published').sort((a,b)=>b.periodEnd.localeCompare(a.periodEnd));
   weeklyClearDraft(); renderWeeklyComments(); closeWeeklyForm(true);
   setTimeout(loadWeeklyComments,800);
