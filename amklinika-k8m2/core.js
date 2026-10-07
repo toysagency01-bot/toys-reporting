@@ -513,7 +513,7 @@ let weeklySubmitPending = false, weeklySubmitTimer = null, weeklySubmitToken = '
 let weeklyDraftDirty = false, weeklyDraftTimer = null, weeklyDraftBaseline = '';
 const WEEKLY_DRAFT_KEY = `toysWeeklyDraft:v1:${WEEKLY_PROJECT_KEY || 'dashboard'}`;
 const WEEKLY_DRAFT_FIELDS = ['weeklyStart','weeklyEnd','weeklyChannel','weeklySummary','weeklyWins','weeklyIssues','weeklyChanges','weeklyNextSteps','weeklyStatusSelect'];
-let LEAD_MODEL = null, leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '';
+let LEAD_MODEL = null, leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '', leadSubmitCleanup = null;
 const LEAD_SOURCE_SHEET = 'ЛИДЫ(Meta)';
 const LEAD_FEEDBACK_SHEET = 'LeadFeedback';
 const LEAD_STATUSES = ['Новый','Не удалось связаться','Связались','Квалифицирован','Подбор объекта','Просмотр назначен','Просмотр проведён','Переговоры','Бронь / задаток','Сделка','Отложен','Неактуален'];
@@ -2524,21 +2524,54 @@ function leadSave(card){
   button.disabled=true; saved.textContent='Сохраняю…'; leadSubmitId=card.dataset.leadId;
   leadSubmit('lead-save',{leadId:leadSubmitId,status:card.querySelector('[data-role="status"]').value,comment:card.querySelector('[data-role="comment"]').value});
 }
-async function leadSubmit(mode, extra={}){
+function leadCanonicalSave(extra){
+  return {leadId:String(extra.leadId||'').trim(),status:String(extra.status||'').trim(),comment:String(extra.comment||'').trim().slice(0,3000)};
+}
+function leadReadFeedbackValues(){
+  return WEEKLY_PROJECT_KEY==='amklinika-k8m2'&&typeof leadGvizValues==='function' ? leadGvizValues(LEAD_FEEDBACK_SHEET) : leadSheetValues(LEAD_FEEDBACK_SHEET,'A:E');
+}
+function leadSavedRow(values,record){
+  const rows=leadDataRows(values,['lead_id','status','client_comment','updated_at'],false);
+  return rows.find(row=>String(row[0]||'').trim()===record.leadId&&String(row[1]||'').trim()===record.status&&String(row[2]||'').trim()===record.comment)||null;
+}
+function leadSaveSucceeded(record,savedRow){
+  const item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===record.leadId);
+  if(item){
+    const changed=item.status!==record.status;item.status=record.status;item.comment=record.comment;
+    item.statusUpdatedAt=String(savedRow[4]||(changed?savedRow[3]:item.statusUpdatedAt)||'');
+    const card=document.querySelector(`[data-lead-id="${record.leadId}"]`);
+    if(card){leadApplyStage(card,item.status);const comment=card.querySelector('[data-role="comment"]');if(comment)comment.value=record.comment;const date=card.querySelector('[data-role="status-date"]');if(date)date.textContent=leadStatusDate(item.statusUpdatedAt);}
+  }
+  leadFinishSave(true,'Сохранено');
+}
+async function leadVerifyStored(record,deadline){
+  if(!leadSubmitPending)return;
+  try{const row=leadSavedRow(await leadReadFeedbackValues(),record);if(row){leadSaveSucceeded(record,row);return;}}catch(_error){}
+  if(Date.now()>=deadline){leadFinishSave(false,'Не удалось подтвердить сохранение. Данные в поле оставлены — попробуйте ещё раз.');return;}
+  const card=document.querySelector(`[data-lead-id="${record.leadId}"]`),state=card&&card.querySelector('.lead-saved');if(state)state.textContent='Сохраняю… проверяю запись…';
+  clearTimeout(leadSubmitTimer);leadSubmitTimer=setTimeout(()=>leadVerifyStored(record,deadline),2500);
+}
+function leadSubmit(mode, extra={}){
   if(mode!=='lead-save'||leadSubmitPending)return;
-  leadSubmitPending=mode; leadSubmitToken=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  clearTimeout(leadSubmitTimer);leadSubmitTimer=setTimeout(()=>leadFinishSave(false,'Сервис долго не отвечает. Попробуйте ещё раз.'),30000);
-  try{
-    const body=new URLSearchParams({mode,project:WEEKLY_PROJECT_KEY,replyToken:leadSubmitToken,...extra});
-    await fetch(WEEKLY_FORM_URL,{method:'POST',mode:'no-cors',cache:'no-store',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:body.toString()});
-    const feedback=await leadSheetValues(LEAD_FEEDBACK_SHEET,'A:E'), rows=leadDataRows(feedback,['lead_id','status','client_comment','updated_at'],false);
-    const savedRow=rows.find(row=>String(row[0]||'').trim()===extra.leadId&&String(row[1]||'')===extra.status&&String(row[2]||'')===extra.comment), saved=!!savedRow;
-    leadFinishSave(saved,saved?'Сохранено':'Не удалось подтвердить сохранение');
-    if(saved){const item=LEAD_MODEL&&LEAD_MODEL.leads.find(row=>row.id===extra.leadId);if(item){const changed=item.status!==extra.status;item.status=extra.status;item.comment=extra.comment;item.statusUpdatedAt=String(savedRow[4]||(changed?savedRow[3]:item.statusUpdatedAt)||'');const card=document.querySelector(`[data-lead-id="${extra.leadId}"]`);if(card){leadApplyStage(card,item.status);const date=card.querySelector('[data-role="status-date"]');if(date)date.textContent=leadStatusDate(item.statusUpdatedAt);}}}
-  }catch(_error){leadFinishSave(false,'Не удалось сохранить');}
+  const record=leadCanonicalSave(extra);leadSubmitPending=mode;leadSubmitId=record.leadId;
+  leadSubmitToken=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const frameName=`toysLeadSaveFrame_${Date.now()}`,frame=document.createElement('iframe'),form=document.createElement('form');
+  frame.name=frameName;frame.className='hidden';frame.title='Сохранение лида';form.method='post';form.action=WEEKLY_FORM_URL;form.target=frameName;form.className='hidden';
+  Object.entries({mode,project:WEEKLY_PROJECT_KEY,replyToken:leadSubmitToken,...record}).forEach(([name,value])=>{const input=document.createElement('input');input.type='hidden';input.name=name;input.value=value;form.appendChild(input);});
+  const onMessage=event=>{
+    if(!leadSubmitPending||!event.data||event.data.replyToken!==leadSubmitToken)return;
+    const trusted=event.origin==='https://script.google.com'||/^https:\/\/[a-z0-9.-]+\.googleusercontent\.com$/.test(event.origin);if(!trusted)return;
+    if(event.data.type==='lead-feedback-error'){leadFinishSave(false,event.data.message||'Не удалось сохранить');return;}
+    if(event.data.type==='lead-feedback-saved'&&event.data.result){
+      const result=event.data.result,confirmed=String(result.leadId||'').trim()===record.leadId&&String(result.status||'').trim()===record.status&&String(result.comment||'').trim()===record.comment;
+      if(confirmed)leadSaveSucceeded(record,[result.leadId,result.status,result.comment,result.updatedAt,result.statusUpdatedAt]);else leadVerifyStored(record,Date.now()+60000);
+    }
+  };
+  leadSubmitCleanup=()=>{window.removeEventListener('message',onMessage);form.remove();frame.remove();};window.addEventListener('message',onMessage);
+  document.body.append(frame,form);form.submit();clearTimeout(leadSubmitTimer);leadSubmitTimer=setTimeout(()=>leadVerifyStored(record,Date.now()+60000),2500);
 }
 function leadFinishSave(ok,message){
-  if(!leadSubmitPending)return;leadSubmitPending='';clearTimeout(leadSubmitTimer);
+  if(!leadSubmitPending)return;leadSubmitPending='';clearTimeout(leadSubmitTimer);if(leadSubmitCleanup)leadSubmitCleanup();leadSubmitCleanup=null;
   const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;const saved=card.querySelector('.lead-saved');saved.textContent=message;saved.classList.toggle('error',!ok);}
 }
 

@@ -63,7 +63,7 @@ assert.equal(
 );
 assert.match(
   fs.readFileSync(path.join(root, 'amklinika-k8m2', 'index.html'), 'utf8'),
-  /\.\/core\.js\?v=20261006-am-weeklylegacy1/,
+  /\.\/core\.js\?v=20261007-am-leadsave1/,
   'AM Klinika must load its HouseVIP-based client core',
 );
 const instashop = fs.readFileSync(path.join(root, 'core', 'instashop.js'), 'utf8');

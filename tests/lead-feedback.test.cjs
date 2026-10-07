@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const root = path.resolve(__dirname, '..');
 const sharedCore = fs.readFileSync(path.join(root, 'core', 'core.js'), 'utf8');
@@ -30,13 +31,17 @@ ok(core.includes('leadStatusDate(item.statusUpdatedAt)'), 'visible HOUSEVIP stat
 ok(core.includes('data-lead-stage='), 'HOUSEVIP funnel stage color hook missing');
 ok(core.includes('leadLoadFromSheets()'), 'automatic HOUSEVIP lead loading missing');
 ok(core.includes("leadSubmit('lead-save'"), 'lead feedback save bridge missing');
-ok(core.includes("mode:'no-cors'"), 'lead feedback save must tolerate Google multi-account redirects');
+ok(core.includes("form.method='post';form.action=WEEKLY_FORM_URL"), 'lead feedback save must use the Apps Script response bridge');
+ok(core.includes('function leadVerifyStored(record,deadline)'), 'lead feedback saves must retry direct storage verification');
+ok(core.includes("event.data.type==='lead-feedback-error'"), 'lead feedback saves must expose backend validation errors');
+ok(core.includes("String(result.leadId||'').trim()===record.leadId"), 'lead feedback success messages must match the submitted lead');
+ok(!core.includes("fetch(WEEKLY_FORM_URL,{method:'POST',mode:'no-cors'"), 'lead feedback saves must not discard the backend response');
 ok(core.includes("crypto.subtle.digest('SHA-256'"), 'client/server lead ids must stay compatible');
 ok(!core.includes('lead-feedback-frame'), 'lead app must not embed Apps Script directly');
 ok(!core.includes('id="leadAccess"'), 'HOUSEVIP lead access code prompt must be absent');
 ok(!core.includes("script.id='leadRequestScript'"), 'lead loading must not use the broken Apps Script JSONP route');
 ok(!core.includes("form.id='leadRequestForm'"), 'lead loading must not use the broken iframe POST route');
-ok(housevip.includes('20261006-housevip-weeklylegacy1'), 'HOUSEVIP cache version missing');
+ok(housevip.includes('20261007-housevip-leadsave1'), 'HOUSEVIP cache version missing');
 ok(weekly.includes("'Бронь / задаток'"), 'server real-estate statuses missing');
 ok(weekly.includes("'housevip-cxp7': {sourceSheet:'ЛИДЫ(Meta)'"), 'HOUSEVIP lead source missing');
 ok(weekly.includes("title:'HOUSEVIP', publicAccess:true"), 'HOUSEVIP public lead access flag missing');
@@ -48,6 +53,20 @@ ok(weekly.includes("mode === 'lead-list'"), 'lead-list POST mode missing');
 ok(weekly.includes("mode === 'lead-save'"), 'lead-save POST mode missing');
 ok(weekly.includes('function wcsJsonp_(callback, payload)'), 'lead JSONP response helper missing');
 ok(weekly.includes('wcsAssertAccess_(accessCode);'), 'access check missing');
+ok(weekly.includes("type:'site', idWidth:8"), 'AM Klinika site lead IDs must use a fixed-width source row');
+ok((weekly.match(/type:'meta', idWidth:16/g) || []).length === 4, 'all AM Klinika Meta lead IDs must use the stable first 16 columns');
+ok(weekly.includes('wcsLeadIdWithSource_(sourceCfg.sheet, row, sourceCfg.idWidth)'), 'backend lead lookup and listing must use the same stable ID contract');
+ok(weekly.includes('Array.apply(null, Array(width))'), 'backend must normalize source rows before hashing');
 ok(!sharedCore.includes('lead-feedback-frame'), 'shared core must remain unchanged');
+
+const leadId = (source, row) => crypto.createHash('sha256')
+  .update([source, ...row].map(value => String(value == null ? '' : value).trim()).join('\u001f'))
+  .digest('hex').slice(0, 24);
+const expandedMetaRow = Array.from({ length: 35 }, (_, index) => index < 16 ? `field-${index}` : `extra-${index}`);
+const browserId = leadId('Lead_meta_ru', expandedMetaRow.slice(0, 16));
+const stableBackendId = leadId('Lead_meta_ru', Array.from({ length: 16 }, (_, index) => expandedMetaRow[index] || ''));
+const legacyBrokenId = leadId('Lead_meta_ru', expandedMetaRow);
+ok(browserId === stableBackendId, 'browser and backend must derive the same ID from an expanded Meta row');
+ok(browserId !== legacyBrokenId, 'the regression fixture must prove that hashing appended columns changes the ID');
 
 console.log('lead-feedback integration guards passed');

@@ -13,7 +13,7 @@ const backend = read('..','artifacts','weekly-comments','Code.gs');
 
 ok(html.includes("title: 'AM Klinika'"), 'AM Klinika title missing');
 ok(html.includes("locked: true"), 'AM Klinika must use the same client mode as HouseVIP');
-ok(html.includes('./core.js?v=20261006-am-weeklylegacy1'), 'AM Klinika must load its HouseVIP-based core copy');
+ok(html.includes('./core.js?v=20261007-am-leadsave1'), 'AM Klinika must load its HouseVIP-based core copy');
 ok(html.includes('./ux-v2.js?v=20261001-am-conclusions1'), 'AM Klinika must load its HouseVIP-based UX copy');
 ok(html.includes('./ux-v2.css?v=20261001-am-conclusions1'), 'AM Klinika must load its HouseVIP-based styles');
 ok(!html.includes('./amklinika.js'), 'the abandoned custom AM CRM bundle must not load');
@@ -32,6 +32,11 @@ ok(core.includes("WEEKLY_PROJECT_KEY==='amklinika-k8m2'"), 'AM Klinika must have
 ok(core.includes("gvizFrom(C.projectSheetId,sheetName"), 'AM Klinika lead reads must use the existing GViz transport');
 ok(core.includes("{sheet:'Lead Site',key:'site'"), 'AM Klinika site leads source missing');
 ok(core.includes("{sheet:'Lead_meta_cz_mechanic',key:'meta_mechanic_cz'"), 'AM Klinika Meta sources missing');
+ok(core.includes("width:16,range:'A:P'"), 'AM Klinika lead IDs must use the stable first 16 Meta columns');
+ok(core.includes('function leadVerifyStored(record,deadline)'), 'AM Klinika lead saves must retry storage verification');
+ok(core.includes("form.method='post';form.action=WEEKLY_FORM_URL"), 'AM Klinika lead saves must use the authenticated iframe response bridge');
+ok(core.includes("event.data.type==='lead-feedback-error'"), 'AM Klinika must surface the real backend save error');
+ok(!core.includes("fetch(WEEKLY_FORM_URL,{method:'POST',mode:'no-cors'"), 'AM Klinika must not hide lead-save backend errors behind no-cors');
 ok(core.includes('if(C.projectApiKey && !hasConfiguredTabs) discoverChannelTabs(bootReady)'), 'configured AM tabs must not be overwritten by sheet discovery');
 ok(core.includes('data-role="status"'), 'lead status dropdown is missing');
 ok(core.includes('data-role="comment"'), 'editable lead comment is missing');

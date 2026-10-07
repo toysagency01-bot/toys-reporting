@@ -10,7 +10,7 @@ function ok(value, message){ if(!value) throw new Error(message); }
 
 ok(html.includes("conversionLabel: 'Лиды'"), 'HOUSEVIP lead label missing');
 ok(html.includes('ux-v2.css?v=20261001-housevip-conclusions1'), 'HOUSEVIP UX stylesheet missing');
-ok(html.includes('core.js?v=20261006-housevip-weeklylegacy1'), 'HOUSEVIP lead cache version missing');
+ok(html.includes('core.js?v=20261007-housevip-leadsave1'), 'HOUSEVIP lead cache version missing');
 ok(html.includes('ux-v2.js?v=20261001-housevip-conclusions1'), 'HOUSEVIP UX controller missing');
 ['overview','campaigns','funnel','leads','weekly','project'].forEach(view => {
   ok(js.includes(`['${view}'`) || js.includes(`,'${view}'`) || js.includes(`===\'${view}\'`) || js.includes(`===\"${view}\"`), `${view} UX route missing`);
