@@ -57,6 +57,11 @@ ok(weekly.includes("type:'site', idWidth:8"), 'AM Klinika site lead IDs must use
 ok((weekly.match(/type:'meta', idWidth:16/g) || []).length === 4, 'all AM Klinika Meta lead IDs must use the stable first 16 columns');
 ok(weekly.includes('wcsLeadIdWithSource_(sourceCfg.sheet, row, sourceCfg.idWidth)'), 'backend lead lookup and listing must use the same stable ID contract');
 ok(weekly.includes('Array.apply(null, Array(width))'), 'backend must normalize source rows before hashing');
+ok(weekly.includes("WCS_AMKLINIKA_FEEDBACK_HEADERS = WCS_LEAD_FEEDBACK_HEADERS.concat(['source_sheet','source_lead_id','lead_name','lead_date'])"), 'AM Klinika feedback must expose readable source columns');
+ok(weekly.includes('readableFeedback:true'), 'AM Klinika readable feedback migration must be enabled');
+ok(weekly.includes('function wcsBackfillReadableLeadFeedback_'), 'existing AM Klinika feedback rows must be backfilled');
+ok(weekly.includes("row = row.concat([leadMeta.sourceSheet, leadMeta.sourceLeadId, leadMeta.name, leadMeta.date])"), 'new AM Klinika feedback rows must include readable lead metadata');
+ok((weekly.match(/wcsLeadFeedbackMap_\(book, cfg\.feedbackSheet, cfg\)/g) || []).length === 2, 'lead feedback reads must use project-specific schemas');
 ok(!sharedCore.includes('lead-feedback-frame'), 'shared core must remain unchanged');
 
 const leadId = (source, row) => crypto.createHash('sha256')
