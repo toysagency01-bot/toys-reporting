@@ -13,7 +13,7 @@ const backend = read('..','artifacts','weekly-comments','Code.gs');
 
 ok(html.includes("title: 'AM Klinika'"), 'AM Klinika title missing');
 ok(html.includes("locked: true"), 'AM Klinika must use the same client mode as HouseVIP');
-ok(html.includes('./core.js?v=20261007-am-leadsave1'), 'AM Klinika must load its HouseVIP-based core copy');
+ok(html.includes('./core.js?v=20261008-am-leadsync1'), 'AM Klinika must load its HouseVIP-based core copy');
 ok(html.includes('./ux-v2.js?v=20261001-am-conclusions1'), 'AM Klinika must load its HouseVIP-based UX copy');
 ok(html.includes('./ux-v2.css?v=20261001-am-conclusions1'), 'AM Klinika must load its HouseVIP-based styles');
 ok(!html.includes('./amklinika.js'), 'the abandoned custom AM CRM bundle must not load');
@@ -34,6 +34,9 @@ ok(core.includes("{sheet:'Lead Site',key:'site'"), 'AM Klinika site leads source
 ok(core.includes("{sheet:'Lead_meta_cz_mechanic',key:'meta_mechanic_cz'"), 'AM Klinika Meta sources missing');
 ok(core.includes("width:16,range:'A:P'"), 'AM Klinika lead IDs must use the stable first 16 Meta columns');
 ok(core.includes('function leadVerifyStored(record,deadline)'), 'AM Klinika lead saves must retry storage verification');
+ok(core.includes('leadSaveQueue.push({record})'), 'AM Klinika must queue rapid consecutive lead saves');
+ok(core.includes('setTimeout(leadDrainSaveQueue,0)'), 'AM Klinika must drain queued saves after each result');
+ok(core.includes('reject,true,true'), 'AM Klinika lead reads must bypass stale GViz cache');
 ok(core.includes("form.method='post';form.action=WEEKLY_FORM_URL"), 'AM Klinika lead saves must use the authenticated iframe response bridge');
 ok(core.includes("event.data.type==='lead-feedback-error'"), 'AM Klinika must surface the real backend save error');
 ok(!core.includes("fetch(WEEKLY_FORM_URL,{method:'POST',mode:'no-cors'"), 'AM Klinika must not hide lead-save backend errors behind no-cors');
@@ -54,5 +57,8 @@ ok(backend.includes("'amklinika-k8m2': {"), 'shared backend AM Klinika config mi
 ok(backend.includes('WCS_AMKLINIKA_STATUSES'), 'AM Klinika repair statuses missing');
 ok(backend.includes('function wcsListMultiSourceLeads_'), 'shared multi-source parser missing');
 ok(backend.includes('function wcsMultiSourceLeadExists_'), 'lead saves must validate source rows');
+ok(backend.includes('LockService.getScriptLock()'), 'lead saves must serialize concurrent sheet writes');
+ok(backend.includes('lock.waitLock(30000)'), 'lead saves must wait for an active write instead of overwriting it');
+ok(!backend.includes('wcsBackfillReadableLeadFeedback_(book, sheet, cfg);'), 'lead saves must not rescan every source sheet during normal requests');
 
 console.log('AM Klinika HouseVIP-clone integration guards passed');

@@ -514,6 +514,7 @@ let weeklyDraftDirty = false, weeklyDraftTimer = null, weeklyDraftBaseline = '';
 const WEEKLY_DRAFT_KEY = `toysWeeklyDraft:v1:${WEEKLY_PROJECT_KEY || 'dashboard'}`;
 const WEEKLY_DRAFT_FIELDS = ['weeklyStart','weeklyEnd','weeklyChannel','weeklySummary','weeklyWins','weeklyIssues','weeklyChanges','weeklyNextSteps','weeklyStatusSelect'];
 let LEAD_MODEL = null, leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '', leadSubmitCleanup = null;
+let leadSaveQueue = [];
 const LEAD_SOURCE_SHEET = 'ЛИДЫ(Meta)';
 const LEAD_FEEDBACK_SHEET = 'LeadFeedback';
 const LEAD_STATUSES = ['Новый','Не удалось связаться','Связались','Квалифицирован','Подбор объекта','Просмотр назначен','Просмотр проведён','Переговоры','Бронь / задаток','Сделка','Отложен','Неактуален'];
@@ -2476,7 +2477,7 @@ async function leadLoadAmFromSheets(){
 }
 function leadGvizValues(sheetName){
   return new Promise((resolve,reject)=>gvizFrom(C.projectSheetId,sheetName,
-    json=>resolve(((json.table&&json.table.rows)||[]).map(rawRow)),reject,true));
+    json=>resolve(((json.table&&json.table.rows)||[]).map(rawRow)),reject,true,true));
 }
 
 function leadSetStatus(text, error){
@@ -2519,10 +2520,25 @@ function leadShowModel(model){
   el('leadSearch').addEventListener('input',renderLeadRows); filter.addEventListener('change',renderLeadRows); sourceFilter.addEventListener('change',renderLeadRows); renderLeadRows();
 }
 function leadSave(card){
-  if(!card||leadSubmitPending) return;
-  const button=card.querySelector('.lead-save'), saved=card.querySelector('.lead-saved');
-  button.disabled=true; saved.textContent='Сохраняю…'; leadSubmitId=card.dataset.leadId;
-  leadSubmit('lead-save',{leadId:leadSubmitId,status:card.querySelector('[data-role="status"]').value,comment:card.querySelector('[data-role="comment"]').value});
+  if(!card) return;
+  const record=leadCanonicalSave({leadId:card.dataset.leadId,status:card.querySelector('[data-role="status"]').value,comment:card.querySelector('[data-role="comment"]').value});
+  if(leadSubmitPending){
+    const queued=leadSaveQueue.findIndex(item=>item.record.leadId===record.leadId);
+    if(queued>=0)leadSaveQueue[queued]={record};else leadSaveQueue.push({record});
+    const button=card.querySelector('.lead-save'),saved=card.querySelector('.lead-saved');
+    if(button)button.disabled=true;if(saved){saved.textContent='В очереди на сохранение…';saved.classList.remove('error');}
+    return;
+  }
+  leadStartSave(record);
+}
+function leadStartSave(record){
+  const card=document.querySelector(`[data-lead-id="${record.leadId}"]`),button=card&&card.querySelector('.lead-save'),saved=card&&card.querySelector('.lead-saved');
+  if(button)button.disabled=true;if(saved){saved.textContent='Сохраняю…';saved.classList.remove('error');}
+  leadSubmitId=record.leadId;leadSubmit('lead-save',record);
+}
+function leadDrainSaveQueue(){
+  if(leadSubmitPending||!leadSaveQueue.length)return;
+  const next=leadSaveQueue.shift();if(next&&next.record)leadStartSave(next.record);
 }
 function leadCanonicalSave(extra){
   return {leadId:String(extra.leadId||'').trim(),status:String(extra.status||'').trim(),comment:String(extra.comment||'').trim().slice(0,3000)};
@@ -2573,6 +2589,7 @@ function leadSubmit(mode, extra={}){
 function leadFinishSave(ok,message){
   if(!leadSubmitPending)return;leadSubmitPending='';clearTimeout(leadSubmitTimer);if(leadSubmitCleanup)leadSubmitCleanup();leadSubmitCleanup=null;
   const card=document.querySelector(`[data-lead-id="${leadSubmitId}"]`);if(card){card.querySelector('.lead-save').disabled=false;const saved=card.querySelector('.lead-saved');saved.textContent=message;saved.classList.toggle('error',!ok);}
+  setTimeout(leadDrainSaveQueue,0);
 }
 
 function renderGenericByMode(tabDef, json){
