@@ -24,7 +24,10 @@ test('all migrations execute and create the required platform tables', () => {
     'organizations', 'projects', 'users', 'project_memberships', 'integrations',
     'campaigns', 'ad_metrics_daily', 'leads', 'lead_status_events', 'lead_comments',
     'sales', 'weekly_reports', 'exchange_rates', 'sync_runs', 'audit_log',
-    'project_tabs',
+    'project_tabs', 'clients', 'project_channels', 'source_streams', 'data_generations',
+    'fact_observations', 'fact_values', 'project_data_releases',
+    'project_data_release_pointers', 'dashboard_config_revisions',
+    'content_items', 'content_revisions', 'content_blocks',
   ]) {
     assert.ok(names.includes(required), `missing table ${required}`);
   }
@@ -90,6 +93,19 @@ test('lead identifiers are unique inside a project and source', () => {
     () => insert.run('lead_2', 'prj_housevip_cxp7', 'meta_ads', 'external_1', '2026-09-28T10:00:00Z'),
     /UNIQUE constraint failed/,
   );
+  db.close();
+});
+
+test('MVP fact scope rejects a forged organization/project pair at the database boundary', () => {
+  const db = migratedDatabase();
+  db.prepare("INSERT INTO organizations (id, slug, name) VALUES ('org_other', 'other', 'Other')").run();
+  assert.throws(() => db.prepare(`
+    INSERT INTO source_streams
+      (id, organization_id, project_id, channel_key, delivery_provider, business_provider,
+       stable_source_ref, source_timezone, grain, source_schema_version, mapping_version)
+    VALUES ('src_forged', 'org_other', 'prj_housevip_cxp7', 'meta', 'manual', 'meta_ads',
+            'forged', 'UTC', 'campaign_daily', '1', '1')
+  `).run(), /FOREIGN KEY constraint failed/);
   db.close();
 });
 

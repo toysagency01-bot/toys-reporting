@@ -7,6 +7,10 @@
     "test": "node --test tests/*.test.mjs",
     "check": "node --check src/index.js",
     "dev": "wrangler dev --local",
+    "mvp:db:migrate": "wrangler d1 migrations apply TOYS_DB --config wrangler.mvp.jsonc --local --persist-to .wrangler/mvp-state",
+    "mvp:db:import:housevip": "node scripts/run-housevip-mvp-import.mjs",
+    "mvp:db:import:demo": "node scripts/build-demo-commerce-mvp-import.mjs && wrangler d1 execute TOYS_DB --config wrangler.mvp.jsonc --local --persist-to .wrangler/mvp-state --file .wrangler/tmp/demo-commerce-mvp-import.sql",
+    "mvp:dev": "wrangler dev --config wrangler.mvp.jsonc --local --persist-to .wrangler/mvp-state",
     "db:migrate:local": "wrangler d1 migrations apply TOYS_DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply TOYS_DB --remote",
     "deploy": "wrangler deploy",
@@ -14,7 +18,7 @@
     "pages:deploy": "npm run pages:build && wrangler pages deploy dist --project-name toys-agency-dashboard --branch main --force"
   },
   "devDependencies": {
+    "chart.js": "4.4.1",
     "wrangler": "^4.0.0"
   }
 }
-

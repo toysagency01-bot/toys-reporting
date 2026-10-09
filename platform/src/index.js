@@ -1,3 +1,5 @@
+import { handleMvpApi } from './mvp.js';
+
 const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
@@ -78,7 +80,7 @@ async function activeProject(env, slug) {
 
 function sameOriginWrite(request) {
   const origin = request.headers.get('origin');
-  return !origin || origin === new URL(request.url).origin;
+  return Boolean(origin) && origin === new URL(request.url).origin;
 }
 
 function gvizTable(labels, rows) {
@@ -106,7 +108,7 @@ async function adsTab(env, project, tab) {
   ).bind(project.id, provider).first();
   const result = await env.TOYS_DB.prepare(
     `SELECT m.metric_date AS metricDate, m.currency, COALESCE(c.name, m.external_campaign_id) AS campaign,
-            m.impressions, m.clicks, m.spend, m.leads, m.revenue
+            m.impressions, m.clicks, m.spend, m.conversions, m.revenue
        FROM ad_metrics_daily m
        LEFT JOIN campaigns c ON c.project_id = m.project_id AND c.provider = m.provider
                             AND c.external_campaign_id = m.external_campaign_id
@@ -116,7 +118,7 @@ async function adsTab(env, project, tab) {
     gvizDate(row.metricDate), tab === 'MetaAds' ? 'Meta Ads' : 'Google Ads', project.name,
     provider === 'meta_ads' ? `act_${integration?.accountId || ''}` : integration?.accountId || '', row.currency,
     row.campaign, Number(row.impressions || 0), Number(row.clicks || 0), Number(row.spend || 0),
-    Number(row.leads || 0), Number(row.revenue || 0),
+    Number(row.conversions || 0), Number(row.revenue || 0),
   ]));
 }
 
@@ -330,6 +332,10 @@ async function handleApi(request, env) {
   const url = new URL(request.url);
   const id = requestId(request);
 
+  if (url.pathname.startsWith('/api/v2/')) {
+    return handleMvpApi(request, env);
+  }
+
   if (request.method === 'GET' && url.pathname === '/api/health') {
     const database = await databaseHealth(env);
     return json(
@@ -342,6 +348,14 @@ async function handleApi(request, env) {
       },
       database.ok ? 200 : 503,
     );
+  }
+
+  // The legacy project API has no project-scoped identity. Keep the code for
+  // migration reference, but never expose it from this MVP Worker: all client
+  // reads and writes must go through the authenticated v2 surface.
+  if (/^\/api\/public\/projects\/[a-z0-9-]+(?:\/|$)/.test(url.pathname)) {
+    const error = url.pathname.includes('/leads') ? 'pii_endpoint_disabled' : 'legacy_public_api_disabled';
+    return json({ ok: false, error, requestId: id }, 410);
   }
 
   const publicMatch = url.pathname.match(/^\/api\/public\/projects\/([a-z0-9-]+)\/dashboard$/);
@@ -376,25 +390,17 @@ async function handleApi(request, env) {
 
   const leadsMatch = url.pathname.match(/^\/api\/public\/projects\/([a-z0-9-]+)\/leads$/);
   if (request.method === 'GET' && leadsMatch) {
-    try {
-      const model = await publicLeads(env, leadsMatch[1]);
-      if (!model) return json({ ok: false, error: 'not_found', requestId: id }, 404);
-      return json({ ok: true, ...model, requestId: id });
-    } catch (error) {
-      return json({ ok: false, error: 'database_error', message: error instanceof Error ? error.message : 'query failed', requestId: id }, 500);
-    }
+    return json({ ok: false, error: 'pii_endpoint_disabled', requestId: id }, 410);
   }
 
   const leadMatch = url.pathname.match(/^\/api\/public\/projects\/([a-z0-9-]+)\/leads\/([a-f0-9-]+)$/);
   if (request.method === 'POST' && leadMatch) {
-    try { return await updateLead(request, env, leadMatch[1], leadMatch[2], id); }
-    catch (error) { return json({ ok: false, error: 'database_error', message: error instanceof Error ? error.message : 'write failed', requestId: id }, 500); }
+    return json({ ok: false, error: 'pii_endpoint_disabled', requestId: id }, 410);
   }
 
   const weeklyMatch = url.pathname.match(/^\/api\/public\/projects\/([a-z0-9-]+)\/weekly-reports$/);
   if (request.method === 'POST' && weeklyMatch) {
-    try { return await saveWeeklyReport(request, env, weeklyMatch[1], id); }
-    catch (error) { return json({ ok: false, error: 'database_error', message: error instanceof Error ? error.message : 'write failed', requestId: id }, 500); }
+    return json({ ok: false, error: 'legacy_write_disabled', requestId: id }, 410);
   }
 
   const rateMatch = url.pathname.match(/^\/api\/public\/projects\/([a-z0-9-]+)\/exchange-rate$/);

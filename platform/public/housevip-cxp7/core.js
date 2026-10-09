@@ -17,9 +17,13 @@ const TITLE = C.title || 'reporting';
 const CONVERSION_LABEL = C.conversionLabel || 'Конверсии';
 const CONVERSION_SHORT_LABEL = C.conversionShortLabel || 'Конв.';
 const DATA_API_BASE = String(C.dataApiBase || '').replace(/\/$/, '');
+const API_V2 = C.apiVersion === 'v2';
+const apiFetch = (url, options) => API_V2 && window.TOYS_MVP_API
+  ? window.TOYS_MVP_API.fetch(url, options)
+  : fetch(url, options);
 // One shared Apps Script endpoint serves every dashboard. A client may still
 // override it in its config while a new deployment is being rolled out.
-const WEEKLY_FORM_URL = C.weeklyFormUrl || (DATA_API_BASE ? DATA_API_BASE + '/weekly-reports' : '') || window.TOYS_WEEKLY_FORM_URL || 'https://script.google.com/macros/s/AKfycbyK9gtL224H-MTZZwHdb9cq_2-zQzPs4QyEh_XFxaspR_kYG59iNLTBN29plKUeltfpVQ/exec';
+const WEEKLY_FORM_URL = API_V2 ? '' : (C.weeklyFormUrl || (DATA_API_BASE ? DATA_API_BASE + '/weekly-reports' : '') || window.TOYS_WEEKLY_FORM_URL || 'https://script.google.com/macros/s/AKfycbyK9gtL224H-MTZZwHdb9cq_2-zQzPs4QyEh_XFxaspR_kYG59iNLTBN29plKUeltfpVQ/exec');
 const WEEKLY_PROJECT_KEY = C.weeklyProjectKey || location.pathname.split('/').filter(Boolean).pop() || '';
 const WEEKLY_ACCESS_SHA256 = C.weeklyAccessSha256 || '0d48224e8240072cada34bddc9d80271a707827876f069132aa95055f8c93d64';
 
@@ -507,6 +511,8 @@ const fmtN = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).forma
 const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}).format(n);
 
 let DATA = [], INSIGHTS = [], QUALIFIED = [], WEEKLY_COMMENTS = [];
+let MVP_COVERAGE = null;
+let MVP_PANELS = [], MVP_ECOM = false;
 let period = 7, account = '__all', platform = '__all', chart = null, chartMode = 'volume';
 let weeklySubmitPending = false, weeklySubmitTimer = null, weeklySubmitToken = '';
 let LEAD_MODEL = null, leadSubmitPending = '', leadSubmitTimer = null, leadSubmitToken = '', leadSubmitId = '';
@@ -533,7 +539,7 @@ function loadSpendFx(){
   const rateUrl = DATA_API_BASE
     ? `${DATA_API_BASE}/exchange-rate?base=${encodeURIComponent(from)}&quote=${encodeURIComponent(to)}`
     : `https://latest.currency-api.pages.dev/v1/currencies/${encodeURIComponent(from.toLowerCase())}.json`;
-  fetch(rateUrl, {cache:'no-store'})
+  apiFetch(rateUrl, {cache:'no-store'})
     .then(r => {
       if(!r.ok) throw new Error(`FX ${r.status}`);
       return r.json();
@@ -593,8 +599,83 @@ function moneyChartOriginalLine(context){
 
 loadSpendFx();
 
+function typedValue(row, code){
+  const value = (row.metrics || []).find(item => item.metricCode === code);
+  return value && value.state === 'observed' ? Number(value.value) : null;
+}
+
+function typedCurrency(row, code){
+  return ((row.metrics || []).find(item => item.metricCode === code) || {}).currency || '';
+}
+
+function unavailablePanel_(){
+  const sourceMetrics = new Set(['ads.spend','ads.impressions','ads.clicks','ads.reported_conversions']);
+  return MVP_PANELS.find(panel => sourceMetrics.has(panel.code) && panel.state !== 'observed') || null;
+}
+
+function renderUnavailableBreakdowns_(panel){
+  const reason = esc(panel.reason || panel.state || 'missing');
+  const stateHtml = `<div class="state">Нет подтверждённого значения (${reason}). Пропуск не считается нулём.</div>`;
+  el('funnel').innerHTML = stateHtml;
+  el('weekdayBreakdown').innerHTML = stateHtml;
+  el('campList').innerHTML = stateHtml;
+  el('channelPanel').classList.add('hidden');
+  const chartPanel = el('chart')?.closest('.panel');
+  if(chartPanel) chartPanel.classList.add('hidden');
+  if(chart){ chart.destroy(); chart = null; }
+}
+
+async function loadTypedDashboard(){
+  const response = await apiFetch(`${DATA_API_BASE}/dashboard`, {cache:'no-store'});
+  const body = await response.json();
+  if(!response.ok || !body.ok) throw new Error(body.error || `API ${response.status}`);
+  const dashboard = body.dashboard || {};
+  MVP_COVERAGE = dashboard.coverage || null;
+  MVP_PANELS = dashboard.panels || [];
+  MVP_ECOM = !!dashboard.ecommerce;
+  DATA = ((dashboard.facts && dashboard.facts.rows) || []).map(row => ({
+    date: row.date,
+    platform: dashboard.demo && dashboard.demo.synthetic ? 'Demo Ads' : 'Meta Ads',
+    account: dashboard.project && dashboard.project.name || TITLE,
+    accountId: row.accountRef || '',
+    currency: ((row.metrics || []).find(item => item.metricCode === 'ads.spend') || {}).currency || '',
+    campaign: row.campaign && row.campaign.label || 'Legacy campaign',
+    campaignId: row.campaign && row.campaign.providerCampaignId || '',
+    legacyGroupRef: row.campaign && row.campaign.legacyGroupRef || '',
+    impr: typedValue(row, 'ads.impressions'),
+    clicks: typedValue(row, 'ads.clicks'),
+    cost: typedValue(row, 'ads.spend'),
+    conv: typedValue(row, 'ads.reported_conversions'),
+  }));
+  const ecommerce = dashboard.ecommerce || null;
+  ECOM = ecommerce ? ((ecommerce.account && ecommerce.account.rows) || []).map(row => ({
+    date: row.date, platform: 'Demo Ads', account: dashboard.project && dashboard.project.name || TITLE,
+    accountId: row.accountRef || '', currency: typedCurrency(row, 'ecom.purchase_value') || typedCurrency(row, 'ads.spend'),
+    addToCart: typedValue(row, 'ecom.add_to_cart'), addToCartValue: 0,
+    checkout: typedValue(row, 'ecom.checkout'), checkoutValue: 0,
+    purchase: typedValue(row, 'ecom.purchases'), purchaseValue: typedValue(row, 'ecom.purchase_value'),
+  })) : [];
+  ECOM_CAMPAIGNS = ecommerce ? ((ecommerce.campaigns && ecommerce.campaigns.rows) || []).map(row => ({
+    date: row.date, platform: 'Demo Ads', account: dashboard.project && dashboard.project.name || TITLE,
+    accountId: row.accountRef || '', currency: typedCurrency(row, 'ecom.purchase_value') || typedCurrency(row, 'ads.spend'),
+    campaign: row.campaign && row.campaign.label || 'Demo campaign', campaignId: row.campaign && row.campaign.providerCampaignId || '',
+    addToCart: typedValue(row, 'ecom.add_to_cart'), addToCartValue: 0,
+    checkout: typedValue(row, 'ecom.checkout'), checkoutValue: 0,
+    purchase: typedValue(row, 'ecom.purchases'), purchaseValue: typedValue(row, 'ecom.purchase_value'),
+  })) : [];
+  INSIGHTS = []; QUALIFIED = []; FORMATS = [];
+  start();
+}
+
 /* ---------- boot: Chart.js -> данные (оба канала) -> insights -> квал-лиды (опционально) ---------- */
-loadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
+loadScript(API_V2 ? '../vendor/chart.umd.js' : 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', () => {
+  if(API_V2){
+    loadTypedDashboard().catch(error => {
+      console.error('MVP dashboard load failed:', error && error.message || error);
+      show('errorState');
+    });
+    return;
+  }
   const finish = (google, meta) => {
     DATA = [...(google || []), ...(meta || [])];
     // Рекламных данных пока может не быть (новый клиент без кабинетов) —
@@ -957,7 +1038,12 @@ function start(){
   const sel = document.getElementById('accountSelect');
   if(sel) sel.addEventListener('change', e=>{ account = e.target.value; render(); });
   const last = DATA.reduce((m,r)=> r.date>m? r.date:m, '');
-  document.getElementById('updated').textContent = last ? ('данные по ' + last) : 'реклама ещё не подключена';
+  const coverageFlags = [];
+  if(MVP_COVERAGE && MVP_COVERAGE.status === 'partial') coverageFlags.push('покрытие частичное');
+  if(MVP_COVERAGE && MVP_COVERAGE.freshness === 'stale') coverageFlags.push('данные устарели');
+  if(MVP_COVERAGE && MVP_COVERAGE.availability === 'error') coverageFlags.push('ошибка источника');
+  const coverageSuffix = coverageFlags.length ? ` · ${coverageFlags.join(' · ')}` : '';
+  document.getElementById('updated').textContent = last ? ('данные по ' + last + coverageSuffix) : 'реклама ещё не подключена';
   bindWeeklyComments();
   loadWeeklyComments();
   render();
@@ -976,7 +1062,7 @@ function gviz(sheetName, ok, fail){ gvizFrom(SHEET_ID, sheetName, ok, fail); }
 function gvizFrom(spreadsheetId, sheetName, ok, fail, raw){
   if(DATA_API_BASE){
     const url = `${DATA_API_BASE}/data/tabs?tab=${encodeURIComponent(sheetName)}${raw?'&raw=1':''}`;
-    fetch(url,{cache:'no-store'}).then(response=>{
+    apiFetch(url,{cache:'no-store'}).then(response=>{
       if(!response.ok) throw new Error(`API ${response.status}`);
       return response.json();
     }).then(json=>{
@@ -1190,7 +1276,7 @@ function render(){
   // воронки уже расписаны подробно). Квал-лидов у текущих ecom-клиентов
   // не бывает одновременно с этим режимом, поэтому вся строка mainCards
   // прячется целиком, а не карточка за карточкой.
-  const isEcom = ECOM.length > 0;
+  const isEcom = MVP_ECOM || ECOM.length > 0;
   const ecomRows = isEcom ? currentEcomRows(dates) : [];
   el('mainCards').classList.toggle('hidden', isEcom);
   el('ecomTopCards').classList.toggle('hidden', !isEcom);
@@ -1201,6 +1287,25 @@ function render(){
   el('channelTitle').textContent = isEcom ? 'E-commerce по каналам' : 'Каналы';
 
   layoutCardsGrid();
+  if(API_V2 && !isEcom){
+    const ids = {'ads.spend':'kSpend','ads.impressions':'kImpr','ads.clicks':'kClicks','ads.ctr':'kCtr','ads.reported_conversions':'kConv','ads.cpa':'kCpa'};
+    MVP_PANELS.forEach(panel=>{
+      if(panel.state === 'observed' || !ids[panel.code]) return;
+      const node = el(ids[panel.code]);
+      node.textContent = '—';
+      node.closest('.card')?.setAttribute('data-value-state', panel.state || 'missing');
+      node.title = panel.reason || panel.state || 'missing';
+    });
+  }
+  const unavailable = API_V2 && !isEcom ? unavailablePanel_() : null;
+  if(unavailable){
+    renderUnavailableBreakdowns_(unavailable);
+    drawInsights();
+    renderFormatPanel();
+    return;
+  }
+  const chartPanel = el('chart')?.closest('.panel');
+  if(chartPanel) chartPanel.classList.remove('hidden');
   renderEcomFunnelPanel(rows);
 
   drawInsights();
@@ -2217,6 +2322,24 @@ function applyChannelHashRoute(){
 function loadGenericTab(tabDef){
   gShow('gLoading');
   el('gTitle').textContent = tabDef.label;
+
+  if(API_V2 && tabDef.contentKey && window.TOYS_MVP_CONTENT){
+    return window.TOYS_MVP_CONTENT.render({
+      apiBase: DATA_API_BASE,
+      logicalKey: tabDef.contentKey,
+      label: tabDef.label,
+      title: el('gTitle'),
+      wrap: el('gWrap'),
+      error: el('gError'),
+      show: gShow,
+    });
+  }
+
+  if(API_V2 && tabDef.mode === 'lead-feedback'){
+    el('gWrap').innerHTML = '<div class="lead-feedback-note">CRM-контакты не входят в безопасную локальную копию. Реальные персональные данные не загружаются в MVP preview.</div>';
+    gShow('gPanel');
+    return;
+  }
 
   // D1 projects open the unified leads view by their individual project URL.
   // Imported source rows stay immutable; statuses and comments are stored separately.

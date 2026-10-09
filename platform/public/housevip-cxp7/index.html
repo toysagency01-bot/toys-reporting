@@ -7,6 +7,7 @@
 <title>TOYS × HOUSEVIP — Дашборд результатов</title>
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./ux-v2.css?v=20260928-housevip-d1-full3">
+<link rel="stylesheet" href="./mvp-content.css?v=20261009-mvp1">
 </head>
 <body>
 <script>
@@ -16,8 +17,8 @@ window.DASH_CONFIG = {
   showDrafts: false,
   conversionLabel: 'Лиды',
   conversionShortLabel: 'Лиды',
-  dataApiBase: '/api/public/projects/housevip-cxp7',
-  weeklyFormUrl: '/api/public/projects/housevip-cxp7/weekly-reports',
+  apiVersion: 'v2',
+  dataApiBase: '/api/v2/projects/housevip-cxp7',
   sheetId: 'd1:housevip',
   projectSheetId: 'd1:housevip-project',
   spendFx: { from: 'IDR', to: 'EUR' },
@@ -32,7 +33,7 @@ window.DASH_CONFIG = {
     { key: 'meta', label: 'Meta', tabs: [
       { tab: 'План работ (Meta)', label: 'План работ', kind: 'plan' },
       { tab: 'ЛИДЫ(Meta)', label: 'ЛИДЫ', mode: 'lead-feedback' },
-      { tab: 'Еженедельная сводка (Meta)', label: 'Еженедельная сводка', mode: 'weekly-report' },
+      { tab: 'Еженедельная сводка (Meta)', label: 'Еженедельная сводка', mode: 'weekly-report', contentKey: 'weekly-main' },
       { tab: 'Месячная сводка (Meta)', label: 'Месячная сводка', mode: 'weekly-report' },
       { tab: 'Анализ конкурентов (Meta)', label: 'Анализ конкурентов', mode: 'competitors' },
       { tab: 'Стратегия (Meta)', label: 'Стратегия' },
@@ -42,7 +43,9 @@ window.DASH_CONFIG = {
 };
 </script>
 <script src="../core/theme.js?v=20260928-housevip-d1-full3"></script>
+<script src="./mvp-api.js?v=20261009-mvp1"></script>
 <script src="./core.js?v=20260928-housevip-d1-full3"></script>
+<script src="./mvp-content.js?v=20261009-mvp1"></script>
 <script src="./ux-v2.js?v=20260928-housevip-d1-full3"></script>
 </body>
 </html>

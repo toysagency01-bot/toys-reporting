@@ -1,0 +1,22 @@
+.mvp-content-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:-4px 0 18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.mvp-content-status{color:var(--muted);font-size:12px;margin-right:auto}
+.mvp-content-button{appearance:none;border:1px solid var(--line);background:var(--panel-2);color:var(--text);border-radius:9px;padding:8px 12px;font:600 12px 'Golos Text',sans-serif;cursor:pointer}
+.mvp-content-button.primary{background:var(--accent-dim);border-color:rgba(37,221,204,.35);color:var(--accent)}
+.mvp-content-button:focus-visible,.mvp-content-editor textarea:focus-visible,.mvp-content-editor input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mvp-content-copy{display:grid;gap:14px}
+.mvp-content-field{padding:13px 14px;background:var(--panel-2);border-radius:10px}
+.mvp-content-field b{display:block;color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:7px}
+.mvp-content-field p{font-size:14px;line-height:1.65;white-space:pre-wrap}
+.mvp-content-editor{display:grid;gap:12px}
+.mvp-content-editor label{display:grid;gap:6px;color:var(--muted);font-size:12px;font-weight:600}
+.mvp-content-editor textarea,.mvp-content-editor input{width:100%;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);color:var(--text);padding:10px 12px;font:400 14px/1.55 'Golos Text',sans-serif;resize:vertical}
+.mvp-content-actions{display:flex;gap:10px;flex-wrap:wrap}
+.mvp-content-message{font-size:12px;color:var(--muted);min-height:18px}
+.mvp-content-message.error{color:#ff6b81}
+.mvp-history{width:min(620px,calc(100vw - 28px));max-height:80dvh;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--text);padding:20px}
+.mvp-history::backdrop{background:rgba(0,0,0,.65)}
+.mvp-history header{margin:0 0 14px;padding:0 0 12px;align-items:center}
+.mvp-history-list{display:grid;gap:8px;max-height:55dvh;overflow:auto}
+.mvp-history-row{padding:10px 12px;background:var(--panel-2);border-radius:9px;font-size:13px}
+@media(max-width:640px){.mvp-content-toolbar{align-items:stretch}.mvp-content-status{flex:1 1 100%}.mvp-content-button{flex:1}.mvp-history{padding:15px}}
+@media(prefers-reduced-motion:reduce){.mvp-content-button{transition:none!important}}

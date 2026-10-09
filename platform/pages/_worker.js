@@ -8,11 +8,9 @@ export default {
       const target = new URL(`${incoming.pathname}${incoming.search}`, API_ORIGIN);
       const headers = new Headers(request.headers);
 
-      // The Pages site is a same-origin facade for the API Worker. The API
-      // Worker deliberately rejects browser writes coming from other origins,
-      // so the trusted facade removes browser-origin metadata before proxying.
-      headers.delete('origin');
-      headers.delete('referer');
+      // Preserve browser-origin metadata. Origin is not authentication, but
+      // stripping it made the old write gate accept requests without evidence.
+      // The v2 API additionally requires a project-scoped bearer token.
       headers.set('x-toys-public-host', incoming.host);
 
       const init = {

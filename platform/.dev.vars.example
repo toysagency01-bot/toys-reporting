@@ -2,3 +2,7 @@
 # Never commit real tokens.
 TOYS_INTERNAL_TOKEN=replace-with-a-long-random-value
 
+# Local MVP only. The v2 API refuses these fixtures when ENVIRONMENT=production.
+MVP_VIEW_TOKEN=replace-with-a-local-view-token-at-least-24-characters
+MVP_EDITOR_TOKEN=replace-with-a-local-editor-token-at-least-24-characters
+

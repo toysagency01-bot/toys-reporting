@@ -105,30 +105,33 @@ test('unknown API routes return JSON 404', async () => {
   assert.equal((await response.json()).error, 'not_found');
 });
 
-test('public HOUSEVIP dashboard returns verified aggregates without lead PII', async () => {
+test('legacy public HOUSEVIP dashboard is disabled without exposing lead PII', async () => {
   const response = await worker.fetch(
     new Request('https://app.test/api/public/projects/housevip-cxp7/dashboard'),
     env({ TOYS_DB: pilotDatabase() }),
   );
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get('cache-control'), 'public, max-age=60');
+  assert.equal(response.status, 410);
   const body = await response.json();
-  assert.equal(body.dashboard.totals.impressions, 6180);
-  assert.equal(body.dashboard.totals.clicks, 292);
-  assert.equal(body.dashboard.totals.spend, 1875890);
-  assert.equal(body.dashboard.totals.leads, 16);
-  assert.equal(body.dashboard.totals.ctr.toFixed(2), '4.72');
-  assert.equal(body.dashboard.totals.cpl.toFixed(2), '117243.13');
+  assert.equal(body.error, 'legacy_public_api_disabled');
   assert.equal(JSON.stringify(body).includes('phone'), false);
   assert.equal(JSON.stringify(body).includes('email'), false);
 });
 
-test('public dashboards hide inactive or unknown projects', async () => {
-  const response = await worker.fetch(
-    new Request('https://app.test/api/public/projects/not-a-project/dashboard'),
-    env({ TOYS_DB: pilotDatabase() }),
-  );
-  assert.equal(response.status, 404);
+test('all legacy project reads and writes are deny-by-default', async () => {
+  const paths = [
+    '/api/public/projects/housevip-cxp7/data/tabs?tab=Strategy',
+    '/api/public/projects/housevip-cxp7/exchange-rate?base=IDR&quote=EUR',
+  ];
+  for (const path of paths) {
+    const response = await worker.fetch(new Request(`https://app.test${path}`), env({ TOYS_DB: pilotDatabase() }));
+    assert.equal(response.status, 410);
+    assert.equal((await response.json()).error, 'legacy_public_api_disabled');
+  }
+  const write = await worker.fetch(new Request('https://app.test/api/public/projects/housevip-cxp7/weekly-reports', {
+    method: 'POST', headers: { origin: 'https://app.test' }, body: '{}',
+  }), env({ TOYS_DB: pilotDatabase() }));
+  assert.equal(write.status, 410);
+  assert.equal((await write.json()).error, 'legacy_public_api_disabled');
 });
 
 test('date validation rejects impossible calendar dates', () => {
@@ -140,6 +143,16 @@ test('date validation rejects impossible calendar dates', () => {
 test('public write endpoints accept same-origin requests and reject cross-origin requests', () => {
   assert.equal(sameOriginWrite(new Request('https://app.test/api', { headers: { origin: 'https://app.test' } })), true);
   assert.equal(sameOriginWrite(new Request('https://app.test/api', { headers: { origin: 'https://evil.test' } })), false);
+  assert.equal(sameOriginWrite(new Request('https://app.test/api')), false);
+});
+
+test('legacy public CRM endpoint is disabled and returns no lead PII', async () => {
+  const response = await worker.fetch(new Request('https://app.test/api/public/projects/housevip-cxp7/leads'), env());
+  assert.equal(response.status, 410);
+  const body = await response.json();
+  assert.equal(body.error, 'pii_endpoint_disabled');
+  assert.equal(JSON.stringify(body).includes('phone'), false);
+  assert.equal(JSON.stringify(body).includes('email'), false);
 });
 
 test('lead statuses are project-specific and fall back to the HOUSEVIP funnel', () => {
