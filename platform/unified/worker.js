@@ -3,7 +3,7 @@ export {AdsReadOnlyPreflight,activeProject,databaseHealth,handleApi,internalAuth
 import nativeAssets from '../dist/native-assets.json';
 import nativeBoot from '../dist/native-boot.txt';
 const projects = new Set(['housevip-cxp7','profkit-instashop-r4vk','karlovarska-sul-k4rm']);
-const html = slug => new Response(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title></head><body><p>Загружаю данные…</p><script>window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_MVP_PROJECT_PORTAL=true;${nativeBoot.replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
+const html = slug => new Response(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title><style>${nativeAssets['platform-fonts.css'].body}</style></head><body><p>Загружаю данные…</p><script>window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_MVP_PROJECT_PORTAL=true;${nativeBoot.replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
 
 export default {
   async fetch(request, env, ctx) {
@@ -14,6 +14,12 @@ export default {
     if(portal && projects.has(portal[1]) && request.method==='GET') {
       const auth=await authorizeMvp(request,env,portal[1],portal[2]==='editor'?'editor':'viewer');
       if(!auth.ok)return Response.json({ok:false,error:auth.error},{status:auth.status,headers:{'cache-control':'no-store'}});
+      const resource=url.searchParams.get('ui');
+      if(resource!==null){
+        if(!Object.hasOwn(nativeAssets,resource))return new Response('Not found',{status:404});
+        const asset=nativeAssets[resource];
+        return new Response(asset.body,{headers:{'content-type':asset.type,'cache-control':'no-store','x-content-type-options':'nosniff'}});
+      }
       return html(portal[1],true);
     }
     const response=await backend.fetch(request,env,ctx);

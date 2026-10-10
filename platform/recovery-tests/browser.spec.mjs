@@ -1,5 +1,12 @@
 import {test,expect} from '@playwright/test';
 const portal='/api/v2/projects/housevip-cxp7/content-project';
+test('mounted portal renders Golos with the generic asset route unavailable',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const requests=[];page.on('request',r=>requests.push(r.url()));
+ await page.goto('/mvp'+portal);await expect(page.locator('#platformRefresh')).toBeVisible();await expectGolos(page);
+ expect(requests.some(u=>u.includes('/api/ui/')||u.includes('platform-fonts.css')||u.includes('fonts.googleapis'))).toBe(false);
+ await expect(page.locator('body')).not.toContainText('Не удалось загрузить борд');expect(errors).toEqual([]);
+});
 async function expectGolos(page){
  await page.evaluate(()=>document.fonts.ready);
  expect(await page.evaluate(()=>[400,500,600,700,800].every(w=>document.fonts.check(`${w} 14px "Golos Text"`,'Обзор TOYS')))).toBe(true);
@@ -56,7 +63,7 @@ for(const slug of ['karlovarska-sul-k4rm','profkit-instashop-r4vk'])test(slug+' 
  await page.goto('/api/v2/projects/'+slug+'/content-project');await expect(page.locator('#platformRefresh')).toBeVisible();
  await expect(page.locator('#uxOverview')).toBeVisible();await expect(page.locator('#uxInsightTitle')).toBeVisible();
  await expect(page.locator('#uxNav [data-ux-view="overview"] svg')).toHaveCount(1);
- await expect(page.locator('header img')).toHaveAttribute('src',/api\/ui\/reference\/assets\/toys-logo.svg/);
+ await expect(page.locator('header img')).toHaveAttribute('src',/content-project\?ui=assets%2Ftoys-logo.svg/);
  await expect(page.locator('#toysThemeToggle')).toBeVisible();
  await expectGolos(page);
  if(slug.startsWith('karl'))await expect(page.locator('#ecomFunnelCards .card').filter({has:page.locator('.label',{hasText:/^ROAS$/})}).locator('.value')).toHaveText('—');

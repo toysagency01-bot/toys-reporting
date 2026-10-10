@@ -4,7 +4,9 @@ import {advertisingModel,snapshotRows,campaignGroups,nodeTotals,aggregate,escape
 const slug=window.TOYS_UNIFIED_PROJECT;
 const prefix=location.pathname.startsWith('/mvp/')?'/mvp':'';
 const api=`${prefix}/api/v2/projects/${slug}`;
-const asset=path=>`${prefix}/api/ui/reference/${path}`;
+// Use the same authenticated, forwarded route as the document. The Pages
+// gateway does not necessarily forward arbitrary /api/ui/* asset paths.
+const asset=path=>`${api}/content-project?ui=${encodeURIComponent(path)}`;
 const shop=slug==='profkit-instashop-r4vk';
 const title=({'housevip-cxp7':'HOUSEVIP','profkit-instashop-r4vk':'PROFKIT','karlovarska-sul-k4rm':'Karlovarska Sul'})[slug];
 const $=id=>document.getElementById(id);
@@ -81,8 +83,8 @@ function mountTools(){
  if(location.hash==='#weekly'||location.pathname.endsWith('/content-editor')){$('uxNav')?.querySelector('[data-ux-view="weekly"]')?.click();toolkit.loadWeekly();toolkit.loadWeeklyArchive();}
 }
 async function boot(){
- await css('platform-fonts.css');
- await Promise.all([400,500,600,700,800].map(weight=>document.fonts.load(`${weight} 14px "Golos Text"`,'Обзор проекта TOYS 0123456789')));
+ // Font availability must never prevent the dashboard and data from opening.
+ await Promise.race([Promise.all([400,500,600,700,800].map(weight=>document.fonts.load(`${weight} 14px "Golos Text"`,'Обзор проекта TOYS 0123456789'))).catch(()=>{}),new Promise(resolve=>setTimeout(resolve,2500))]);
  const channels=slug==='housevip-cxp7'?[{key:'smm',label:'SMM'},{key:'meta',label:'Meta'}]:[{key:'smm',label:'SMM'},{key:'meta',label:'Meta'},{key:'google',label:'Google'}];
  document.title=`TOYS × ${title} — Дашборд результатов`;const icon=document.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=asset('assets/favicon.svg');document.head.append(icon);
  window.DASH_CONFIG={...(slug==='housevip-cxp7'?{spendFx:{from:'IDR',to:'EUR'}}:{}),title,locked:true,showDrafts:false,sheetId:'platform',projectSheetId:'platform',projectApiKey:'platform',projectChannels:channels,weeklyProjectKey:slug,weeklyFormUrl:'#platform-weekly',conversionLabel:'Конверсии',conversionShortLabel:'Конв.'};

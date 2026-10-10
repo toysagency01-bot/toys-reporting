@@ -36,8 +36,11 @@ The route wrapper lives in `unified/worker.js`; the earlier redesigned shell is
 no longer served. Existing API handlers remain in use.
 
 Golos Text is bundled from Fontsource 5.3.0, with the original SIL OFL license,
-Cyrillic/Latin subsets and variable weights 400–900. Fonts load from the platform
-before the original board renders. No Google Fonts dependency remains. Chromium
+Cyrillic/Latin subsets and variable weights 400–900. The font CSS and WOFF2 data are embedded directly in the authenticated HTML
+response, without a separate stylesheet request. Fonts load before the original
+board renders. Other board assets use the existing content-project route with
+an allowlisted ui query parameter, retaining its authentication gate. A mounted
+/mvp browser scenario blocks /api/ui/* and still verifies rendered Golos Text. No Google Fonts dependency remains. Chromium
 CDP checks confirm the actual rendered font on all three boards, not just the CSS
 family declaration. A scoped typography layer normalizes control fonts, heading
 line-height and form spacing. Exact typographic parity with toys-agency.com is
@@ -77,11 +80,11 @@ all three projects and returned 10 HOUSEVIP material tabs, 0 PROFKIT tabs, and
 
 ## Release and rollback
 
-Active Worker version: `122505fc-09ff-4826-944f-802b3db58631` (100%).
-Previous version: `ab0ef953-d219-485a-b3f3-263b268617be` (original board before font fix).
+Active Worker version: `bcb09d30-a5ac-4741-afa1-7b3144915e5c` (100%).
+Previous version: `122505fc-09ff-4826-944f-802b3db58631` (failed external font stylesheet route).
 Earlier redesigned version: `9cd2a826-e302-46e2-9ab6-964f1a6463f4`.
 Uploaded bundle SHA256:
-`4c08d4cdebdf508cb9b6ae165691479c3b5b73c5cf6228ab1cf4870b847d25cc`.
+`b95e1073bbbe2d74cb4054c0a52dffe2bf8a7ece8fff16cae865e2b872b5fbb5`.
 
 `release-unified.py` targets only `toys-agency-platform-staging`, verifies its
 staging D1 binding, retains assets and secrets, and guards deployment against a
@@ -98,12 +101,12 @@ python scripts/release-unified.py deploy NEW_VERSION EXPECTED_CURRENT_VERSION
 Rollback this release:
 
 ```sh
-python scripts/release-unified.py deploy ab0ef953-d219-485a-b3f3-263b268617be 122505fc-09ff-4826-944f-802b3db58631
+python scripts/release-unified.py deploy ab0ef953-d219-485a-b3f3-263b268617be bcb09d30-a5ac-4741-afa1-7b3144915e5c
 ```
 
 ## Verified limits and remaining work
 
-- 14 model/API/asset-fidelity tests and 5 Chromium scenarios passed: weekly
+- 14 model/API/asset-fidelity tests and 6 Chromium scenarios passed: weekly
   save/reload/publish/comments/history, project materials, all three original
   board layouts, mobile overflow, campaign refresh/drilldown/error retention,
   missing conversion values and currency mismatch protection.
