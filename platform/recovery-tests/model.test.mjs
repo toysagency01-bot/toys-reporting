@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {advertisingModel,aggregate,campaignGroups,businessMetrics,validRange} from '../unified/model.js';
+const range={from:'2026-10-01',to:'2026-10-07'};
+const observed=value=>({state:'observed',value:String(value)});
+const row=(currency,spend)=>({date:'2026-10-01',campaign:{label:'Original'},metrics:[{metricCode:'ads.spend',currency,...observed(spend)},{metricCode:'ads.clicks',...observed(5)},{metricCode:'ads.impressions',...observed(100)},{metricCode:'ads.reported_conversions',...observed(4)}]});
+const snapshot={facts:{rows:[row('USD',10)]}};
+const provider=(currency='USD')=>({provider:'meta_ads',integrationId:'a',source:'live',requestedRange:range,hierarchy:{currency,children:[{providerId:'campaign',name:'Live',dailyMetrics:[{date:'2026-10-01',metrics:{spend:observed(25),clicks:observed(9),impressions:observed(120),conversions:{value:null,state:'unsupported'}}}],children:[{providerId:'adset',dailyMetrics:[{date:'2026-10-01',metrics:{spend:observed(25)}}]}]}]}});
+test('live replaces snapshot in every aggregation; nested levels are not double-counted',()=>{const rows=advertisingModel(snapshot,{providers:[provider()]},range);assert.equal(rows.length,1);assert.equal(aggregate(rows).money[0].spend,25);assert.equal(aggregate(rows).conversions,null);assert.equal(campaignGroups(rows)[0].name,'Live');});
+test('a response for an old period cannot replace the selected period',()=>{const p=provider();p.requestedRange={from:'2026-09-01',to:'2026-09-07'};assert.equal(aggregate(advertisingModel(snapshot,{providers:[p]},range)).money[0].spend,10);});
+test('partial multi-account refresh preserves the entire published provider',()=>{assert.equal(aggregate(advertisingModel(snapshot,{providers:[provider(),{provider:'meta_ads',hierarchy:null}]},range)).money[0].spend,10);});
+test('currencies remain separate and campaign identifiers across accounts do not collide',()=>{const p=provider(),q=provider('EUR');q.integrationId='b';const rows=advertisingModel(snapshot,{providers:[p,q]},range);assert.equal(campaignGroups(rows).length,2);assert.deepEqual(aggregate(rows).money,[{currency:'USD',spend:25},{currency:'EUR',spend:25}]);});
+test('successful empty live results replace old campaigns rather than showing stale activity',()=>{const p=provider();p.hierarchy.children=[];assert.deepEqual(advertisingModel(snapshot,{providers:[p]},range),[]);});
+test('project sales are independent of ad attribution and account/campaign grains',()=>{const sales={date:'2026-10-01',metrics:[{metricCode:'instashop.sales_count',...observed(3)}]};assert.deepEqual(businessMetrics({instashop:{sales:{rows:[sales]},ads:snapshot.facts}},range),[{code:'instashop.sales_count',currency:'',value:3}]);});
+test('calendar dates are validated rather than silently normalizing invalid days',()=>{assert.equal(validRange('2026-02-30','2026-03-01'),false);assert.equal(validRange('2026-10-07','2026-10-01'),false);assert.equal(validRange(range.from,range.to),true);});
+
+test('Profkit converted UAH spend is used once, never added to its original USD value',()=>{const ads={rows:[{date:range.from,campaign:{label:'Profkit'},metrics:[{metricCode:'ads.spend_uah',currency:'UAH',...observed(410)},{metricCode:'ads.raw_spend_usd',currency:'USD',...observed(10)}]}]};assert.deepEqual(aggregate(advertisingModel({instashop:{ads}},null,range)).money,[{currency:'UAH',spend:410}]);});

@@ -15,10 +15,15 @@
     "db:migrate:remote": "wrangler d1 migrations apply TOYS_DB --remote",
     "deploy": "wrangler deploy",
     "pages:build": "node scripts/build-pages.mjs",
-    "pages:deploy": "npm run pages:build && wrangler pages deploy dist --project-name toys-agency-dashboard --branch main --force"
+    "pages:deploy": "npm run pages:build && wrangler pages deploy dist --project-name toys-agency-dashboard --branch main --force",
+    "unified:build": "node scripts/build-unified.mjs",
+    "unified:test": "node --test recovery-tests/*.test.mjs",
+    "unified:browser": "playwright test --config recovery-tests/playwright.config.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "chart.js": "4.4.1",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.0.0",
+    "esbuild": "0.28.2"
   }
 }

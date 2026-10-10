@@ -1,0 +1,22 @@
+import {test,expect} from '@playwright/test';
+const portal='/api/v2/projects/housevip-cxp7/content-project';
+test('dashboard and durable weekly workflow',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(portal);await expect(page.locator('#kpis')).not.toContainText('Загружаем');
+ await expect(page.locator('#dateFrom')).toHaveCount(1);
+ await page.screenshot({path:'dist/desktop.png',fullPage:true});
+ await page.locator('[data-view="project"]').click();await expect(page.locator('#projectContent')).toContainText('Подготовить новые креативы');
+ await page.locator('[data-view="weekly"]').click();await expect(page.locator('#weeklyForm')).toBeVisible();
+ await page.locator('[name="summary"]').fill('Проверка сохранения из браузера');
+ await page.getByRole('button',{name:'Сохранить черновик',exact:true}).click();
+ await expect(page.locator('#weeklyMessage')).toContainText('Черновик сохранён');
+ await page.reload();await expect(page.locator('[name="summary"]')).toHaveValue('Проверка сохранения из браузера');
+ await page.getByRole('button',{name:'Сохранить и опубликовать',exact:true}).click();
+ await expect(page.locator('#weeklyMessage')).toContainText('Отчёт опубликован');
+ await page.locator('#commentForm textarea').fill('Комментарий из браузера');await page.getByRole('button',{name:'Добавить комментарий',exact:true}).click();
+ await expect(page.locator('#commentsList')).toContainText('Комментарий из браузера');
+ await page.getByRole('button',{name:'История',exact:true}).click();await expect(page.locator('#historyContent')).toContainText('Версия');await page.getByRole('button',{name:'Закрыть',exact:true}).click();
+ await page.locator('[data-view="creatives"]').click();await expect(page.locator('#creativeContent')).toContainText('ожидает подключения хранилища');
+ expect(errors).toEqual([]);
+});
+test('mobile navigation stays within viewport',async({page})=>{await page.setViewportSize({width:390,height:844});await page.goto(portal);await expect(page.locator('#kpis')).not.toContainText('Загружаем');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'dist/mobile.png',fullPage:true});});
