@@ -1,11 +1,14 @@
-# Unified dashboard release — 2026-10-10
+# Original board restoration — 2026-10-10
 
 The existing staging Worker now serves one project workspace at the existing
 `/api/v2/projects/{slug}/content-project` and `content-editor` routes. Pages exposes
 these routes under `/mvp`. The three supported projects are HOUSEVIP, PROFKIT
 Instashop and Karlovarska Sul. The editor route opens the weekly report directly.
 
-The workspace has one period selector, overview, nested advertising campaigns,
+The workspace preserves each project’s original board structure, navigation,
+logos, SVG icons, cards, charts and theme. The reference is the repository’s
+`karlovarska-sul-k4rm/#overview` board. New controls live within the existing
+sections. It has one period selector, overview, nested advertising campaigns,
 funnel, weekly editor/history/rollback/comments, published report archive,
 project materials, and creative files/status/comments. Missing integrations are
 shown as unavailable. No fabricated client data, conversion mappings or plans
@@ -17,10 +20,33 @@ of advertising attribution. An unsuccessful refresh retains the last usable data
 
 The repository was behind the deployed application. `recovered/staging-entrypoint.js`
 is the exact deployed bundle from Worker version
-`0f6a980d-dcdb-4360-b469-308409fcffd2`. `runtime/backend.js` differs only by removing
-the absent source-map reference and exposing internal functions to the wrapper.
-The new UI and route wrapper live under `unified/`. Existing API handlers remain
-in use. `recovered/schema.sql` is a schema-only fixture, **not a migration**.
+`0f6a980d-dcdb-4360-b469-308409fcffd2`. `runtime/backend.js` removes
+the absent source-map reference, exposes internal functions to the wrapper, and
+projects the canonical commerce provider label from the internal observation key.
+The key itself is never exposed.
+
+`native/` adapts typed platform data to the original board renderers.
+`scripts/build-native.mjs` reads the original `core/`, `housevip-cxp7/` and
+`assets/` files directly and records their SHA256 in `dist/native-provenance.json`.
+Original CSS, navigation/theme scripts and SVG files are copied byte-for-byte.
+Core scripts receive only data/refresh hooks; external Sheets, chart-CDN and FX
+requests use platform adapters or the bundled original Chart.js version.
+The existing weekly and creative workflows are reused from `unified/app.js`.
+The route wrapper lives in `unified/worker.js`; the earlier redesigned shell is
+no longer served. Existing API handlers remain in use.
+
+Golos Text is bundled from Fontsource 5.3.0, with the original SIL OFL license,
+Cyrillic/Latin subsets and variable weights 400–900. Fonts load from the platform
+before the original board renders. No Google Fonts dependency remains. Chromium
+CDP checks confirm the actual rendered font on all three boards, not just the CSS
+family declaration. A scoped typography layer normalizes control fonts, heading
+line-height and form spacing. Exact typographic parity with toys-agency.com is
+not claimed: direct access to that reference still receives a proxy 403.
+
+Unknown conversion metrics remain unavailable rather than becoming zero.
+Commerce ratios are hidden when revenue and spend currencies cannot be matched.
+A failed refresh retains the last usable values; fresh data replaces the same
+provider/period atomically, without counting child levels twice. `recovered/schema.sql` is a schema-only fixture, **not a migration**.
 Never apply that fixture to a remote database.
 
 From `platform/`, using Node 24 and pnpm:
@@ -51,10 +77,11 @@ all three projects and returned 10 HOUSEVIP material tabs, 0 PROFKIT tabs, and
 
 ## Release and rollback
 
-Active Worker version: `9cd2a826-e302-46e2-9ab6-964f1a6463f4` (100%).
-Previous version: `0f6a980d-dcdb-4360-b469-308409fcffd2`.
+Active Worker version: `122505fc-09ff-4826-944f-802b3db58631` (100%).
+Previous version: `ab0ef953-d219-485a-b3f3-263b268617be` (original board before font fix).
+Earlier redesigned version: `9cd2a826-e302-46e2-9ab6-964f1a6463f4`.
 Uploaded bundle SHA256:
-`d071be6d6eebee259a2b8eaccfc38a7e601e4bc6bd37d9f042f071c322b4db2d`.
+`4c08d4cdebdf508cb9b6ae165691479c3b5b73c5cf6228ab1cf4870b847d25cc`.
 
 `release-unified.py` targets only `toys-agency-platform-staging`, verifies its
 staging D1 binding, retains assets and secrets, and guards deployment against a
@@ -71,13 +98,15 @@ python scripts/release-unified.py deploy NEW_VERSION EXPECTED_CURRENT_VERSION
 Rollback this release:
 
 ```sh
-python scripts/release-unified.py deploy 0f6a980d-dcdb-4360-b469-308409fcffd2 9cd2a826-e302-46e2-9ab6-964f1a6463f4
+python scripts/release-unified.py deploy ab0ef953-d219-485a-b3f3-263b268617be 122505fc-09ff-4826-944f-802b3db58631
 ```
 
 ## Verified limits and remaining work
 
-- 11 model/API tests and 2 Chromium scenarios passed (desktop weekly save,
-  reload, publish, comments/materials; mobile overflow check).
+- 14 model/API/asset-fidelity tests and 5 Chromium scenarios passed: weekly
+  save/reload/publish/comments/history, project materials, all three original
+  board layouts, mobile overflow, campaign refresh/drilldown/error retention,
+  missing conversion values and currency mismatch protection.
 - The environment still allows only `api.cloudflare.com` plus package hosts.
   Direct site requests receive proxy 403. An authenticated end-to-end test on
   `reports.toys-agency.com` is therefore outstanding. No Access policy was weakened.
@@ -95,5 +124,6 @@ python scripts/release-unified.py deploy 0f6a980d-dcdb-4360-b469-308409fcffd2 9c
   silently claim to refresh Sheets/business data.
 - PROFKIT has no stored project material tabs. The interface displays that state;
   it does not invent strategy or planning documents.
-- Legacy lead/CRM APIs remain outside the authorized public data projection.
-  This release adds no new public access to personal lead records.
+- The original HOUSEVIP lead tab remains visible, but its Sheets-backed personal
+  lead source is not connected to this platform adapter. It reports that state
+  explicitly. This release adds no new public access to personal lead records.

@@ -3112,7 +3112,7 @@ async function generationRecord(env, project, generationId) {
 __name(generationRecord, "generationRecord");
 async function factRows(env, project, generationId) {
   const result = await env.TOYS_DB.prepare(
-    `SELECT o.id, o.local_date AS localDate, o.source_timezone AS sourceTimezone,
+    `SELECT o.id, o.observation_key AS observationKey, o.local_date AS localDate, o.source_timezone AS sourceTimezone,
             o.grain, o.account_ref AS accountRef, o.provider_campaign_id AS providerCampaignId,
             o.legacy_group_ref AS legacyGroupRef, o.legacy_campaign_label AS legacyCampaignLabel,
             o.source_record_ref AS sourceRecordRef, o.source_hash AS sourceHash,
@@ -3129,6 +3129,7 @@ async function factRows(env, project, generationId) {
     if (!grouped.has(value2.id)) {
       grouped.set(value2.id, {
         observationId: value2.id,
+        platform: ({"google ads":"Google Ads","meta ads":"Meta Ads"})[String(value2.observationKey || "").split("\u001f")[1]] || null,
         date: value2.localDate,
         sourceTimezone: value2.sourceTimezone,
         grain: value2.grain,
@@ -3313,6 +3314,7 @@ function publicCommerceDataset(dataset) {
     rows: (dataset.rows || []).map((row) => ({
       date: row.date,
       grain: row.grain,
+      platform: row.platform || null,
       ...row.campaign?.label ? { campaign: { label: row.campaign.label } } : {},
       metrics: (row.metrics || []).map((value2) => ({
         metricCode: value2.metricCode,

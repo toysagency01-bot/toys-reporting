@@ -4,7 +4,7 @@ const worker=await testWorker();const base='/api/v2/projects/housevip-cxp7';
 test('single shell preserves authentication and rejects other project scopes',async()=>{const {env,db}=fixture();try{
   assert.equal((await worker.fetch(request(base+'/content-project',{role:null}),env)).status,401);
   assert.equal((await worker.fetch(request('/api/v2/projects/profkit-instashop-r4vk/content-project'),env)).status,403);
-  const r=await worker.fetch(request(base+'/content-project'),env);assert.equal(r.status,200);const html=await r.text();assert.equal((html.match(/id="dateFrom"/g)||[]).length,1);assert.doesNotMatch(html,/project-workspace\.js|private-tools\.js/);
+  const r=await worker.fetch(request(base+'/content-project'),env);assert.equal(r.status,200);const html=await r.text();assert.match(html,/TOYS_PLATFORM/);assert.doesNotMatch(html,/project-workspace\.js|private-tools\.js/);
 }finally{db.close();}});
 test('draft, durable readback, publish, comments and rollback use the real recovered API',async()=>{const{env,db}=fixture();try{
   const call=async(path,options)=>{const response=await worker.fetch(request(base+path,options),env);const data=await response.json();assert.ok(response.ok,JSON.stringify(data));return data;};
