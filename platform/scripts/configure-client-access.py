@@ -16,7 +16,10 @@ def api(path,method='GET',body=None):
  req=urllib.request.Request(BASE+path,method=method,data=None if body is None else json.dumps(body).encode(),headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Content-Type':'application/json'})
  try:
   with urllib.request.urlopen(req,timeout=45) as r: result=json.load(r)
- except urllib.error.HTTPError as e: raise SystemExit(f'Cloudflare HTTP {e.code}: {e.read().decode()[:1000]}')
+ except urllib.error.HTTPError as e:
+  if e.code==403 and method=='POST' and path=='/access/identity_providers':
+   raise SystemExit('Cloudflare refused OTP provider creation (403). Add One-time PIN in Zero Trust > Integrations > Identity providers, or grant Access: Organizations, Identity Providers, and Groups Write to this API token. Then rerun access. No client policy was applied.')
+  raise SystemExit(f'Cloudflare {method} {path} HTTP {e.code}: {e.read().decode()[:1000]}')
  if not result.get('success'):raise SystemExit(json.dumps(result.get('errors')))
  return result['result']
 def query(sql):return api(f'/d1/database/{DB}/query','POST',{'sql':sql})

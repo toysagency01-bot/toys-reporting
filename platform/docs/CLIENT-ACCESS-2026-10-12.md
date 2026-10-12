@@ -42,11 +42,19 @@ Master eligibility still requires both agency and master email configuration.
 New access writes enforce same-origin JSON, an idempotency key, optimistic version
 checks and an atomic D1 claim covering memberships, audit and replay receipt.
 
-The proposed client Access policy allows an email identity only after OTP, with
-all private authorization retained in D1. The automatic approval reviewer rejected
-applying this broader identity policy without an explicit scope confirmation.
-That confirmation was requested; the broader policy has NOT been applied.
-The existing exact-owner policy remains intact. No bypass policy is introduced.
+The client Access policy allows an email identity only after OTP, with all private
+authorization retained in D1. The owner explicitly approved this scope on October
+12 after the initial automatic approval rejection. The approved rollout was then
+attempted, but Cloudflare returned 403 when creating the OTP identity provider.
+Readback confirmed zero configured identity providers and that the client policy
+has NOT been applied. The existing exact-owner policy remains intact; no bypass
+policy is introduced.
+
+One external step remains: add **One-time PIN** in **Zero Trust → Integrations →
+Identity providers → Add new identity provider**. The connected API token can
+update the application/policies but lacks provider-creation permission
+(`Access: Organizations, Identity Providers, and Groups Write`). Once the provider
+exists, rerun `access` below; it discovers and reuses it without creating another.
 
 ## D1 limit and automatic preparation
 
@@ -67,7 +75,7 @@ Operational commands from `platform/`:
 python scripts/configure-client-access.py schema
 # Adds protected entry destinations; preserves all current identity policies:
 python scripts/configure-client-access.py entry
-# Requires the explicit user approval requested in this chat:
+# Scope explicitly approved by the owner; One-time PIN must first be configured:
 python scripts/configure-client-access.py access
 python scripts/configure-client-access.py verify
 ```
@@ -96,6 +104,6 @@ The common account navigation also updates these published pages:
 - [Karlovarska Sul](https://reports.toys-agency.com/mvp/karlovarska-sul-k4rm/)
 - [PROFKIT](https://reports.toys-agency.com/mvp/profkit-instashop-r4vk/)
 
-If rolling back the Worker after approving the broader Access policy, first remove
+If rolling back the Worker after applying the broader Access policy, first remove
 that client identity policy or restore the backed-up Access policies. The old
 Worker does not read the new D1 client grants. Keep the additive migration data.

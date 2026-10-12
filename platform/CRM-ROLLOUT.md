@@ -108,5 +108,7 @@ Branded entry and master-managed client grants are described in
 [Client access rollout](docs/CLIENT-ACCESS-2026-10-12.md). Migration 0015 is pending:
 D1's daily write allowance was exhausted, so the existing scheduled handler will
 retry after 2026-10-13 00:00 UTC. Client creation remains visibly disabled until
-schema readiness. The broader verified-email Access policy awaits explicit owner
-confirmation; existing owner authentication remains in force.
+schema readiness. The owner approved the broader verified-email Access policy,
+but Cloudflare refused OTP-provider creation with 403. One-time PIN must be added
+in Zero Trust before the approved policy can be applied; existing owner
+authentication remains in force.
