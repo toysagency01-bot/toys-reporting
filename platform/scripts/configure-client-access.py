@@ -11,7 +11,7 @@ APP='f43edd20-b86c-4b16-aa1f-5462da9e7534'
 DB='0539d3d9-844e-470e-af6e-ae256fe4c81f'
 BASE=f'https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}'
 POLICY='TOYS clients - verified email with D1 project scopes'
-SESSION_ROUTES=['reports.toys-agency.com/mvp/api/v2/portal/session*','toys-agency-platform-staging.denys-shpodaris.workers.dev/api/v2/portal/session*']
+SESSION_ROUTES=['reports.toys-agency.com/api/v2/portal/session*','toys-agency-platform-staging.denys-shpodaris.workers.dev/api/v2/portal/session*']
 def api(path,method='GET',body=None):
  req=urllib.request.Request(BASE+path,method=method,data=None if body is None else json.dumps(body).encode(),headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Content-Type':'application/json'})
  try:
@@ -60,7 +60,7 @@ if __name__=='__main__':
   if otp:body['allowed_idps']=list(dict.fromkeys([*a.get('allowed_idps',[]),otp['id']]))
   body['http_only_cookie_attribute']=True
   body['name']='TOYS — Вход в платформу'
-  body['logo_url']='https://reports.toys-agency.com/mvp/api/ui/reference/assets/toys-black.svg'
+  body['logo_url']='https://reports.toys-agency.com/api/ui/reference/assets/toys-black.svg'
   destinations=body['destinations'];uris={d.get('uri') for d in destinations}
   for uri in SESSION_ROUTES:
    if uri not in uris:destinations.append({'type':'public','uri':uri})

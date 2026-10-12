@@ -1,11 +1,10 @@
 # CRM rollout — 2026-10-12
 
 Client CRM is a separate Home / CRM navigation item on each native client board.
-`/mvp/api/v2/projects/{slug}/content-crm` is an authenticated project-scoped view.
+`/api/v2/projects/{slug}/content-crm` is an authenticated project-scoped view.
 An authenticated client can create leads and update status only in their assigned
 project. Public reports contain aggregates, never contacts or conversations.
-The agency view is `/mvp/api/v2/master/view` (and `/mvp/master/` when the Pages
-routing deployment is active). Connection settings require the agency master role.
+The agency view is `/master/`. Connection settings require the agency master role.
 
 The owner requested applying the ready changes to currently published projects
 and deferring Make setup. All three public platform boards are enabled for CRM:
@@ -57,20 +56,21 @@ replay conflict checks, cross-page duplicate detection, exact readback counts an
 all hierarchy metrics are preserved. Old snapshots were not rewritten or deleted.
 The 20-minute reporting schedule remains. No paid plan was enabled.
 
-Worker release: `6445efdc-ad13-43fa-9a45-e0030d73405e`.
-Rollback: `ba9efebe-f9c7-40f4-9582-be7c97099ae8` (before branded entry and client access).
+Worker release: `a9ac5985-bdb8-406e-8a34-f0b3b02577f2`.
+Rollback: `6445efdc-ad13-43fa-9a45-e0030d73405e` (before clean URLs).
 Migrations 0012–0014 are additive and already applied. Encryption key was generated
 once; do not replace it or stored credentials will become unreadable.
 
-Validation: 46 recovery tests (explicit in-process runner), 24 Chromium scenarios, 3 mocked discovery tests,
+Validation: 48 recovery tests (explicit in-process runner), 24 Chromium scenarios, 3 mocked discovery tests,
 and a syntax/guard check against the existing Cloud Run source patch. Browser
 checks were local; live site domains are not allowed in this execution environment.
 
-Pages publication was attempted three times and failed with Cloudflare's
-`Failed to publish your Function. Got error: Unknown internal error occurred.`
-Canonical Pages deployment remains `96dd2411-b276-4582-b0a7-e977ba453123`.
-Its existing API forwarding already supports the client CRM and master view URL
-above, so use `/mvp/api/v2/master/view` until the short alias deploy succeeds.
+The clean-URL release successfully published Pages deployment
+`74cb1447-6ab6-4d65-b61b-1b82c6062b10`; it is the production canonical deployment.
+The earlier three failed publications did not become canonical. Client boards,
+`/login` and `/master/` now use root paths without `/mvp`. The existing protected
+Access paths were mirrored onto the new URLs without changing identity policies.
+See [Clean URLs](docs/CLEAN-URLS-2026-10-12.md) for verification and rollback details.
 Worker deployment was independently read back from the Cloudflare API.
 Existing 20-minute cron and new 2-minute CRM retry
 cron were also read back. No test contacts were written to production.

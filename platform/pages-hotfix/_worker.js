@@ -4,18 +4,18 @@ const projects=new Set(['housevip-cxp7','profkit-instashop-r4vk','karlovarska-su
 export default {
  async fetch(request,env){
   const incoming=new URL(request.url);const target=new URL(request.url);const headers=new Headers(request.headers);headers.set('x-toys-public-host',incoming.host);
-  const short=incoming.pathname.match(/^\/mvp\/([^/]+)(?:\/(?:index\.html)?)?$/);
+  const short=incoming.pathname.match(/^\/(?:mvp\/)?([^/]+)(?:\/(?:index\.html)?)?$/);
   let service;
-  if(['/master','/master/'].includes(incoming.pathname))return Response.redirect(incoming.origin+'/mvp/master/',302);
-  if(['/mvp/master','/mvp/master/'].includes(incoming.pathname)){target.pathname='/api/v2/master/view';service=env.STAGING_MVP;}
+  if(['/login','/login/'].includes(incoming.pathname)){target.pathname='/api/v2/portal/login';service=env.STAGING_MVP;}
+  else if(['/master','/master/','/mvp/master','/mvp/master/'].includes(incoming.pathname)){target.pathname='/api/v2/master/view';service=env.STAGING_MVP;}
   else
   if(short&&projects.has(short[1])){target.pathname=`/api/v2/projects/${short[1]}/board`;service=env.STAGING_MVP;}
   else if(incoming.pathname.startsWith('/mvp/api/')){target.pathname=incoming.pathname.slice(4);service=env.STAGING_MVP;}
+  else if(/^\/api\/(?:v2|ui|crm)(?:\/|$)/.test(incoming.pathname))service=env.STAGING_MVP;
   else if(incoming.pathname.startsWith('/api/'))service=env.PRODUCTION_API;
   if(service){
    const response=await service.fetch(new Request(target,new Request(request,{headers,redirect:'manual'})));
    const out=new Response(response.body,response);out.headers.set('x-toys-pages-route','native-board-v1');
-   const location=out.headers.get('location');if(location?.startsWith('/api/')&&incoming.pathname.startsWith('/mvp/'))out.headers.set('location','/mvp'+location);
    return out;
   }
   if(!['GET','HEAD'].includes(request.method))return Response.json({ok:false,error:'credentialed_fallback_not_forwarded'},{status:502});

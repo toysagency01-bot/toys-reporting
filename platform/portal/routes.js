@@ -5,7 +5,7 @@ import {portalPage} from './page.js';
 import {reply,readJSON,hash} from '../crm/service.js';
 import {accessSchemaReady,SETUP_RETRY_AT} from './schema.js';
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
-const loginPath='/api/v2/portal/login';
+const loginPath='/login';
 export function loginRedirect(request,auth){
  // Only HTML navigation redirects. APIs retain their explicit 401/403 responses.
  return new Response(null,{status:302,headers:{location:auth?.status===403?'/api/v2/portal/session?choose=1':loginPath,'cache-control':'no-store'}});
@@ -13,9 +13,9 @@ export function loginRedirect(request,auth){
 export async function portalRoute(request,env,assets){
  const url=new URL(request.url),path=url.pathname;
  if(!path.startsWith('/api/v2/portal/')&&!['/login','/login/'].includes(path))return null;
- const prefix=url.hostname==='reports.toys-agency.com'||request.headers.get('x-toys-public-host')?'/mvp':'';
+ const prefix='';
  if(request.method!=='GET')return reply({ok:false,error:'method_not_allowed'},405);
- if(path===loginPath||path==='/login'||path==='/login/')return portalPage({assets,prefix});
+ if(path==='/api/v2/portal/login'||path===loginPath||path==='/login/')return portalPage({assets,prefix});
  if(path==='/api/v2/portal/logout')return new Response(null,{status:302,headers:{location:'/cdn-cgi/access/logout','cache-control':'no-store','clear-site-data':'"cache", "storage"'}});
  if(path!=='/api/v2/portal/session')return reply({ok:false,error:'not_found'},404);
  let identity=await accessIdentity(request,env);
@@ -24,7 +24,7 @@ export async function portalRoute(request,env,assets){
  const master=identity.localMaster||masterIdentity(identity.email,env),staff=staffIdentity(identity.email,env);
  const projects=master||staff?(await env.TOYS_DB.prepare(`SELECT slug,name FROM projects WHERE organization_id='org_toys_agency' AND status IN ('active','draft') ORDER BY name`).all()).results.filter(p=>platformSlugs.includes(p.slug)&&(master||String(env.MVP_VIEW_PROJECTS+','+env.MVP_EDITOR_PROJECTS).split(',').includes(p.slug))):await clientProjects(env,identity.email);
  if(!master&&!staff&&projects.length)await env.TOYS_DB.prepare(`UPDATE users SET status='active',last_login_at=? WHERE email=? AND status IN ('invited','active') AND (status='invited' OR last_login_at IS NULL OR last_login_at<?)`).bind(new Date().toISOString(),identity.email,new Date(Date.now()-86400000).toISOString()).run();
- if(!url.searchParams.has('choose')&&(master||projects.length===1))return new Response(null,{status:302,headers:{location:master?'/api/v2/master/view':'/api/v2/projects/'+encodeURIComponent(projects[0].slug)+'/content-project','cache-control':'no-store'}});
+ if(!url.searchParams.has('choose')&&(master||projects.length===1))return new Response(null,{status:302,headers:{location:master?'/master/':'/'+encodeURIComponent(projects[0].slug)+'/','cache-control':'no-store'}});
  return portalPage({assets,prefix,projects,email:identity.email,master});
 }
 export async function accessManagement(request,env){
@@ -32,12 +32,12 @@ export async function accessManagement(request,env){
  const auth=await masterAuth(request,env);if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  try{
  const db=env.TOYS_DB;
- if(!await accessSchemaReady(env))return request.method==='GET'?reply({ok:true,ready:false,retryAt:SETUP_RETRY_AT,users:[],projects:[],loginUrl:'https://reports.toys-agency.com/mvp'+loginPath}):reply({ok:false,error:'client_access_preparing',retryAt:SETUP_RETRY_AT},503);
+ if(!await accessSchemaReady(env))return request.method==='GET'?reply({ok:true,ready:false,retryAt:SETUP_RETRY_AT,users:[],projects:[],loginUrl:'https://reports.toys-agency.com'+loginPath}):reply({ok:false,error:'client_access_preparing',retryAt:SETUP_RETRY_AT},503);
  if(request.method==='GET'){
   const users=(await db.prepare(`SELECT u.id,u.email,u.display_name AS name,u.status,u.access_version AS version,u.created_at AS createdAt,u.last_login_at AS lastLoginAt FROM users u WHERE EXISTS(SELECT 1 FROM project_memberships m JOIN projects p ON p.id=m.project_id WHERE m.user_id=u.id AND p.organization_id='org_toys_agency' AND m.role IN ('client_owner','client_manager')) ORDER BY u.created_at DESC`).all()).results;
   const memberships=(await db.prepare(`SELECT m.user_id AS userId,p.slug,p.name FROM project_memberships m JOIN projects p ON p.id=m.project_id WHERE p.organization_id='org_toys_agency' AND m.role IN ('client_owner','client_manager')`).all()).results;
   const projects=(await db.prepare(`SELECT slug,name FROM projects WHERE organization_id='org_toys_agency' AND status IN ('active','draft') ORDER BY name`).all()).results.filter(p=>platformSlugs.includes(p.slug));
-  return reply({ok:true,ready:true,users:users.map(u=>({...u,projects:memberships.filter(m=>m.userId===u.id).map(({slug,name})=>({slug,name}))})),projects,loginUrl:'https://reports.toys-agency.com/mvp'+loginPath});
+  return reply({ok:true,ready:true,users:users.map(u=>({...u,projects:memberships.filter(m=>m.userId===u.id).map(({slug,name})=>({slug,name}))})),projects,loginUrl:'https://reports.toys-agency.com'+loginPath});
  }
  if(request.method!=='POST')return reply({ok:false,error:'method_not_allowed'},405);
  const origin=request.headers.get('origin');if(!origin||![url.origin,'https://reports.toys-agency.com'].includes(origin))fail('origin_forbidden',403);

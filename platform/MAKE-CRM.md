@@ -1,6 +1,6 @@
 # Make → TOYS CRM
 
-The agency settings are at https://reports.toys-agency.com/mvp/api/v2/master/view.
+The agency settings are at https://reports.toys-agency.com/master/.
 Select a project, open CRM → Источники и CAPI, bind its Facebook page and create
 the project intake key. Only the agency master can view connection settings.
 Creating another key replaces the old key for both website and Meta API intake.
@@ -15,7 +15,7 @@ Meta callback, verify token or App Secret.
 
 HTTP settings:
 
-- URL: `https://reports.toys-agency.com/mvp/api/crm/ingest/PROJECT_SLUG/meta-lead`
+- URL: `https://reports.toys-agency.com/api/crm/ingest/PROJECT_SLUG/meta-lead`
 - Method: POST; body type: JSON; use a data structure for escaping mapped values.
 - HTTP v4 Credentials: API key in header `Authorization`, value `Bearer PROJECT_KEY`.
   Store the real key only in Credentials, never in the scenario URL or browser code.

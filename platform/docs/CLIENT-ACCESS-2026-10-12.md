@@ -1,7 +1,7 @@
 # Client entry and accounts — 12 October 2026
 
 The branded entry page is
-[TOYS login](https://reports.toys-agency.com/mvp/api/v2/portal/login).
+[TOYS login](https://reports.toys-agency.com/login).
 It uses the existing TOYS logo, bundled Golos Text and turquoise accent. The owner
 requested removing the English platform label, eyebrow, three feature columns and
 first-time-user explanation; headings and body copy were enlarged accordingly.
@@ -10,7 +10,7 @@ font or image requests. Email verification is a separate Cloudflare Access step.
 
 ## Account workflow
 
-1. Open [Master → Access](https://reports.toys-agency.com/mvp/api/v2/master/view#access).
+1. Open [Master → Access](https://reports.toys-agency.com/master/#access).
 2. Add a client's name and email; select one or more available platform projects.
 3. Save, copy the invitation and send it through the team's usual channel. The
    application does not claim to send an invitation email automatically.
@@ -93,16 +93,19 @@ creation, revocation with a retained token, quota-deferred setup, mobile layout,
 native board parity and the full create/copy/disable UI flow. All test identities
 and data remain local. Real OTP email delivery is not verified from this environment.
 
-Worker `6445efdc-ad13-43fa-9a45-e0030d73405e` is active at 100%, with its module
+The original client-entry release was Worker
+`6445efdc-ad13-43fa-9a45-e0030d73405e`, with its module
 downloaded through Cloudflare API and matched byte for byte to the tested bundle:
 `faf6911d16e9db0833322f8d0c2e60da1de4c00e0814ce7de614a232abfcc4d0`.
-Rollback Worker: `ba9efebe-f9c7-40f4-9582-be7c97099ae8`.
+Its rollback Worker was `ba9efebe-f9c7-40f4-9582-be7c97099ae8`.
+The subsequent [clean-URL release](CLEAN-URLS-2026-10-12.md) supersedes it and
+updates the current links below; OTP and D1 preparation are still pending.
 
 The common account navigation also updates these published pages:
 
-- [HOUSEVIP](https://reports.toys-agency.com/mvp/housevip-cxp7/)
-- [Karlovarska Sul](https://reports.toys-agency.com/mvp/karlovarska-sul-k4rm/)
-- [PROFKIT](https://reports.toys-agency.com/mvp/profkit-instashop-r4vk/)
+- [HOUSEVIP](https://reports.toys-agency.com/housevip-cxp7/)
+- [Karlovarska Sul](https://reports.toys-agency.com/karlovarska-sul-k4rm/)
+- [PROFKIT](https://reports.toys-agency.com/profkit-instashop-r4vk/)
 
 If rolling back the Worker after applying the broader Access policy, first remove
 that client identity policy or restore the backed-up Access policies. The old

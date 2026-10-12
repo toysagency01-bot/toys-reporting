@@ -1,7 +1,7 @@
 import {escapeHtml as h, dateShift, validRange, advertisingModel, aggregate, campaignGroups, nodeTotals, businessMetrics, total} from './model.js';
 
 const $ = id => document.getElementById(id);
-const prefix = location.pathname.startsWith('/mvp/') ? '/mvp' : '';
+const prefix = '';
 const slug = window.TOYS_UNIFIED_PROJECT || location.pathname.match(/projects\/([^/]+)/)?.[1] || location.pathname.split('/').filter(Boolean).filter(s => s !== 'mvp')[0];
 const api = `${prefix}/api/v2/projects/${slug}`;
 const privateMode = window.TOYS_MVP_PROJECT_PORTAL === true;
