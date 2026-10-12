@@ -32,7 +32,7 @@ test('dashboard and durable weekly workflow',async({page})=>{
  await page.locator('#commentForm textarea').fill('Комментарий из браузера');await page.getByRole('button',{name:'Добавить комментарий',exact:true}).click();
  await expect(page.locator('#commentsList')).toContainText('Комментарий из браузера');
  await page.getByRole('button',{name:'История',exact:true}).click();await expect(page.locator('#historyContent')).toContainText('Версия');await page.getByRole('button',{name:'Закрыть',exact:true}).click();
- await page.locator('[data-ux-view="project"]').click();await page.locator('[data-platform-creatives]').click();await expect(page.locator('#creativeContent')).toContainText('ожидает подключения хранилища');
+ await page.locator('[data-ux-view="project"]').click();await page.locator('#uxProjectChannels [data-legacy-view="meta"],#uxProjectChannels [data-channel="meta"]').first().click();await expect(page.locator('#creativeContent')).toContainText('ожидает подключения хранилища');
  expect(errors).toEqual([]);
 });
 test('mobile navigation stays within viewport',async({page})=>{await page.setViewportSize({width:390,height:844});await page.goto(portal);await expect(page.locator('#mainCards')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'dist/mobile.png',fullPage:true,animations:'disabled'});});
@@ -102,4 +102,23 @@ test('dashboard shell is visible while data is pending, without an entry loading
  await page.goto('/mvp/housevip-cxp7/#overview',{waitUntil:'domcontentloaded'});
  await expect(page.locator('header')).toBeVisible();await expect(page.locator('#uxNav')).toBeVisible();await expect(page.locator('#uxOverview')).toBeVisible();await expect(page.locator('#mainCards')).toBeVisible();await expect(page.getByText('Загружаю данные…',{exact:true})).not.toBeVisible();
  await expect(page.locator('body')).toHaveAttribute('data-platform-loading','true');release();await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.locator('#kClicks')).toHaveText('25');
+});
+
+test('Today in the public board loads current-day advertising instead of stopping at the snapshot',async({page})=>{
+ await page.setExtraHTTPHeaders({'x-test-public':'true'});
+ await page.route('**/ads-summary?*',route=>{const u=new URL(route.request().url()),range={from:u.searchParams.get('from'),to:u.searchParams.get('to')};const m=v=>({value:String(v),state:'observed'});return route.fulfill({json:{ok:true,providers:[{provider:'meta_ads',freshness:'fresh',requestedRange:range,hierarchy:{currency:'IDR',children:[{providerId:'today',name:'Сегодня',dailyMetrics:[{date:range.from,metrics:{impressions:m(200),clicks:m(17),spend:m(900),conversions:m(3)}}]}]}}]}});});
+ await page.goto('/mvp/housevip-cxp7/#overview');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.getByRole('button',{name:'Сегодня',exact:true}).click();await expect(page.locator('#kClicks')).toHaveText('17');await expect(page.locator('#content')).toBeVisible();await expect(page.locator('#emptyState')).not.toBeVisible();
+});
+test('creative approval block is inside Project Meta and absent from other project channels',async({page})=>{
+ await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('[data-ux-view="project"]').click();
+ await page.locator('#uxProjectChannels [data-legacy-view="meta"],#uxProjectChannels [data-channel="meta"]').first().click();await expect(page.locator('#platformCreatives')).toBeVisible();await expect(page.locator('[data-platform-creatives]')).toHaveCount(0);
+ await page.locator('#uxProjectChannels [data-legacy-view="smm"],#uxProjectChannels [data-channel="smm"]').first().click();await expect(page.locator('#platformCreatives')).not.toBeVisible();
+});
+test('signed-in client sees only review actions and sends the displayed version with a decision',async({page})=>{
+ let decision=null,state='in_review';const id='synthetic-creative';
+ await page.route('**/content-project/creatives',r=>r.fulfill({json:{ok:true,access:{role:'viewer'},storage:{available:true},creatives:[{id,fileName:'Креатив Meta',kind:'image',uploadState:'ready',status:state,statusVersion:2}]}}));
+ await page.route('**/content-project/creatives/'+id+'/preview',r=>r.fulfill({status:204}));
+ await page.route('**/content-project/creatives/'+id,r=>{decision=r.request().postDataJSON();state=decision.status;return r.fulfill({json:{ok:true}});});
+ await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('[data-ux-view="project"]').click();await page.locator('#uxProjectChannels [data-legacy-view="meta"],#uxProjectChannels [data-channel="meta"]').first().click();
+ await expect(page.locator('#uploadFile')).toHaveCount(0);await expect(page.locator('[data-status="archived"]')).toHaveCount(0);await page.locator('.review-reason').fill('Заменить заголовок');await page.locator('[data-status="rejected"]').click();await expect.poll(()=>decision?.status).toBe('rejected');expect(decision.expectedVersion).toBe(2);expect(decision.reason).toBe('Заменить заголовок');await expect(page.locator('.creative-card .badge')).toHaveText('Нужны изменения');
 });

@@ -211,3 +211,42 @@ Bundle SHA256: `1b790e44d70b7bf825525647cb97d3f2edaa929540e7b190aeb761dd6b92e9f8
 26 API/model tests and 10 Chromium scenarios passed. Existing Meta cache entries
 were expired while retaining their last-good payload, so the next board read
 requests metadata again instead of reusing the preview-less cache.
+
+## Today and Meta creative approvals
+
+The public board previously skipped on-demand statistics entirely. It now reads
+`/ads-summary` under the existing project dashboard scope; only campaign summary
+fields are returned, not private ad-level hierarchy. Period changes and the
+20-minute refresh update public cards too. Supported Meta business events refresh
+commerce and advertising together for the same period, avoiding stale income
+paired with new spend. Google still depends on its pending Cloud Run delivery;
+Profkit still requires a confirmed daily USD/UAH rate for its UAH accounting.
+
+The creative workflow is embedded only under Project → Meta, without a separate
+peer channel button. Profkit receives that project section too. Public visitors
+see the cabinet login entry; authenticated editors retain upload/submission
+controls, and authenticated viewers can approve/reject ready submitted assets.
+Viewer decisions require the displayed status version; rejection needs a reason.
+The agency sees the latest review reason. Draft media and comments are not
+accessible to client viewers by guessing an asset ID. Existing audit and
+idempotency handling is retained.
+
+Cloudflare Access supports project-specific client allowlists via optional
+`MVP_CLIENT_PROJECTS` JSON: keys are verified login emails, values are arrays of
+project slugs. These users receive viewer rights only; owner/editor configuration
+is unchanged. No client identities were added in this release. The user chose
+cabinet authentication, so no share-token endpoint or schema migration is shipped.
+
+R2 API returned 403 with the current credential. The user explicitly deferred R2;
+no bucket, binding or storage quota was provisioned and upload remains unavailable.
+Validation: 28 API/model checks and 13 Chromium scenarios, covering public Today,
+Meta-only placement, client buttons, version conflicts, draft isolation and review
+reason persistence. Live browser verification remains constrained by environment
+network policy.
+
+Published Worker: `e7236f3a-9cc4-4f6b-aa43-a2e395227c30` (100%, API verified).
+Rollback: `3daa115b-737f-4d9a-a2a7-7e015aca717e`.
+Bundle SHA256: `eb49427c99e12b9c572cc41aa6e672100746af8c1de852c61ba2443933925812`;
+the downloaded active module matches the local build. Eight Meta cache rows were
+expired while retaining their last-good payload to refresh the added commerce
+fields on the next read. No Pages deployment or database migration was needed.

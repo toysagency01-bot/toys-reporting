@@ -1441,7 +1441,8 @@ async function findCreative(env, project, creativeId) {
             sha256, width, height, duration_ms AS durationMs, storage_provider AS storageProvider,
             storage_key AS storageKey, upload_state AS uploadState, status,
             status_version AS statusVersion, created_by AS createdBy,
-            created_at AS createdAt, updated_at AS updatedAt
+            created_at AS createdAt, updated_at AS updatedAt,
+            (SELECT reason FROM creative_status_events e WHERE e.creative_asset_id=creative_assets.id AND e.organization_id=creative_assets.organization_id AND e.project_id=creative_assets.project_id ORDER BY status_version DESC LIMIT 1) AS reviewReason
        FROM creative_assets
       WHERE organization_id = ? AND project_id = ? AND id = ?`
   ).bind(project.organizationId, project.id, creativeId).first();
@@ -1539,13 +1540,14 @@ async function listCreativeAssets(request, env, auth, project) {
     `SELECT id, kind, file_name AS fileName, media_type AS mediaType, byte_size AS byteSize,
             sha256, width, height, duration_ms AS durationMs, upload_state AS uploadState,
             status, status_version AS statusVersion, created_by AS createdBy,
-            created_at AS createdAt, updated_at AS updatedAt
+            created_at AS createdAt, updated_at AS updatedAt,
+            (SELECT reason FROM creative_status_events e WHERE e.creative_asset_id=creative_assets.id AND e.organization_id=creative_assets.organization_id AND e.project_id=creative_assets.project_id ORDER BY status_version DESC LIMIT 1) AS reviewReason
        FROM creative_assets
       WHERE organization_id = ? AND project_id = ?
         AND (? IS NULL OR status = ?) AND (? IS NULL OR kind = ?)
       ORDER BY created_at DESC, id DESC LIMIT ?`
   ).bind(project.organizationId, project.id, status, status, kind, kind, limit).all();
-  return response2({ ok: true, creatives: (rows.results || []).map(creativeModel) });
+  return response2({ ok: true, access:{role:auth.role}, creatives: (rows.results || []).filter(c=>auth.role==='editor'||(c.uploadState==='ready'&&['in_review','approved','rejected'].includes(c.status))).map(c=>({...creativeModel(c),reviewReason:c.reviewReason||null})) });
 }
 __name(listCreativeAssets, "listCreativeAssets");
 async function getCreativePreview(request, env, auth, project, creativeId) {
@@ -1553,6 +1555,7 @@ async function getCreativePreview(request, env, auth, project, creativeId) {
   if (!context.ok) return response2({ ok: false, error: context.error }, context.status);
   const creative2 = await findCreative(env, project, creativeId);
   if (!creative2) return response2({ ok: false, error: "creative_not_found" }, 404);
+  if(auth.role!=='editor'&&!['in_review','approved','rejected'].includes(creative2.status))return response2({ok:false,error:'creative_not_found'},404);
   if (creative2.uploadState !== "ready" || !creative2.storageKey) {
     return response2({
       ok: false,
@@ -1678,7 +1681,7 @@ async function uploadCreativeAsset(request, env, auth, project, creativeId) {
 }
 __name(uploadCreativeAsset, "uploadCreativeAsset");
 async function updateCreativeStatus(request, env, auth, project, creativeId) {
-  const context = scopedContext(auth, project, null, "editor");
+  const context = scopedContext(auth, project, null, "viewer");
   if (!context.ok) return response2({ ok: false, error: context.error }, context.status);
   const body = await parseBody2(request);
   if (!body) return response2({ ok: false, error: "invalid_json" }, 400);
@@ -1686,7 +1689,10 @@ async function updateCreativeStatus(request, env, auth, project, creativeId) {
   if (!key) return response2({ ok: false, error: "idempotency_key_required" }, 400);
   const toStatus = String(body.status || "");
   const expectedStatus = String(body.expectedStatus || "");
+  if(auth.role!=='editor'&&(expectedStatus!=='in_review'||!['approved','rejected'].includes(toStatus)))return response2({ok:false,error:'reviewer_transition_forbidden'},403);
+  if(auth.role!=='editor'&&(!Number.isInteger(body.expectedVersion)||body.expectedVersion<1))return response2({ok:false,error:'expected_version_required'},400);
   const reason = body.reason == null ? null : String(body.reason).trim();
+  if(auth.role!=='editor'&&toStatus==='rejected'&&!reason)return response2({ok:false,error:'revision_reason_required'},400);
   if (!TRANSITIONS.has(toStatus) || !TRANSITIONS.has(expectedStatus)) {
     return response2({ ok: false, error: "invalid_status" }, 400);
   }
@@ -1700,7 +1706,8 @@ async function updateCreativeStatus(request, env, auth, project, creativeId) {
   if (stored) return response2(stored.response);
   const creative2 = await findCreative(env, project, creativeId);
   if (!creative2) return response2({ ok: false, error: "creative_not_found" }, 404);
-  if (creative2.status !== expectedStatus) {
+  if(auth.role!=='editor'&&creative2.uploadState!=='ready')return response2({ok:false,error:'creative_not_ready'},409);
+  if (creative2.status !== expectedStatus || (body.expectedVersion!=null&&Number(creative2.statusVersion)!==body.expectedVersion)) {
     return response2({ ok: false, error: "creative_status_changed", currentStatus: creative2.status }, 409);
   }
   if (!TRANSITIONS.get(expectedStatus).has(toStatus)) {
@@ -2818,7 +2825,7 @@ async function authorizeAccess(request, env, projectSlug, requiredRole) {
   const issuer = String(env.CF_ACCESS_ISSUER || "").replace(/\/$/, "");
   const allowedEmails = new Set([...projectSet(env.MVP_ALLOWED_EMAILS)].map((item) => item.toLowerCase()));
   const token = String(request.headers.get("cf-access-jwt-assertion") || "");
-  if (!audience || !issuer || !allowedEmails.size) {
+  if (!audience || !issuer || (!allowedEmails.size&&!Object.keys(safeJson(env.MVP_CLIENT_PROJECTS)).length)) {
     return { ok: false, status: 403, error: "access_auth_not_configured" };
   }
   if (!token) return { ok: false, status: 401, error: "access_authentication_required" };
@@ -2843,12 +2850,13 @@ async function authorizeAccess(request, env, projectSlug, requiredRole) {
     return { ok: false, status: 401, error: "invalid_access_token" };
   }
   const email = String(payload.email || "").trim().toLowerCase();
-  if (!email || !allowedEmails.has(email)) {
+  const clientProjects=safeJson(env.MVP_CLIENT_PROJECTS);const clientAllowed=Array.isArray(clientProjects[email])&&clientProjects[email].includes(projectSlug);
+  if (!email || (!allowedEmails.has(email)&&!clientAllowed)) {
     return { ok: false, status: 403, error: "owner_email_forbidden" };
   }
   const editorScopes = projectSet(env.MVP_EDITOR_PROJECTS);
   const viewerScopes = projectSet(env.MVP_VIEW_PROJECTS);
-  const role = editorScopes.has(projectSlug) ? "editor" : viewerScopes.has(projectSlug) ? "viewer" : null;
+  const role = allowedEmails.has(email)?(editorScopes.has(projectSlug)?"editor":viewerScopes.has(projectSlug)?"viewer":null):(clientAllowed?"viewer":null);
   if (!role) return { ok: false, status: 403, error: "project_scope_forbidden" };
   if (requiredRole === "editor" && role !== "editor") {
     return { ok: false, status: 403, error: "editor_role_required" };
@@ -3057,9 +3065,10 @@ async function creativeCollection(request, env, slug2) {
 }
 __name(creativeCollection, "creativeCollection");
 async function creativeResource(request, env, slug2, creativeId, action) {
-  const editorAction = request.method === "PATCH" || request.method === "PUT";
+  const editorAction = request.method === "PUT";
   const scope = await protectedProject(request, env, slug2, editorAction ? "editor" : "viewer");
   if (scope.response) return scope.response;
+  if(scope.auth.role!=='editor'){const asset=await findCreative(env,scope.project,creativeId);if(!asset||asset.uploadState!=='ready'||!['in_review','approved','rejected'].includes(asset.status))return response3({ok:false,error:'creative_not_found'},404);}
   if (action === "preview") return getCreativePreview(request, env, scope.auth, scope.project, creativeId);
   if (action === "upload") return uploadCreativeAsset(request, env, scope.auth, scope.project, creativeId);
   if (action === "comments") {

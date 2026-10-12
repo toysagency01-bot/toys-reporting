@@ -1,3 +1,4 @@
+import {liveCommerce} from '../native/live-commerce.js';
 import {attachCRMQualification} from '../native/crm-attribution.js';
 import backend, {authorizeMvp, projectRecord, onDemandAdsService} from '../runtime/backend.js';
 import {rankCreatives} from '../native/top-creatives.js';
@@ -15,7 +16,7 @@ const html = (slug,privateMode=true,assetBase=null) => new Response(`<!doctype h
 export default {
   async fetch(request, env, ctx) {
     const url=new URL(request.url);
-    const top=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/top-creatives$/);
+    const top=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/(top-creatives|ads-summary)$/);
     if(top && request.method==='GET'){
       const auth=await authorizeMvp(request,env,top[1],'viewer','dashboard');
       if(!auth.ok)return Response.json({ok:false,error:auth.error},{status:auth.status});
@@ -24,6 +25,7 @@ export default {
       const range={from:url.searchParams.get('from'),to:url.searchParams.get('to')};
       try{
         let data=await onDemandAdsService(env).getStats({organizationId:project.organizationId,projectSlug:top[1],...range});
+        if(top[2]==='ads-summary')return Response.json({ok:true,requestedRange:range,commerce:liveCommerce(data.providers,range),providers:data.providers.map(p=>({provider:p.provider,freshness:p.freshness,requestedRange:p.requestedRange,hierarchy:p.hierarchy?{currency:p.hierarchy.currency,children:p.hierarchy.children.map(c=>({providerId:c.providerId,name:c.name,dailyMetrics:c.dailyMetrics,children:[]}))}:null}))},{headers:{'cache-control':'no-store'}});
         data=await attachCRMQualification(data,env,project,range);
         // Publish only top-three presentation fields; never the private hierarchy,
         // account identifiers, CRM records, drafts or integration configuration.
@@ -61,7 +63,7 @@ export default {
     const response=await backend.fetch(request,env,ctx);
     if(request.method==='GET' && response.ok && /^\/api\/v2\/projects\/[^/]+\/content-project\/ads\/hierarchy$/.test(url.pathname)) {
       const project=await projectRecord(env,url.pathname.split('/')[4]);const body=await response.json();
-      const range=body.requestedRange || {from:url.searchParams.get('from'),to:url.searchParams.get('to')};
+      const range=body.requestedRange || {from:url.searchParams.get('from'),to:url.searchParams.get('to')};body.commerce=liveCommerce(body.providers,range);
       try{return Response.json(await attachCRMQualification(body,env,project,range),{status:response.status,headers:response.headers});}
       catch{return Response.json({...body,crmAttribution:{status:'unavailable'}},{status:response.status,headers:response.headers});}
     }

@@ -4,6 +4,7 @@ import {sourceTable,weeklyTable} from './data.js';
 import {tools} from '../dist/native-tools.mjs';
 import {advertisingModel,snapshotRows,campaignGroups,nodeTotals,aggregate,escapeHtml as h,validRange,valueOf} from '../unified/model.js';
 const slug=window.TOYS_UNIFIED_PROJECT;
+const entryHash=location.hash;
 const prefix=location.pathname.startsWith('/mvp/')?'/mvp':'';
 const api=`${prefix}/api/v2/projects/${slug}`;
 // Use the same authenticated, forwarded route as the document. The Pages
@@ -62,13 +63,14 @@ function shopLiveRows(rows){
  return {date:r.date,platform:'Meta Ads',account:title,accountId:r.integrationId||'',currency:'UAH',campaign:r.name,impressions:r.impressions,clicks:r.clicks,spendUah:spend,metaDirect:r.conversions,spendUsd:usd,fx:usd>0?spend/usd:null};});
 }
 async function refresh(){
- if(!privateMode||refreshing)return;const requested=range();if(!validRange(requested.from,requested.to)||(Date.parse(requested.to)-Date.parse(requested.from))/86400000>=366){notice('Для обновления кабинета выберите период не длиннее года.',true);return;}
+ if(refreshing)return;const requested=range();if(!validRange(requested.from,requested.to)||(Date.parse(requested.to)-Date.parse(requested.from))/86400000>=366){notice('Для обновления кабинета выберите период не длиннее года.',true);return;}
  refreshing=true;const seq=++sequence;notice('Обновляем рекламные кабинеты…');
- try{const result=await json(`${api}/content-project/ads/hierarchy?from=${requested.from}&to=${requested.to}`);if(seq!==sequence||JSON.stringify(range())!==JSON.stringify(requested))return;ads=result;
+ try{const result=await json(`${api}/${privateMode?'content-project/ads/hierarchy':'ads-summary'}?from=${requested.from}&to=${requested.to}`);if(seq!==sequence||JSON.stringify(range())!==JSON.stringify(requested))return;ads=result;
   const names=[...new Set((ads.providers||[]).map(p=>p.provider))].filter(name=>ads.providers.filter(p=>p.provider===name).every(p=>p.hierarchy&&p.requestedRange?.from===requested.from&&p.requestedRange?.to===requested.to));
   const normalized=advertisingModel(dashboard,ads,requested);const live=allRows.filter(r=>r.date>=requested.from&&r.date<=requested.to&&!names.includes(r.provider)).concat(normalized.filter(r=>names.includes(r.provider)));const base=allRows.filter(r=>r.date<requested.from||r.date>requested.to);const all=[...base,...live];
+  let commerce=null;if(dashboard.ecommerce&&result.commerce?.completeProviders?.length){const updated=new Set(result.commerce.completeProviders.map(p=>p==='meta_ads'?'Meta Ads':'Google Ads'));for(const [key,rows]of [['account',result.commerce.account],['campaigns',result.commerce.campaigns]]){const previous=dashboard.ecommerce[key]||{};dashboard.ecommerce[key]={...previous,rows:[...(previous.rows||[]).filter(r=>!updated.has(r.platform)||r.date<requested.from||r.date>requested.to),...rows]};}commerce={account:sourceTable(dashboard,'EcomFunnel'),campaigns:sourceTable(dashboard,'EcomFunnelCampaign')};}
   if(shop){const mapped=shopLiveRows(all);if(mapped.some(r=>r===null)){notice('Детализация получена. Для сводки в гривнах не хватает подтверждённого курса; сохранены опубликованные показатели.',true);attachHierarchy();return;}allRows=all;window.TOYS_NATIVE.refreshAds(mapped);}
-  else {allRows=all;window.TOYS_NATIVE.refreshAds(all.map(r=>({date:r.date,platform:r.provider==='google_ads'?'Google Ads':'Meta Ads',account:title,accountId:r.integrationId||'',currency:r.currency,campaign:r.name,campaignId:r.campaignId,impr:r.impressions,clicks:r.clicks,cost:r.spend,conv:r.conversions})));}
+  else {allRows=all;window.TOYS_NATIVE.refreshAds(all.map(r=>({date:r.date,platform:r.provider==='google_ads'?'Google Ads':'Meta Ads',account:title,accountId:r.integrationId||'',currency:r.currency,campaign:r.name,campaignId:r.campaignId,impr:r.impressions,clicks:r.clicks,cost:r.spend,conv:r.conversions})),commerce);}
   notice(result.providers?.map(p=>`${p.provider==='google_ads'?'Google Ads':'Meta Ads'}: ${p.hierarchy?(p.freshness==='fresh'?'обновлено':'сохранённые данные'):'подключение не завершено'}`).join(' · ')||'Показаны опубликованные данные.');maskUnavailable();
  }catch(e){notice(`Не удалось обновить кабинет. Сохранены опубликованные данные. ${e.message}`,true);}finally{refreshing=false;renderCreatives();if(JSON.stringify(range())!==JSON.stringify(requested))queueRefresh();}
 }
@@ -93,11 +95,13 @@ function mountTools(){
  const weeklyHost=$('weeklyPanel')||$('weekly')?.closest('.panel');
  if(weeklyHost){weeklyHost.classList.remove('hidden');weeklyHost.classList.add('toys-tools');weeklyHost.querySelectorAll(':scope > *').forEach(n=>n.hidden=true);weeklyHost.insertAdjacentHTML('beforeend','<div id="weeklyContent"></div><div id="weeklyArchive"></div>');}
  document.body.insertAdjacentHTML('beforeend','<dialog id="history" class="toys-tools"><div class="panel-title"><h2>История отчёта</h2><button type="button" data-close>Закрыть</button></div><div id="historyContent"></div></dialog>');
- const project=$('projectView')||$('uxMethod');
- const creative=document.createElement('section');creative.className='toys-tools panel';creative.id='platformCreatives';creative.hidden=true;creative.innerHTML='<h2>Креативы</h2><div id="creativeContent"></div>';project?.append(creative);
- const channels=$('uxProjectChannels')||project;
- if(channels&&privateMode){const b=document.createElement('button');b.type='button';b.textContent='Креативы';b.dataset.platformCreatives='true';channels.append(b);b.onclick=()=>{for(const n of project.children){if(n!==creative&&n!==channels&&!n.classList.contains('ux-page-heading')){n.dataset.platformHidden=String(n.hidden);n.hidden=true;}}creative.hidden=false;toolkit.loadCreatives();};channels.addEventListener('click',e=>{if(e.target.closest('[data-platform-creatives]'))return;creative.hidden=true;for(const n of project.querySelectorAll('[data-platform-hidden]')){n.hidden=n.dataset.platformHidden==='true';delete n.dataset.platformHidden;}});}
- toolkit=tools({api,range,notify:notice,privateMode});
+ let project=$('projectView');
+ if(!project&&shop){project=document.createElement('section');project.id='uxProject';project.className='ux-section';project.innerHTML='<div class="ux-page-heading"><div><p>РАБОТА ПО ПРОЕКТУ</p><h1>Проект</h1></div></div><div id="uxProjectChannels" class="ux-project-channels"><button type="button" data-legacy-view="meta" class="active">Meta</button></div>';$('content').append(project);const nav=document.createElement('button');nav.type='button';nav.dataset.uxView='project';nav.innerHTML='<svg viewBox="0 0 24 24"><path d="M4 7.5h16v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-11Z"/><path d="M8 7.5V5.8A2.3 2.3 0 0 1 10.3 3.5h3.4A2.3 2.3 0 0 1 16 5.8v1.7M4 12h16"/></svg><span>Проект</span>';$('uxNav').append(nav);}
+ const creative=document.createElement('section');creative.className='toys-tools panel';creative.id='platformCreatives';creative.hidden=true;creative.innerHTML='<h2>Креативы Meta</h2><div id="creativeContent"></div>';project?.append(creative);
+ const channels=$('uxProjectChannels');
+ const syncCreatives=()=>{const selected=channels?.querySelector('.active');const meta=(selected?.dataset.legacyView||selected?.dataset.channel)==='meta';creative.hidden=!meta;if(meta)toolkit.loadCreatives();};
+ document.addEventListener('click',e=>{if(e.target.closest('#uxProjectChannels button,[data-ux-view="project"]'))queueMicrotask(syncCreatives);});
+ toolkit=tools({api,range,notify:notice,privateMode});syncCreatives();if(shop&&entryHash==='#meta'){$('uxNav')?.querySelector('[data-ux-view="project"]')?.click();syncCreatives();}
  if(!privateMode){document.querySelectorAll('#uxWeeklyAdd,#openWeekly,[data-ux-view="leads"]').forEach(n=>n.hidden=true);}
  document.addEventListener('click',e=>{if(e.target.closest('#uxWeeklyAdd,#openWeekly')){e.preventDefault();e.stopImmediatePropagation();$('uxNav')?.querySelector('[data-ux-view="weekly"]')?.click();toolkit.loadWeekly();$('weeklyContent')?.scrollIntoView({block:'start'});}if(e.target.closest('[data-ux-view="weekly"]')){toolkit.loadWeekly();toolkit.loadWeeklyArchive();}},true);
  if(location.hash==='#weekly'||location.pathname.endsWith('/content-editor')){$('uxNav')?.querySelector('[data-ux-view="weekly"]')?.click();toolkit.loadWeekly();toolkit.loadWeeklyArchive();}
