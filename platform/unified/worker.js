@@ -4,13 +4,23 @@ export {AdsReadOnlyPreflight,activeProject,databaseHealth,handleApi,internalAuth
 import nativeAssets from '../dist/native-assets.json';
 import nativeBoot from '../dist/native-boot.txt';
 const projects = new Set(['housevip-cxp7','profkit-instashop-r4vk','karlovarska-sul-k4rm']);
-const html = slug => new Response(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title><style>${nativeAssets['platform-fonts.css'].body}</style></head><body><p>Загружаю данные…</p><script>window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_MVP_PROJECT_PORTAL=true;${nativeBoot.replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
+const html = (slug,privateMode=true,assetBase=null) => new Response(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title><style>${nativeAssets['platform-fonts.css'].body}</style></head><body><p>Загружаю данные…</p><script>window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_MVP_PROJECT_PORTAL=${privateMode};window.TOYS_UI_ASSET_BASE=${JSON.stringify(assetBase)};${nativeBoot.replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
 
 export default {
   async fetch(request, env, ctx) {
     const url=new URL(request.url);
     const assetKey=url.pathname.startsWith('/api/ui/reference/')?url.pathname.slice('/api/ui/reference/'.length):null;
     if(assetKey && Object.hasOwn(nativeAssets,assetKey) && ['GET','HEAD'].includes(request.method)){const a=nativeAssets[assetKey];return new Response(request.method==='HEAD'?null:a.body,{headers:{'content-type':a.type,'cache-control':'no-cache','x-content-type-options':'nosniff'}});}
+    const publicBoard=url.pathname.match(/^\/([^/]+)\/(?:index\.html)?$/)||url.pathname.match(/^\/([^/]+)$/);
+    if(publicBoard && projects.has(publicBoard[1]) && request.method==='GET'){
+      const slug=publicBoard[1];
+      const publicAuth=await authorizeMvp(request,env,slug,'viewer','dashboard');
+      if(!publicAuth.ok)return Response.json({ok:false,error:publicAuth.error},{status:publicAuth.status,headers:{'cache-control':'no-store'}});
+      const resource=url.searchParams.get('ui');
+      if(resource!==null){const a=nativeAssets[resource];if(!Object.hasOwn(nativeAssets,resource))return new Response('Not found',{status:404});return new Response(a.body,{headers:{'content-type':a.type,'cache-control':'no-store','x-content-type-options':'nosniff'}});}
+      const editor=await authorizeMvp(request,env,slug,'editor');
+      return html(slug,editor.ok,'?ui=');
+    }
     const portal=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/content-(project|editor)$/);
     if(portal && projects.has(portal[1]) && request.method==='GET') {
       const auth=await authorizeMvp(request,env,portal[1],portal[2]==='editor'?'editor':'viewer');

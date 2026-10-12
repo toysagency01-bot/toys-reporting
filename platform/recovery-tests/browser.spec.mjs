@@ -60,10 +60,10 @@ for(const slug of ['karlovarska-sul-k4rm','profkit-instashop-r4vk'])test(slug+' 
  await page.route('**/projects/'+slug+'/dashboard',r=>r.fulfill({json:d}));
  await page.route('**/projects/'+slug+'/content/tabs',r=>r.fulfill({json:{ok:true,tabs:[]}}));
  await page.route('**/projects/'+slug+'/weekly-reports',r=>r.fulfill({json:{ok:true,reports:[]}}));
- await page.goto('/api/v2/projects/'+slug+'/content-project');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
+ await page.goto('/mvp/'+slug+'/#section=overview&view=account');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
  await expect(page.locator('#uxOverview')).toBeVisible();await expect(page.locator('#uxInsightTitle')).toBeVisible();
  await expect(page.locator('#uxNav [data-ux-view="overview"] svg')).toHaveCount(1);
- await expect(page.locator('header img')).toHaveAttribute('src',/content-project\?ui=assets%2Ftoys-logo.svg/);
+ await expect(page.locator('header img')).toHaveAttribute('src',/\?ui=assets%2Ftoys-logo.svg/);
  await expect(page.locator('#toysThemeToggle')).toBeVisible();
  await expectGolos(page);
  if(slug.startsWith('karl')){await expect(page.locator('#ecomFunnelCards .card').filter({has:page.locator('.label',{hasText:/^ROAS$/})}).locator('.value')).toHaveText(['—','—']);await expect(page.locator('#ecomTopCards > .ecom-channel > .platform-top-creatives')).toHaveCount(2);}

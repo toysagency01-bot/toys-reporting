@@ -42,8 +42,8 @@ const helpers=app.slice(app.indexOf('const errors ='),app.indexOf('function toda
 const weekly=app.slice(app.indexOf('const fields='),app.indexOf('let projectLoading='));
 const creatives=app.slice(app.indexOf('const creativeStatuses='),app.indexOf("$('projectName').textContent"));
 await writeFile('dist/native-tools.mjs',`import {escapeHtml as h,validRange} from '../unified/model.js';
-export function tools({api,range,notify}){
- const $=id=>document.getElementById(id);const privateMode=true;const state={weekly:null,dirty:false,get range(){return range();}};
+export function tools({api,range,notify,privateMode=true}){
+ const $=id=>document.getElementById(id);const state={weekly:null,dirty:false,get range(){return range();}};
  const number=n=>n==null?'—':new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(n);
  const empty=text=>'<div class="state">'+h(text)+'</div>';const status=notify;
  ${helpers}

@@ -28,3 +28,9 @@ test('project materials are gviz documents, and creative availability reflects m
   const table=await (await worker.fetch(request(base+'/content/tabs?tab='+encodeURIComponent('План работ (Meta)')),env)).json();assert.equal(table.status,'ok');
   const creative=await (await worker.fetch(request(base+'/content-project/creatives'),env)).json();assert.equal(creative.storage.available,false);assert.deepEqual(creative.creatives,[]);
 }finally{db.close();}});
+test('public short links use the original board with public scope and never expose editor capabilities',async()=>{const{env,db}=fixture();try{
+ env.ENVIRONMENT='staging';const r=await worker.fetch(request('/housevip-cxp7/',{role:null}),env);assert.equal(r.status,200);const body=await r.text();assert.match(body,/window.TOYS_MVP_PROJECT_PORTAL=false/);assert.match(body,/window.TOYS_UNIFIED_PROJECT="housevip-cxp7"/);assert.doesNotMatch(body,/Общий результат и кампании/);
+ const a=await worker.fetch(request('/housevip-cxp7/?ui=assets%2Ftoys-logo.svg',{role:null}),env);assert.equal(a.status,200);assert.match(a.headers.get('content-type'),/image\/svg/);
+ const denied=await worker.fetch(request('/karlovarska-sul-k4rm/',{role:null}),env);assert.equal(denied.status,403);
+ const draft=await worker.fetch(request(base+'/content/weekly-main/revisions',{role:null}),env);assert.notEqual(draft.status,200);
+}finally{db.close();}});

@@ -8,7 +8,8 @@ const prefix=location.pathname.startsWith('/mvp/')?'/mvp':'';
 const api=`${prefix}/api/v2/projects/${slug}`;
 // Use the same authenticated, forwarded route as the document. The Pages
 // gateway does not necessarily forward arbitrary /api/ui/* asset paths.
-const asset=path=>`${api}/content-project?ui=${encodeURIComponent(path)}`;
+const asset=path=>window.TOYS_UI_ASSET_BASE?`${window.TOYS_UI_ASSET_BASE}${encodeURIComponent(path)}`:`${api}/content-project?ui=${encodeURIComponent(path)}`;
+const privateMode=window.TOYS_MVP_PROJECT_PORTAL===true;
 const shop=slug==='profkit-instashop-r4vk';
 const title=({'housevip-cxp7':'HOUSEVIP','profkit-instashop-r4vk':'PROFKIT','karlovarska-sul-k4rm':'Karlovarska Sul'})[slug];
 const $=id=>document.getElementById(id);
@@ -60,7 +61,7 @@ function shopLiveRows(rows){
  return {date:r.date,platform:'Meta Ads',account:title,accountId:r.integrationId||'',currency:'UAH',campaign:r.name,impressions:r.impressions,clicks:r.clicks,spendUah:spend,metaDirect:r.conversions,spendUsd:usd,fx:usd>0?spend/usd:null};});
 }
 async function refresh(){
- if(refreshing)return;const requested=range();if(!validRange(requested.from,requested.to)||(Date.parse(requested.to)-Date.parse(requested.from))/86400000>=90){notice('Для обновления кабинета выберите период до 90 дней.',true);return;}
+ if(!privateMode||refreshing)return;const requested=range();if(!validRange(requested.from,requested.to)||(Date.parse(requested.to)-Date.parse(requested.from))/86400000>=90){notice('Для обновления кабинета выберите период до 90 дней.',true);return;}
  refreshing=true;const seq=++sequence;notice('Обновляем рекламные кабинеты…');
  try{const result=await json(`${api}/content-project/ads/hierarchy?from=${requested.from}&to=${requested.to}`);if(seq!==sequence||JSON.stringify(range())!==JSON.stringify(requested))return;ads=result;
   const names=[...new Set((ads.providers||[]).map(p=>p.provider))].filter(name=>ads.providers.filter(p=>p.provider===name).every(p=>p.hierarchy&&p.requestedRange?.from===requested.from&&p.requestedRange?.to===requested.to));
@@ -88,12 +89,15 @@ function mountTools(){
  const project=$('projectView')||$('uxMethod');
  const creative=document.createElement('section');creative.className='toys-tools panel';creative.id='platformCreatives';creative.hidden=true;creative.innerHTML='<h2>Креативы</h2><div id="creativeContent"></div>';project?.append(creative);
  const channels=$('uxProjectChannels')||project;
- if(channels){const b=document.createElement('button');b.type='button';b.textContent='Креативы';b.dataset.platformCreatives='true';channels.append(b);b.onclick=()=>{for(const n of project.children){if(n!==creative&&n!==channels&&!n.classList.contains('ux-page-heading')){n.dataset.platformHidden=String(n.hidden);n.hidden=true;}}creative.hidden=false;toolkit.loadCreatives();};channels.addEventListener('click',e=>{if(e.target.closest('[data-platform-creatives]'))return;creative.hidden=true;for(const n of project.querySelectorAll('[data-platform-hidden]')){n.hidden=n.dataset.platformHidden==='true';delete n.dataset.platformHidden;}});}
- toolkit=tools({api,range,notify:notice});
+ if(channels&&privateMode){const b=document.createElement('button');b.type='button';b.textContent='Креативы';b.dataset.platformCreatives='true';channels.append(b);b.onclick=()=>{for(const n of project.children){if(n!==creative&&n!==channels&&!n.classList.contains('ux-page-heading')){n.dataset.platformHidden=String(n.hidden);n.hidden=true;}}creative.hidden=false;toolkit.loadCreatives();};channels.addEventListener('click',e=>{if(e.target.closest('[data-platform-creatives]'))return;creative.hidden=true;for(const n of project.querySelectorAll('[data-platform-hidden]')){n.hidden=n.dataset.platformHidden==='true';delete n.dataset.platformHidden;}});}
+ toolkit=tools({api,range,notify:notice,privateMode});
+ if(!privateMode){document.querySelectorAll('#uxWeeklyAdd,#openWeekly,[data-ux-view="leads"]').forEach(n=>n.hidden=true);}
  document.addEventListener('click',e=>{if(e.target.closest('#uxWeeklyAdd,#openWeekly')){e.preventDefault();e.stopImmediatePropagation();$('uxNav')?.querySelector('[data-ux-view="weekly"]')?.click();toolkit.loadWeekly();$('weeklyContent')?.scrollIntoView({block:'start'});}if(e.target.closest('[data-ux-view="weekly"]')){toolkit.loadWeekly();toolkit.loadWeeklyArchive();}},true);
  if(location.hash==='#weekly'||location.pathname.endsWith('/content-editor')){$('uxNav')?.querySelector('[data-ux-view="weekly"]')?.click();toolkit.loadWeekly();toolkit.loadWeeklyArchive();}
 }
 async function boot(){
+ const legacy=new URLSearchParams(location.hash.slice(1));if(legacy.has('section')){const names={overview:'overview',campaigns:'campaigns',funnel:'funnel',weekly:'weekly',materials:'project',project:'project'};const route=legacy.get('view')==='campaigns'?'campaigns':names[legacy.get('section')]||'overview';history.replaceState(null,'',location.pathname+location.search+'#'+route);}
+
  // Font availability must never prevent the dashboard and data from opening.
  await Promise.race([Promise.all([400,500,600,700,800].map(weight=>document.fonts.load(`${weight} 14px "Golos Text"`,'Обзор проекта TOYS 0123456789'))).catch(()=>{}),new Promise(resolve=>setTimeout(resolve,2500))]);
  const channels=slug==='housevip-cxp7'?[{key:'smm',label:'SMM'},{key:'meta',label:'Meta'}]:[{key:'smm',label:'SMM'},{key:'meta',label:'Meta'},{key:'google',label:'Google'}];

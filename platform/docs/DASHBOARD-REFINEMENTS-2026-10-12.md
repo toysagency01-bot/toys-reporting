@@ -90,3 +90,23 @@ restore the cron. Existing secrets, bindings, assets and database schema retaine
 Authenticated production browser QA remains constrained by the environment's
 site-access restriction; local mounted-route tests and deployed bundle readback
 are separate checks, not a claim of real-provider end-to-end verification.
+
+## Short public URL correction
+
+The owner reported `/mvp/karlovarska-sul-k4rm/#section=overview&view=account`
+still showing the unrelated static commerce shell. The initial refinements only
+covered `/api/v2/projects/{slug}/content-project`. Both URLs now render the same
+native board, and legacy section/view fragments map to the native navigation.
+Release metadata explicitly routes the three supported project paths through the
+Worker before static assets; existing assets are retained. Same-path query assets
+work through the Pages mount without depending on a new gateway path.
+
+Public short links use the existing public dashboard scope. Anonymous visitors
+receive published content only; editor tools and advertising hierarchy requests
+remain protected. A validated editor can use the existing tools. The tests cover
+public scope rejection, no anonymous revision access, and the exact short-link
+shape in Chromium for Karlovarska and Profkit.
+
+Corrected release: `c1606094-4ee6-4f82-8fbf-96a145559b74` (100%).
+SHA256: `893881cead8a0d3890f188ccd9379e351a04075d4275438ade50d774c6700973`.
+19 API/model/asset checks and 8 Chromium scenarios passed.
