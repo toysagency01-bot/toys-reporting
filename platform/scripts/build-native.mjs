@@ -23,6 +23,18 @@ for(const path of ['core/core.js','housevip-cxp7/core.js','core/instashop.js']){
  source=source.replace('function render(){','function render(){\n queueMicrotask(()=>window.TOYS_PLATFORM.afterRender());');
  source=source.replace('function render() {','function render() {\n queueMicrotask(()=>window.TOYS_PLATFORM.afterRender());');
  source=source.replace("if(t.startsWith('в процесс'))","if(t.startsWith('в процесс') || t.startsWith('в работе'))");
+ // Preserve the original markup/styles while removing repeated heavyweight work.
+ source=source.replace('const fmtN = n => new Intl.NumberFormat(\'ru-RU\',{maximumFractionDigits:0}).format(n);',"const number0=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}),number2=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2});const fmtN=n=>number0.format(n);");
+ source=source.replace("const fmtM = n => new Intl.NumberFormat('ru-RU',{maximumFractionDigits:n<10?2:0}).format(n);","const fmtM=n=>(n<10?number2:number0).format(n);");
+ if(isShop){
+  source=replaceOnce(source,"const fmt0 = value => new Intl.NumberFormat('ru-RU', {maximumFractionDigits:0}).format(value || 0);","const number0=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}),number1=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1});const fmt0=value=>number0.format(value||0);");
+  source=replaceOnce(source,"const fmt1 = value => new Intl.NumberFormat('ru-RU', {maximumFractionDigits:1}).format(value || 0);","const fmt1=value=>number1.format(value||0);");
+ }
+ source=source.replace(/function render\(\)\s*\{/,'function render(){window.TOYS_PLATFORM.scheduleRender(renderNow);}\nfunction renderNow(){');
+ source=source.replaceAll("if(chart) chart.destroy();\n  chart = new Chart(el('chart'),", "chart = window.TOYS_PLATFORM.updateChart(chart,el('chart'),");
+ if(!isShop){
+  source=replaceOnce(source,"new MutationObserver(updateAllScrollFades).observe(document.body, {childList: true, subtree: true});","window.TOYS_PLATFORM.observeScrollFades(updateScrollFade);");
+ }
  assets[path]={type:'text/javascript; charset=utf-8',body:source};
 }
 for(const path of ['core/theme.js','core/instashop-model.js','core/ux-v2.js','core/ux-v2-instashop.js','core/ux-v2.css','housevip-cxp7/ux-v2.js','housevip-cxp7/ux-v2.css','assets/toys-logo.svg','assets/favicon.svg'])assets[path]={type:path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':'text/javascript',body:await read(path)};

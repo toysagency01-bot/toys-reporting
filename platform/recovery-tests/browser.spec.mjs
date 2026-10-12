@@ -183,3 +183,34 @@ test('pending provider refresh automatically updates both statistics and creativ
  await expect(page.locator('#platformNotice')).toContainText('Обновляем рекламные данные');await expect(page.locator('.top-basis')).toContainText('Обновляем креативы');
  await page.clock.fastForward(2000);await expect(page.locator('#kClicks')).toHaveText('88');await expect(page.locator('.top-creative h3')).toHaveText('Automatically refreshed creative');await expect(page.locator('#platformNotice')).toContainText('обновлено');expect(stats).toBe(2);expect(creatives).toBe(2);
 });
+
+test('chart instances survive updates, rendering is batched and unchanged creative cards keep their DOM',async({page})=>{
+ await page.goto('/mvp'+portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.locator('.platform-top-creatives')).toBeVisible();
+ await page.evaluate(()=>{window.auditChart=Chart.getChart(document.getElementById('chart'));window.auditCreative=document.querySelector('.platform-top-creatives');window.auditUpdates=0;Chart.register({id:'render-regression',afterUpdate(){window.auditUpdates++;}});TOYS_NATIVE.render();TOYS_NATIVE.render();TOYS_NATIVE.render();});
+ await expect.poll(()=>page.evaluate(()=>window.auditUpdates)).toBe(1);
+ expect(await page.evaluate(()=>auditChart===Chart.getChart(document.getElementById('chart'))&&auditCreative===document.querySelector('.platform-top-creatives'))).toBe(true);
+ await page.locator('#chartModeSeg [data-mode="efficiency"]').click();
+ expect(await page.evaluate(()=>auditChart===Chart.getChart(document.getElementById('chart'))&&auditChart.options.animation===false)).toBe(true);
+ await expect.poll(()=>page.evaluate(()=>auditChart.data.datasets.map(d=>d.label).join(','))).toContain('CTR');
+});
+
+test('large advertising hierarchy creates ad details only when their parent is opened',async({page})=>{
+ let groupName='Lazy group';await page.clock.install();
+ const observed=value=>({value:String(value),state:'observed'}),metrics={impressions:observed(100),clicks:observed(10),spend:observed(1000),conversions:observed(1)};
+ await page.route('**/content-project/ads/hierarchy?*',r=>{const u=new URL(r.request().url()),date=u.searchParams.get('to'),dailyMetrics=[{date,metrics}];return r.fulfill({json:{ok:true,providers:[{provider:'meta_ads',integrationId:'test',freshness:'fresh',requestedRange:{from:u.searchParams.get('from'),to:date},hierarchy:{currency:'IDR',children:[{providerId:'campaign',name:'Lazy campaign',dailyMetrics,children:[{providerId:'group',name:groupName,dailyMetrics,children:Array.from({length:100},(_,i)=>({providerId:String(i),name:'Lazy ad '+i,dailyMetrics}))}]}]}}]}});});
+ await page.goto('/mvp'+portal);await expect(page.locator('#platformNotice')).toContainText('обновлено');await page.locator('[data-ux-view="campaigns"]').click();
+ await expect(page.locator('.platform-child')).toHaveCount(0);await page.locator('.platform-drilldown > summary').click();await expect(page.locator('.platform-child')).toHaveCount(1);
+ await page.locator('.platform-child > summary').click();await expect(page.locator('.platform-child')).toHaveCount(101);await expect(page.locator('.platform-child .camp-metrics')).toHaveCount(1);
+ await page.getByText('Lazy ad 0',{exact:true}).click();await expect(page.locator('.platform-child .camp-metrics')).toHaveCount(2);
+ groupName='Updated group, unchanged campaign totals';await page.clock.fastForward(20*60*1000);await expect(page.locator('.platform-drilldown')).not.toHaveAttribute('open','');await page.locator('.platform-drilldown > summary').click();await expect(page.locator('.platform-child > summary')).toHaveText(groupName);
+});
+
+test('returning to Meta approvals and weekly reports reuses their screens without repeated reads',async({page})=>{
+ const calls=[];page.on('request',r=>{if(r.method()==='GET'&&r.resourceType()==='fetch')calls.push(r.url());});
+ await page.goto('/mvp'+portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
+ const meta=page.locator('#uxProjectChannels [data-channel="meta"],#uxProjectChannels [data-legacy-view="meta"]');
+ await page.locator('[data-ux-view="project"]').click();await meta.click();await expect(page.locator('#creativeContent')).toContainText('ожидает подключения хранилища');
+ const loaded=calls.filter(u=>u.endsWith('/content-project/creatives')).length;await page.locator('[data-ux-view="overview"]').click();await page.locator('[data-ux-view="project"]').click();await meta.click();await expect(page.locator('#creativeContent')).toContainText('ожидает подключения хранилища');expect(calls.filter(u=>u.endsWith('/content-project/creatives'))).toHaveLength(loaded);
+ await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyForm')).toBeVisible();await expect(page.locator('#commentsList')).not.toBeEmpty();
+ const weeklyCalls=calls.filter(u=>/weekly-main|weekly-reports/.test(u)).length;await page.evaluate(()=>window.auditWeekly=document.getElementById('weeklyForm'));await page.locator('[data-ux-view="overview"]').click();await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyForm')).toBeVisible();expect(await page.evaluate(()=>auditWeekly===document.getElementById('weeklyForm'))).toBe(true);expect(calls.filter(u=>/weekly-main|weekly-reports/.test(u))).toHaveLength(weeklyCalls);
+});

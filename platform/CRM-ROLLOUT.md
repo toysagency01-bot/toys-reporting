@@ -57,12 +57,12 @@ replay conflict checks, cross-page duplicate detection, exact readback counts an
 all hierarchy metrics are preserved. Old snapshots were not rewritten or deleted.
 The 20-minute reporting schedule remains. No paid plan was enabled.
 
-Worker release: `17d2b8af-5464-44be-a28c-ee0a37c5fe74`.
-Rollback: `3cbbc86a-2651-4c1a-896d-29e7b89b519e` (before cache/navigation repair).
+Worker release: `ba9efebe-f9c7-40f4-9582-be7c97099ae8`.
+Rollback: `17d2b8af-5464-44be-a28c-ee0a37c5fe74` (before UI performance optimization).
 Migrations 0012–0014 are additive and already applied. Encryption key was generated
 once; do not replace it or stored credentials will become unreadable.
 
-Validation: 42 recovery tests (explicit in-process runner), 18 Chromium scenarios, 3 mocked discovery tests,
+Validation: 42 recovery tests (explicit in-process runner), 21 Chromium scenarios, 3 mocked discovery tests,
 and a syntax/guard check against the existing Cloud Run source patch. Browser
 checks were local; live site domains are not allowed in this execution environment.
 
@@ -96,3 +96,10 @@ blocked-provider concurrency, stale cache recovery, writes invalidating the CRM
 cache, zero data requests on a quick section round trip, browser history and mobile
 layout. Live Meta/browser verification remains unavailable under the environment's
 network policy; the active deployment is verified through the Cloudflare API.
+
+The subsequent UI performance release preserves chart instances, batches native
+renders, defers closed campaign detail DOM and caches project materials and recent
+report/approval views. Existing styles and 20-minute advertising refresh remain.
+See [the performance audit](docs/UI-PERFORMANCE-2026-10-12.md) for reproducible local
+measurements and limitations. The active Worker version and exact bundle hash were
+verified through the Cloudflare API; no migration or production test data was needed.
