@@ -13,7 +13,7 @@ export async function crypt(env,value,decrypt=false){
  const iv=crypto.getRandomValues(new Uint8Array(12));const data=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(value)));
  return btoa(String.fromCharCode(...iv))+'.'+btoa(String.fromCharCode(...data));
 }
-export async function project(env,slug){return env.TOYS_DB.prepare("SELECT id,organization_id AS organizationId,slug,name,timezone,currency FROM projects WHERE slug=? AND status='active'").bind(slug).first();}
+export async function project(env,slug){return env.TOYS_DB.prepare("SELECT id,organization_id AS organizationId,slug,name,timezone,currency,status FROM projects WHERE slug=? AND status IN ('active','draft')").bind(slug).first();}
 export async function enable(env,p){const n=NOW();await env.TOYS_DB.prepare('INSERT INTO crm_projects(project_id,enabled_at,timezone,updated_at) VALUES(?,?,?,?) ON CONFLICT(project_id) DO NOTHING').bind(p.id,n,p.timezone||'Asia/Tbilisi',n).run();}
 export async function ingest(env,p,data,provider,sourceId){
  if(!sourceId||sourceId.length>180)fail('source_id_required');

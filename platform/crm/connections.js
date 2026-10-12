@@ -14,7 +14,7 @@ export async function connections(request,env,ctx){
  const agent=await env.TOYS_DB.prepare("SELECT id FROM crm_agent_credentials WHERE id='toys-media-buyer'").first();
  const accounts=(await env.TOYS_DB.prepare("SELECT a.pixels_json FROM crm_agent_accounts a JOIN integrations i ON i.external_account_id=a.account_id WHERE i.project_id=? AND i.provider='meta_ads'").bind(p.id).all()).results||[];
  const queue=(await env.TOYS_DB.prepare('SELECT kind,state,last_error AS error,COUNT(*) AS count FROM crm_delivery WHERE project_id=? GROUP BY kind,state,last_error').bind(p.id).all()).results||[];
- return reply({ok:true,agentAvailable:!!agent,datasets:accounts.flatMap(a=>JSON.parse(a.pixels_json)),enabled:Boolean(cfg),timezone:cfg?.timezone||p.timezone,datasetId:cfg?.dataset_id,capiEnabled:!!cfg?.capi_enabled,websiteConfigured:!!cfg?.website_key_hash,websiteEndpoint:base+p.slug+'/website',metaEndpoint:'https://reports.toys-agency.com/mvp/api/crm/meta',verifyToken:env.CRM_VERIFY_TOKEN||null,pages,queue});
+ return reply({ok:true,agentAvailable:!!agent,datasets:accounts.flatMap(a=>JSON.parse(a.pixels_json)),enabled:Boolean(cfg),timezone:cfg?.timezone||p.timezone,datasetId:cfg?.dataset_id,capiEnabled:!!cfg?.capi_enabled,websiteConfigured:!!cfg?.website_key_hash,websiteEndpoint:base+p.slug+'/website',metaLeadEndpoint:base+p.slug+'/meta-lead',metaEndpoint:'https://reports.toys-agency.com/mvp/api/crm/meta',verifyToken:env.CRM_VERIFY_TOKEN||null,pages,queue});
  }
  const origin=request.headers.get('origin');if(origin&&origin!==url.origin&&origin!=='https://reports.toys-agency.com')fail('origin_forbidden',403);
  if(request.method!=='POST'||!request.headers.get('x-idempotency-key'))fail('invalid_request');await enable(env,p);const body=await readJSON(request);
@@ -47,11 +47,12 @@ export async function connections(request,env,ctx){
  }catch(e){return reply({ok:false,error:e.code||'connection_failed'},e.status||500);}
 }
 export async function discoverPages(env){
- if(!env.META_ADS_ACCESS_TOKEN)fail('meta_token_missing',503);
+ const agent=await env.TOYS_DB.prepare("SELECT token_cipher FROM crm_agent_credentials WHERE id='toys-media-buyer'").first();
+ const token=agent?.token_cipher?await crypt(env,agent.token_cipher,true):env.META_ADS_ACCESS_TOKEN;if(!token)fail('meta_token_missing',503);
  let cursor=null,count=0;
  for(let page=0;page<50;page++){
  const params=new URLSearchParams({fields:'id,name,access_token',limit:'100',...(cursor?{after:cursor}:{})});
- const response=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/me/accounts?${params}`,{headers:{authorization:'Bearer '+env.META_ADS_ACCESS_TOKEN},redirect:'error'});const d=await response.json();if(!response.ok||d.error)fail('meta_'+(d.error?.code||response.status),502);
+ const response=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/me/accounts?${params}`,{headers:{authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(20000)});const d=await response.json();if(!response.ok||d.error)fail('meta_'+(d.error?.code||response.status),502);
  for(const item of d.data||[]){if(!/^\d+$/.test(item.id)||!item.access_token)continue;const now=new Date().toISOString();await env.TOYS_DB.prepare('INSERT INTO crm_pages(page_id,name,token_cipher,discovered_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(page_id) DO UPDATE SET name=excluded.name,token_cipher=excluded.token_cipher,updated_at=excluded.updated_at').bind(item.id,item.name||item.id,await crypt(env,item.access_token),now,now).run();count++;}
  if(!d.paging?.next)return {count};cursor=d.paging?.cursors?.after;if(!cursor)fail('page_pagination_incomplete');}
  fail('page_pagination_limit');

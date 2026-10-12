@@ -49,7 +49,7 @@ export async function drain(env){
  }
 }
 export async function webhook(request,env,ctx){
- const url=new URL(request.url),m=url.pathname.match(/^\/api\/crm\/ingest\/([^/]+)\/(website|meta)$/);const central=url.pathname==='/api/crm/meta';if(!m&&!central)return null;
+ const url=new URL(request.url),m=url.pathname.match(/^\/api\/crm\/ingest\/([^/]+)\/(website|meta|meta-lead)$/);const central=url.pathname==='/api/crm/meta';if(!m&&!central)return null;
  try{
  const p=central?null:await project(env,m[1]);if(!central&&!p)err('not_found',404);
  if((central||m[2]==='meta')&&request.method==='GET'){
@@ -57,8 +57,17 @@ export async function webhook(request,env,ctx){
  return new Response(url.searchParams.get('hub.challenge')||'',{headers:{'content-type':'text/plain','cache-control':'no-store'}});}
  if(request.method!=='POST')err('method_not_allowed',405);
  const raw=await request.text();if(raw.length>262144)err('request_too_large',413);let data;try{data=JSON.parse(raw);}catch{err('invalid_json');}
- if(!central&&m[2]==='website'){
+ if(!central&&['website','meta-lead'].includes(m[2])){
  const cfg=await env.TOYS_DB.prepare('SELECT website_key_hash FROM crm_projects WHERE project_id=?').bind(p.id).first();const supplied=(request.headers.get('authorization')||'').replace(/^Bearer /,'');if(!cfg?.website_key_hash||!safeEq(await hash(supplied),cfg.website_key_hash))err('invalid_ingest_key',401);
+ if(!data||typeof data!=='object'||Array.isArray(data))err('invalid_payload');
+ if(m[2]==='meta-lead'){
+ // Make delivers the full lead using a project-scoped API credential. Native Meta
+ // IDs preserve deduplication and CAPI matching even if a direct webhook also arrives.
+ if(typeof data.leadgenId!=='string'||!/^\d{1,30}$/.test(data.leadgenId))err('invalid_lead_id');
+ if(typeof data.pageId!=='string'||!/^\d{1,30}$/.test(data.pageId))err('invalid_page_id');
+ const page=await env.TOYS_DB.prepare('SELECT project_id FROM crm_pages WHERE page_id=?').bind(data.pageId).first();if(page?.project_id!==p.id)err('page_scope_forbidden',403);
+ const lead=await ingest(env,p,{...data,sourceAdId:data.adAttribution?.adId||data.sourceAdId},'meta_lead_ads',data.leadgenId);return reply({ok:true,id:lead.id},201);
+ }
  const lead=await ingest(env,p,data,'website',String(data.submissionId||''));return reply({ok:true,id:lead.id},201);
  }
  if(data.object!=='page')err('invalid_webhook');

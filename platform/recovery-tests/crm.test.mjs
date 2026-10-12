@@ -1,9 +1,43 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {fixture,testWorker,request} from './fixture.mjs';
-import {enable,ingest,updateLead,summary,crypt,hash} from '../crm/service.js';
+import {enable,ingest,updateLead,summary,crypt,hash,project} from '../crm/service.js';
 import {drain,capiPayload,webhook,signature} from '../crm/delivery.js';
 const p={id:'prj_housevip_cxp7',slug:'housevip-cxp7',timezone:'Asia/Tbilisi'},today=new Date().toISOString().slice(0,10);
 function setup(){const f=fixture();f.env.CRM_ENCRYPTION_KEY=btoa('x'.repeat(32));f.env.CRM_VERIFY_TOKEN='synthetic-verify';return f;}
+
+test('Make intake keeps native Meta identity, rejects wrong page and key, deduplicates direct delivery and matches CAPI',async()=>{
+ const {env,db}=setup();try{
+ await enable(env,p);db.prepare('UPDATE crm_projects SET website_key_hash=?').run(await hash('synthetic-make-key'));
+ const n=new Date().toISOString();db.prepare('INSERT INTO crm_pages(page_id,name,project_id,discovered_at,updated_at) VALUES(?,?,?,?,?)').run('123','Synthetic page',p.id,n,n);
+ db.prepare("INSERT INTO integrations(id,project_id,provider,external_account_id,status) VALUES('meta-make',?,'meta_ads','987','active')").run(p.id);
+ const body={leadgenId:'123456789012345678',pageId:'123',email:'make@example.test',createdAt:n,adAttribution:{provider:'meta_ads',accountId:'987',adId:'111',campaignId:'222',adsetId:'333'}};
+ const url='https://test.local/api/crm/ingest/'+p.slug+'/meta-lead';
+ const send=(data=body,key='synthetic-make-key')=>webhook(new Request(url,{method:'POST',headers:{authorization:'Bearer '+key},body:JSON.stringify(data)}),env);
+ assert.equal((await send(body,'wrong-key')).status,401);
+ assert.equal((await send({...body,pageId:'456'})).status,403);
+ assert.equal((await send({...body,leadgenId:123456789012345678})).status,400);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM leads').get().n,0);
+ const result=await send();assert.equal(result.status,201);const {id}=await result.json();
+ await updateLead(env,p,id,{status:'Квалифицирован',version:1},'synthetic','make-qualification');
+ assert.equal((await (await send()).json()).id,id);
+ assert.equal((await ingest(env,p,{...body,sourceAdId:'111'},'meta_lead_ads',body.leadgenId)).id,id);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM leads').get().n,1);
+ const lead=db.prepare('SELECT * FROM leads').get();assert.equal(lead.current_status,'Квалифицирован');assert.equal(lead.source_provider,'meta_lead_ads');
+ const meta=JSON.parse(lead.metadata_json);assert.equal(meta.leadgenId,body.leadgenId);assert.equal(meta.adAttribution.adId,'111');
+ assert.equal((await summary(env,p,'2026-01-01','2099-12-31')).byAd[0].qualified,1);
+ db.prepare("UPDATE crm_projects SET dataset_id='123456',capi_token_cipher=?,capi_enabled=1").run(await crypt(env,'synthetic-capi-token'));
+ let calls=0;env.CRM_FETCH=async(url,options)=>{calls++;const event=JSON.parse(options.body.get('data'))[0];assert.equal(event.user_data.lead_id,body.leadgenId);assert.equal(event.event_name,'QualifiedLead');return Response.json({events_received:1});};
+ await drain(env);await drain(env);assert.equal(calls,1);assert.equal(db.prepare('SELECT state FROM crm_delivery').get().state,'sent');
+ }finally{db.close();}
+});
+
+test('draft projects allow private CRM setup without activating or publishing their dashboard',async()=>{
+ const {env,db}=setup();try{
+ db.prepare("UPDATE projects SET status='draft' WHERE id=?").run(p.id);
+ const draft=await project(env,p.slug);assert.equal(draft.status,'draft');await enable(env,draft);
+ assert.equal(db.prepare('SELECT status FROM projects WHERE id=?').get(p.id).status,'draft');
+ }finally{db.close();}
+});
 
 test('CRM sources deduplicate retries; status CAS and milestones count each lead once, with exact currency separation',async()=>{
  const {env,db}=setup();try{await enable(env,p);const data={name:'Synthetic',phone:'+420123456789',email:'synthetic@example.test'};const lead=await ingest(env,p,data,'website','submission-1');assert.equal((await ingest(env,p,data,'website','submission-1')).id,lead.id);assert.equal(db.prepare('SELECT COUNT(*) n FROM leads').get().n,1);

@@ -143,3 +143,14 @@ test('client board opens its own CRM without calling the master API',async({page
  await expect(page.locator('#leadsTable')).not.toBeEmpty();expect(calls.some(p=>p.includes('/master'))).toBe(false);
  await page.getByRole('button',{name:'Главная',exact:true}).click();await expect(page).toHaveURL(/\/mvp\/housevip-cxp7\/(?:#overview)?$/);
 });
+
+test('agency connection settings explain Make intake and do not require the direct Meta webhook',async({page})=>{
+ await page.goto('/mvp/api/v2/master/view#crm');
+ await page.locator('#connections').click();
+ await expect(page.locator('#makeConnection')).toContainText('Meta Lead Ads через Make');
+ await expect(page.locator('#makeConnection')).toContainText('/housevip-cxp7/meta-lead');
+ await expect(page.locator('#makeConnection')).toContainText('Credentials');
+ await expect(page.locator('#websiteKey')).toBeVisible();
+ await expect(page.locator('#pageList')).toBeVisible();
+ await expect(page.getByText('Только для прямого подключения:',{exact:false})).toBeHidden();
+});
