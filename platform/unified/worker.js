@@ -13,6 +13,7 @@ import masterClient from '../dist/master-client.txt';
 import {liveCommerce} from '../native/live-commerce.js';
 import {attachCRMQualification} from '../native/crm-attribution.js';
 import backend, {authorizeMvp, projectRecord, onDemandAdsService} from '../runtime/backend.js';
+import {creativeKey,loadMetaCreative} from '../native/meta-creative.js';
 import {rankCreatives} from '../native/top-creatives.js';
 export {AdsReadOnlyPreflight,activeProject,databaseHealth,handleApi,internalAuthorized,listProjects,projectLeadStatuses,publicDashboard,publicExchangeRate,publicLeads,publicTab,sameOriginWrite,scheduledHousevipSync,scheduledPilotSyncs,scheduledRealCommerceSync,validDate} from '../runtime/backend.js';
 import nativeAssets from '../dist/native-assets.json';
@@ -50,7 +51,7 @@ export default {
     const crm=await crmRoute(request,env,ctx);if(crm){if(crm.ok&&request.method==='PATCH')ctx?.waitUntil(drain(env));return crm;}
 
     const privateHierarchy=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/content-project\/ads\/hierarchy$/);
-    const top=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/(top-creatives|ads-summary)$/)||privateHierarchy;
+    const top=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/(top-creatives|ads-summary)(?:\/([a-f0-9]{64}))?$/)||privateHierarchy;
     if(top && request.method==='GET'){
       const auth=await authorizeMvp(request,env,top[1],'viewer',privateHierarchy?'protected':'dashboard');
       if(!auth.ok)return Response.json({ok:false,error:auth.error},{status:auth.status});
@@ -65,10 +66,21 @@ export default {
         data=await attachCRMQualification(data,env,project,range);
         // Publish only top-three presentation fields; never the private hierarchy,
         // account identifiers, CRM records, drafts or integration configuration.
-        const rankings=Object.fromEntries(['roas','purchases','leads','qualifiedLeads'].map(basis=>[basis,
-          rankCreatives(data.providers,range,basis).map(group=>({...group,rows:group.rows.map(({name,previewUrl,previewStatus,currency,score,ctr,spend,freshness})=>({name,previewUrl,previewStatus,currency,score,ctr,spend,freshness}))}))
+        const ranked=Object.fromEntries(['roas','purchases','leads','qualifiedLeads'].map(basis=>[basis,rankCreatives(data.providers,range,basis)]));
+        if(top[3]){
+          if(top[2]!=='top-creatives')return Response.json({ok:false,error:'not_found'},{status:404});
+          for(const groups of Object.values(ranked))for(const group of groups)for(const row of group.rows){
+            if(row.detailRef&&await creativeKey(project.id,row.detailRef)===top[3]){
+              const creative=await loadMetaCreative(env,project,row.detailRef);
+              return Response.json({ok:true,creative},{headers:{'cache-control':'private, no-store'}});
+            }
+          }
+          return Response.json({ok:false,error:'creative_not_found'},{status:404,headers:{'cache-control':'no-store'}});
+        }
+        const rankings=Object.fromEntries(await Promise.all(Object.entries(ranked).map(async([basis,groups])=>[basis,
+          (await Promise.all(groups.map(async group=>({...group,rows:await Promise.all(group.rows.map(async({name,previewUrl,previewStatus,currency,score,ctr,spend,freshness,detailRef})=>({name,previewUrl,previewStatus,currency,score,ctr,spend,freshness,detailsKey:detailRef?await creativeKey(project.id,detailRef):null})))}))))
           .concat(['meta_ads','google_ads'].filter(provider=>!data.providers.some(p=>p.provider===provider&&p.hierarchy)).map(provider=>({provider,basis,rows:[],unavailable:true})))
-        ]));
+        ])));
         return Response.json({ok:true,requestedRange:range,refreshing,rankings},{headers:{'cache-control':'no-store'}});
       }catch(error){return Response.json({ok:false,error:['invalid_date','invalid_date_range'].includes(error.code)?error.code:'creatives_unavailable'},{status:['invalid_date','invalid_date_range'].includes(error.code)?400:503});}
     }

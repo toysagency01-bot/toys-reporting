@@ -11,6 +11,10 @@ export async function attachMetaPreviews(ads,ids,get){
     if(String(item.id)!==String(ad.id))throw Object.assign(new Error(),{code:'preview_identity_mismatch'});
     let creative=item.creative;
     if(creative?.id&&!creative.image_url&&!creative.thumbnail_url)creative=await get(String(creative.id),'id,thumbnail_url,image_url');
+    if(creative?.id&&!creative.image_url){
+     // Ask Meta for a large video poster; retain the existing preview if denied.
+     try{const large=await get(String(creative.id),'id,thumbnail_url,image_url',{thumbnail_width:'1080',thumbnail_height:'1080'});if(String(large.id)===String(creative.id))creative={...creative,...large};}catch{}
+    }
     ad.creativeRef=creative?.id?String(creative.id):null;
     ad.previewUrl=safePreview(creative?.image_url)||safePreview(creative?.thumbnail_url);
     ad.previewStatus=ad.previewUrl?'ready':'image_unavailable';

@@ -56,8 +56,9 @@ replay conflict checks, cross-page duplicate detection, exact readback counts an
 all hierarchy metrics are preserved. Old snapshots were not rewritten or deleted.
 The 20-minute reporting schedule remains. No paid plan was enabled.
 
-Worker release: `a9ac5985-bdb8-406e-8a34-f0b3b02577f2`.
-Rollback: `6445efdc-ad13-43fa-9a45-e0030d73405e` (before clean URLs).
+Worker release: `de84a872-b68c-45d7-b4bf-417aa1811412`.
+Rollback: `a9ac5985-bdb8-406e-8a34-f0b3b02577f2` (before full creative viewer).
+See [creative viewer release](docs/CREATIVE-VIEWER-2026-10-12.md) for its checks.
 Migrations 0012–0014 are additive and already applied. Encryption key was generated
 once; do not replace it or stored credentials will become unreadable.
 

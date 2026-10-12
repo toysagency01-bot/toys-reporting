@@ -2759,7 +2759,7 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
     const normalized = hierarchy(rows, expectedAccountId);
     const creativeData = enrichMetaOutcomes(normalized, rows);
     const previewDeadline=AbortSignal.any([deadline,AbortSignal.timeout(6000)]);
-    await attachMetaPreviews(creativeData.ads,creativeData.ids,(id,fields)=>page(fetchImpl,`https://graph.facebook.com/${apiVersion}/${id}`,new URLSearchParams({appsecret_proof:proof,fields}),token,{maxAttempts:1,signal:previewDeadline}));
+    await attachMetaPreviews(creativeData.ads,creativeData.ids,(id,fields,extra={})=>page(fetchImpl,`https://graph.facebook.com/${apiVersion}/${id}`,new URLSearchParams({appsecret_proof:proof,fields,...extra}),token,{maxAttempts:1,signal:previewDeadline}));
     if (normalized.accountCurrency && integration.currency && normalized.accountCurrency !== integration.currency) {
       fail3("currency_scope_mismatch");
     }
