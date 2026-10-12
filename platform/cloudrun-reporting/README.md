@@ -61,3 +61,20 @@ page replay, so unchanged metrics do not become stale after 20 minutes. It reuse
 the accepted snapshot instead of duplicating historical rows. 29 platform
 API/model tests pass, including unchanged replay and conflicting replay checks. Original source archives, existing secrets and campaign plans are
 not included in the package or committed with it.
+# Night refresh cadence
+
+Run `python3 set-cadence.py` in the owner's existing authenticated Cloud Shell.
+It checks the deployed `toys-google-reporting` job and preserves its endpoint,
+body, OIDC identity, delivery deadline and retry settings. It changes the base
+job to `0 * * * *` and adds `toys-google-reporting-daytime` at
+`20,40 9-23 * * *`, both in `Asia/Tbilisi`. Thus there are 54 scheduled runs per
+day: hourly overnight, every 20 minutes from 09:00. Both Google customers already
+handled by this shared job follow that cadence.
+
+The script saves the previous job definitions privately in Cloud Shell, refuses
+to modify paused or unrelated jobs, supports repeat execution, verifies the
+saved configuration, and restores the previous cadence if the final update or
+verification fails. No Cloud Run deployment or token sharing is needed.
+
+This scheduler change requires the owner's Google identity. Deploying the
+Cloudflare platform alone does **not** change the Cloud Run producer schedule.

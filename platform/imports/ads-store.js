@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {adsAreStale} from './refresh-policy.js';
 
 export const directAdsEnabled=env=>env.DIRECT_ADS_IMPORT_ENABLED==='true';
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -45,6 +46,6 @@ export async function readAdsSnapshot(db,scope,from,to,now=Date.now()){
  const failed=status?.state==='error';
  return {...payload,requestedRange:{from,to},coveredDates,coverage:complete?'complete':'partial',
   dataThroughDate:coveredDates.at(-1),source:'database',fetchedAt,sourceFetchedAt:fetchedAt,lastGoodAt:fetchedAt,
-  freshness:!complete?'partial':failed||now-Date.parse(fetchedAt)>30*60000?'stale':'fresh',
+  freshness:!complete?'partial':failed||adsAreStale(fetchedAt,now)?'stale':'fresh',
   refresh:{state:failed?'failed':status?.state==='running'?'refreshing':'not_needed',lastAttemptAt:status?.last_attempt_at||null,errorCode:status?.last_error_code||null}};
 }

@@ -1,4 +1,5 @@
 import {refreshUsdUah} from '../imports/fx.js';
+import {isReportRefreshSlot} from '../imports/refresh-policy.js';
 import {messageWebhook} from '../crm/messages.js';
 import {portalRoute,accessManagement,loginRedirect} from '../portal/routes.js';
 import {prepareAccessSchema} from '../portal/schema.js';
@@ -128,5 +129,14 @@ export default {
     }
     return response;
   },
-  async scheduled(event,env,ctx){ctx.waitUntil(prepareAccessSchema(env).catch(()=>console.error('Client access schema preparation deferred')));ctx.waitUntil(drain(env));ctx.waitUntil(runDirectAdsImports(env));if(env.DIRECT_ADS_IMPORT_ENABLED==='true')ctx.waitUntil(refreshUsdUah(env).catch(()=>console.error('NBU FX refresh failed; previous rates preserved')));if(event.cron!=='*/2 * * * *')return backend.scheduled(event,env,ctx);},
+  async scheduled(event,env,ctx){
+    const at=event.scheduledTime??Date.now();
+    ctx.waitUntil(prepareAccessSchema(env).catch(()=>console.error('Client access schema preparation deferred')));
+    ctx.waitUntil(drain(env));
+    ctx.waitUntil(runDirectAdsImports(env,at));
+    if(event.cron!=='*/2 * * * *'&&isReportRefreshSlot(at)){
+      if(env.DIRECT_ADS_IMPORT_ENABLED==='true')ctx.waitUntil(refreshUsdUah(env).catch(()=>console.error('NBU FX refresh failed; previous rates preserved')));
+      return backend.scheduled(event,env,ctx);
+    }
+  },
 };

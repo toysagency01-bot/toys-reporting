@@ -37,16 +37,19 @@ proof that the scheduler works.
   the last good period intact.
 
 The scheduler wakes using the existing two-minute cron, claims an account lease,
-then imports due accounts in parallel. Normal runs follow 20-minute UTC slots;
-failures retry after 2, 4, 8, 16 and at most 20 minutes. Expired leases recover
+then imports due accounts in parallel. Normal runs follow 20-minute slots from
+09:00 to 24:00 Asia/Tbilisi and hourly slots from 00:00 to 09:00. Daytime failures
+retry after 2, 4, 8, 16 and at most 20 minutes; overnight failures wait for the
+next hour. Nighttime non-hour cron wakeups return before any advertising D1 query. Expired leases recover
 interrupted runs. Refreshes re-read the most recent 30 account-local days to pick
 up delayed attribution. Revisions older than that window need an explicit
 backfill; automatic full-history reconciliation is not claimed.
 
 `ads_import_status` records attempts, successful times, safe errors, next retry
 and checked range. Provider freshness uses actual source receipt time, not the
-moment a browser reads the database. Google deliveries older than 40 minutes
-are rejected as stale. The agency screen surfaces failed/stale imports.
+moment a browser reads the database. Google deliveries are rejected as stale after the next scheduled refresh plus
+20 minutes of delivery grace. Dashboard freshness allows 10 minutes after the
+next scheduled refresh. Both use the source timestamp across the 09:00 transition. The agency screen surfaces failed/stale imports.
 
 ## Cutover and retained business data
 
@@ -105,7 +108,7 @@ Rollback: restore the previous Worker version to return to legacy reads. The
 additive daily tables can remain; do not delete archived or direct data. To pause
 new imports without rolling back the UI, disable DIRECT_ADS_IMPORT_ENABLED.
 
-## Active release
+## Initial direct-import release
 
 Cutover Worker: `ec9fc12f-3739-4874-b9a0-7b6faddf92fb` at 100%.
 Both direct-import and direct-read bindings are enabled. Deployed module was
@@ -124,3 +127,43 @@ profkit_fx. All three SELECT-only live-D1 dashboard checks passed, including
 today's USD/UAH rate, with external provider fetch deliberately disabled.
 Final suite: 60 tests passed; 13 relevant Chromium scenarios passed across the
 two browser runs.
+
+## Night cadence release
+
+Worker `7e4b297f-586e-4f6b-a9ce-bddbb1249966` is the night-cadence release.
+Rollback to the previous 20-minute cadence: `ec9fc12f-3739-4874-b9a0-7b6faddf92fb`.
+Bundle SHA-256: `eeb37480f7d1e184a6cf1a18afe9eada41e2cf4831af7eb8a9ce69cc067d8823`.
+
+From 00:00 inclusive until 09:00 exclusive in Asia/Tbilisi, scheduled advertising
+imports, PROFKIT business sync and FX refresh run hourly. From 09:00 until
+midnight they run every 20 minutes. Advertising retries wait for the next hour
+at night; existing CRM intake/CAPI delivery cadence is preserved. Nighttime
+intermediate cron wakeups do not query or write the advertising tables.
+Scheduled-event timestamps preserve the intended slot even if dispatch is late.
+The reporting date still uses each advertising account's own timezone.
+
+Client and master Home timers share the schedule, skip hidden pages and read
+one minute after a scheduled slot. Freshness uses the next expected source
+refresh plus bounded grace, avoiding false night alarms and handling 09:00.
+
+The platform therefore performs 54 regular reporting cycles instead of 72 per
+day (9 night cycles instead of 27). This is a cycle count, not a promise of 25%
+lower account-wide D1 usage: CRM and Google receiver writes are separate.
+
+The existing Google Cloud Scheduler still runs every 20 minutes until the owner
+runs `cloudrun-reporting/set-cadence.py` in Cloud Shell. This environment has
+no Google identity or outbound GCP access. The prepared script preserves the
+Cloud Run service and delivery settings, validates job ownership, backs up old
+settings, supports repeat execution and rolls back failed updates. It has not
+been run against Google by this agent. Both customers in the shared producer,
+Karlovarska and the draft AM Klinika, would follow the changed cadence.
+
+Validation: 64 API/model/runtime tests, four Chromium scenarios (including the
+night-to-day auto-refresh transition and CRM navigation), and three mocked
+Google Scheduler configuration tests passed. Relevant browser scenarios were
+rerun after clearing the master Home cache at each scheduled refresh.
+
+Deployment verification: Cloudflare reports the night-cadence version at 100%;
+the downloaded live module matches the local bundle byte for byte. SELECT-only
+live-D1 checks passed for all three dashboards with external provider fetch
+disabled. The hourly live cron has not yet reached its first nighttime slot.

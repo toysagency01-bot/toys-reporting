@@ -1,11 +1,15 @@
 import {saveAdsSnapshot,shift} from './ads-store.js';
 import {createGoogleReceiverAdapter} from '../native/google-receiver.js';
+import {nextRefreshAt,isNightRefresh,shouldPollAds,adsAreStale} from './refresh-policy.js';
 
 const slugs=['housevip-cxp7','profkit-instashop-r4vk','karlovarska-sul-k4rm'];
 const iso=ms=>new Date(ms).toISOString();
 const safeCode=e=>/^[a-z][a-z0-9_]{1,80}$/.test(e?.code||'')?e.code:/exceeded.*(write|quota)|7500/i.test(e?.message||'')?'database_write_limit':'import_failed';
-export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,now=()=>Date.now()}={}){
+export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,now=()=>Date.now(),scheduledAt}={}){
  if(env.DIRECT_ADS_IMPORT_ENABLED!=='true')return [];
+ // Check before touching D1: the two-minute CRM cron must not cause ad writes
+ // or retries between hourly overnight imports, even with an old next_attempt_at.
+ if(!shouldPollAds(scheduledAt??now()))return [];
  const db=env.TOYS_DB;
  const rows=(await db.prepare(`SELECT i.id,i.provider,i.external_account_id AS externalAccountId,i.config_json AS configJson,
   p.id AS projectId,p.organization_id AS organizationId,p.slug,p.timezone,p.currency
@@ -24,18 +28,18 @@ export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,
    const adapter=row.provider==='meta_ads'?metaAdapter:createGoogleReceiverAdapter(db);
    if(!adapter)throw Object.assign(new Error('Provider credentials missing'),{code:'provider_credentials_missing'});
    const result=await adapter({project:{id:scope.projectId,slug:scope.projectSlug,organizationId:scope.organizationId},integration:{id:scope.integrationId,accountId:scope.accountId,timezone:scope.timezone,currency:scope.currency,config:scope.config},request:{from,to,level:'ad',metrics}});
-   if(result.sourceFetchedAt&&now()-Date.parse(result.sourceFetchedAt)>40*60000)throw Object.assign(new Error('Provider delivery stale'),{code:'upstream_delivery_stale'});
+   if(result.sourceFetchedAt&&adsAreStale(result.sourceFetchedAt,now(),20))throw Object.assign(new Error('Provider delivery stale'),{code:'upstream_delivery_stale'});
    const payload={...normalize(result,{...scope,from,to}),fetchedAt:iso(now())};
    const rowsWritten=await saveAdsSnapshot(db,scope,payload);
    await db.prepare(`UPDATE ads_import_status SET state='success',last_success_at=?,last_error_code=NULL,failure_count=0,
     next_attempt_at=?,lease_token=NULL,lease_until=NULL,range_from=?,range_to=?,rows_written=? WHERE integration_id=? AND lease_token=?`)
-    .bind(iso(now()),iso((Math.floor(now()/(20*60000))+1)*20*60000),from,to,rowsWritten,row.id,token).run();
+    .bind(iso(now()),iso(nextRefreshAt(now())),from,to,rowsWritten,row.id,token).run();
    return {integrationId:row.id,status:'success',from,to,rowsWritten};
   }catch(error){
    const status=await db.prepare('SELECT failure_count FROM ads_import_status WHERE integration_id=?').bind(row.id).first();
    const code=safeCode(error),backoff=Math.min(20*60000,2*60000*2**Math.min(status?.failure_count||0,4));
    await db.prepare(`UPDATE ads_import_status SET state='error',last_error_code=?,failure_count=failure_count+1,
-    next_attempt_at=?,lease_token=NULL,lease_until=NULL WHERE integration_id=? AND lease_token=?`).bind(code,iso(now()+backoff),row.id,token).run();
+    next_attempt_at=?,lease_token=NULL,lease_until=NULL WHERE integration_id=? AND lease_token=?`).bind(code,iso(isNightRefresh(now())?nextRefreshAt(now()):now()+backoff),row.id,token).run();
    return {integrationId:row.id,status:'error',error:code};
   }
  };

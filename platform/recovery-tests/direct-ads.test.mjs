@@ -64,6 +64,28 @@ test('business-only PROFKIT parsing needs no advertising or content tables and s
  const result=rt.parseProfkit(input,{businessOnly:true});assert.deepEqual(result.streams.map(s=>s.key),['profkit_sales','profkit_fx']);
  input.tables.profkit_sales.values[1][3]=10;assert.throws(()=>rt.parseProfkit(input,{businessOnly:true}),{code:'cross_stream_mismatch'});
 });
+test('night imports run hourly, skip D1 between runs and retry failures only at the next hour',async()=>{
+ const{env,db}=setup();try{
+  env.DIRECT_ADS_IMPORT_ENABLED='true';
+  db.exec(`INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES('direct-meta','prj_housevip_cxp7','meta_ads','123','active','{"timezone":"UTC","currency":"IDR"}')`);
+  let time=Date.parse('2026-10-12T20:00:54Z'),calls=0,fail=false;
+  const deps={now:()=>time,makeScope:rt.integrationScope,normalize:rt.normalizeAdsHierarchy,metrics:rt.METRIC_NAMES,metaAdapter:async()=>{calls++;if(fail)throw Object.assign(new Error('Down'),{code:'provider_timeout'});return {provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',coverage:'complete',dailyMetrics:[],campaigns:[]};}};
+  assert.equal((await scheduledAds(env,deps))[0].status,'success');
+  assert.equal(db.prepare('SELECT next_attempt_at FROM ads_import_status').get().next_attempt_at,'2026-10-12T21:00:00.000Z');
+  const noDB={...env,TOYS_DB:{prepare(){throw new Error('No D1 access between night imports');}}};
+  for(const t of ['20:02','20:20','20:40','20:58']){time=Date.parse('2026-10-12T'+t+':54Z');assert.deepEqual(await scheduledAds(noDB,deps),[]);}
+  assert.equal(calls,1);
+  const stored=await readAdsSnapshot(env.TOYS_DB,scope,'2026-10-12','2026-10-12',time);
+  assert.equal(stored.freshness,'fresh');
+  time=Date.parse('2026-10-12T21:00:54Z');fail=true;
+  assert.equal((await scheduledAds(env,deps))[0].error,'provider_timeout');
+  assert.equal(db.prepare('SELECT next_attempt_at FROM ads_import_status').get().next_attempt_at,'2026-10-12T22:00:00.000Z');
+  fail=false;time=Date.parse('2026-10-12T22:01:03Z');
+  // A delayed cron still belongs to the scheduled :00 slot.
+  assert.equal((await scheduledAds(env,{...deps,scheduledAt:Date.parse('2026-10-12T22:00:00Z')}))[0].status,'success');
+  assert.equal(calls,3);
+ }finally{db.close();}
+});
 test('FX import accepts only the official rate for the requested date and preserves existing rates',async()=>{
  const{env,db}=setup();try{
   const day='2026-10-12';let calls=0;

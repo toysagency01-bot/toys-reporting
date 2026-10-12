@@ -8165,8 +8165,8 @@ export { authorizeMvp, projectRecord, handleMvpApi, onDemandAdsService };
 
 export {authenticateGoogleCloudRunPush};
 
-export async function runDirectAdsImports(env){
- return scheduledAds(env,{metaAdapter:createMetaAdsHierarchyAdapter({accessToken:env.META_ADS_ACCESS_TOKEN,appSecret:env.META_APP_SECRET}),normalize:normalizeAdsHierarchy,makeScope:integrationScope,metrics:METRIC_NAMES});
+export async function runDirectAdsImports(env,scheduledAt){
+ return scheduledAds(env,{scheduledAt,metaAdapter:createMetaAdsHierarchyAdapter({accessToken:env.META_ADS_ACCESS_TOKEN,appSecret:env.META_APP_SECRET}),normalize:normalizeAdsHierarchy,makeScope:integrationScope,metrics:METRIC_NAMES});
 }
 
 // Business sales are not advertising conversions. Refresh only sales and explicit

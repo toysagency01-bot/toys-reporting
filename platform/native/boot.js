@@ -1,4 +1,5 @@
 import {mountCalendar} from './calendar.js';
+import {nextRefreshAt} from '../imports/refresh-policy.js';
 import {memoryCache} from '../master/cache.js';
 import {mountClientNavigation} from './client-navigation.js';
 import {scheduleRender,updateChart,observeScrollFades} from './rendering.js';
@@ -114,7 +115,7 @@ async function refreshCreatives(){
 function queueRefresh(){resetRetries();crmStats=null;renderCRM();creativeSequence++;creativeRankings=null;creativeState='loading';clearTimeout(periodTimer);periodTimer=setTimeout(()=>{renderCreatives();refreshCreatives();refresh();},300);}
 let lastAutoRefresh=Date.now(),autoRunning=false;
 async function autoRefresh(){
- if(autoRunning||document.hidden||Date.now()-lastAutoRefresh<20*60*1000)return;autoRunning=true;lastAutoRefresh=Date.now();resetRetries();materialCache.clear();
+ if(autoRunning||document.hidden||Date.now()<nextRefreshAt(lastAutoRefresh)+60000)return;autoRunning=true;lastAutoRefresh=Date.now();resetRetries();materialCache.clear();
  try{const d=await json(api+'/dashboard');const changed=JSON.stringify(d.dashboard)!==JSON.stringify(dashboard);dashboard=d.dashboard;snapshotPromise=Promise.resolve(dashboard);if(changed){appliedAds='';allRows=snapshotRows(dashboard);const names=['MetaAds','GoogleAds','InstashopSales','EcomFunnel','EcomFunnelCampaign'];window.TOYS_NATIVE.refreshSnapshot(Object.fromEntries(names.map(n=>[n,sourceTable(dashboard,n)])));}await Promise.all([refresh(),refreshCreatives()]);}catch(e){notice('Автообновление временно недоступно. Сохранены последние данные.',true);}finally{autoRunning=false;}
 }
 
@@ -162,7 +163,7 @@ async function boot(){
  calendar=mountCalendar({from,to,apply:(start,end)=>{document.querySelectorAll('#periodSeg button').forEach(b=>b.classList.remove('active'));sequence++;ads=null;window.TOYS_NATIVE.setPeriod(start,end);queueRefresh();}});
  const logo=document.querySelector('header img[alt="TOYS"]');const theme=()=>{if(logo)logo.src=asset(document.documentElement.dataset.theme==='light'?'assets/toys-black.svg':'assets/toys-logo.svg');};theme();new MutationObserver(theme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
  delete document.body.dataset.platformLoading;document.body.dataset.platformReady='true';renderCreatives();
- await Promise.all([refresh(),refreshCreatives()]);refreshTimer=setInterval(autoRefresh,20*60*1000);
+ await Promise.all([refresh(),refreshCreatives()]);refreshTimer=setInterval(autoRefresh,60000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)autoRefresh();});
  document.addEventListener('change',e=>{if(e.target===from||e.target===to){sequence++;ads=null;queueRefresh();}},true);
  document.addEventListener('click',e=>{if(e.target.closest('[data-days]')){sequence++;ads=null;queueRefresh();}},true);

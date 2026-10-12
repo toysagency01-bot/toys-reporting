@@ -201,6 +201,25 @@ test('pending provider refresh automatically updates both statistics and creativ
  await page.clock.fastForward(2000);await expect(page.locator('#kClicks')).toHaveText('88');await expect(page.locator('.top-creative h3')).toHaveText('Automatically refreshed creative');await expect(page.locator('#platformNotice')).toContainText('обновлено');expect(stats).toBe(2);expect(creatives).toBe(2);
 });
 
+test('open dashboard refreshes hourly at night and resumes daytime cadence using Tbilisi time',async({page})=>{
+ let reads=0;
+ await page.setExtraHTTPHeaders({'x-test-public':'true'});
+ await page.clock.install({time:new Date('2026-10-12T20:03:00Z')});
+ await page.route('**/ads-summary?*',route=>{reads++;return route.fulfill({json:{ok:true,refreshing:false,providers:[]}});});
+ await page.route('**/top-creatives?*',route=>route.fulfill({json:{ok:true,refreshing:false,rankings:{leads:[]}}}));
+ await page.goto('/housevip-cxp7/');
+ await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
+ await expect.poll(()=>reads).toBe(1);
+ await page.clock.fastForward(37*60000); // 00:40 Tbilisi
+ expect(reads).toBe(1);
+ await page.clock.fastForward(22*60000); // 01:02 Tbilisi
+ await expect.poll(()=>reads).toBe(2);
+ await page.clock.fastForward(8*60*60000); // 09:02 Tbilisi, waking a suspended tab
+ await expect.poll(()=>reads).toBe(3);
+ await page.clock.fastForward(20*60000);
+ await expect.poll(()=>reads).toBe(4);
+});
+
 test('chart instances survive updates, rendering is batched and unchanged creative cards keep their DOM',async({page})=>{
  await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.locator('.platform-top-creatives')).toBeVisible();
  await page.evaluate(()=>{window.auditChart=Chart.getChart(document.getElementById('chart'));window.auditCreative=document.querySelector('.platform-top-creatives');window.auditUpdates=0;Chart.register({id:'render-regression',afterUpdate(){window.auditUpdates++;}});TOYS_NATIVE.render();TOYS_NATIVE.render();TOYS_NATIVE.render();});
