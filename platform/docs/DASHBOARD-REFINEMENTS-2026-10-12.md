@@ -250,3 +250,25 @@ Bundle SHA256: `eb49427c99e12b9c572cc41aa6e672100746af8c1de852c61ba2443933925812
 the downloaded active module matches the local build. Eight Meta cache rows were
 expired while retaining their last-good payload to refresh the added commerce
 fields on the next read. No Pages deployment or database migration was needed.
+
+## Google Cloud Run delivery package
+
+The owner supplied the active Cloud Run source archive (SHA256
+`6d78be61c5248470fe70da1b6705d71df695878e8de02745841ed7a71135f9d5`).
+It has Google Ads campaign/account reads but no daily hierarchy delivery.
+`cloudrun-reporting/` adds a read-only producer, authenticated scheduled endpoint
+and a guarded Cloud Shell installer. It does not commit the original source
+archive, existing credentials or campaign plans. Details and rollback behavior
+are in that directory's README. Google rollout remains pending owner execution;
+remote D1 still has zero accepted Google batches at package preparation time.
+
+The receiver now refreshes `updated_at` only on an identical verified final-page
+replay of an accepted snapshot; changed replays still fail. Adapter freshness uses
+that checked timestamp without duplicating historical rows. 29 platform tests,
+65 Python service tests and 3 installer tests passed. Contract tests exercise the
+real JS validator against producer pages and the real D1 schema against replays.
+
+Receiver Worker release: `ccf11def-aa54-4bad-8979-c3b9545d78c9` (100%, API verified).
+Rollback: `e7236f3a-9cc4-4f6b-aa43-a2e395227c30`.
+Bundle SHA256: `170f27b90672c27b84e5b6901d121322dfba225483ec57b82290b8c13785f20f`;
+the active downloaded module matches the local build. No schema/Pages change.

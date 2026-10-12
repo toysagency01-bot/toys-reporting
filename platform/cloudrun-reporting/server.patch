@@ -1,0 +1,47 @@
+--- a/src/toys_meta_buyer_cloud/server.py
++++ b/src/toys_meta_buyer_cloud/server.py
+@@ -13,6 +13,7 @@
+ from .config import CloudSettings
+ from .creative_store import CreativeStore, CreativeStoreError, MAX_CREATIVE_BYTES
+ from .monitoring import MonitoringStore, summarize_snapshot
++from .reporting import DELIVERY_LOCK, run_reporting, scheduler_authorized
+ from .oauth import (
+     authorization_redirect,
+     authorization_server_metadata,
+@@ -150,6 +151,9 @@
+             return
+         if self.path == "/media/upload":
+             self._handle_media_upload()
++            return
++        if self.path == "/scheduled/google-reporting":
++            self._handle_google_reporting()
+             return
+         if self.path == "/scheduled/snapshot":
+             self._handle_scheduled_snapshot()
+@@ -296,6 +300,26 @@
+             return
+         self._write_json(HTTPStatus.OK, response, headers={"MCP-Protocol-Version": "2025-06-18"})
+ 
++    def _handle_google_reporting(self) -> None:
++        if not self._authorized(scheduled=True) and not scheduler_authorized(self.headers.get("Authorization", "")):
++            self._write_json(HTTPStatus.UNAUTHORIZED, {"error": "Unauthorized."})
++            return
++        params = self._read_json()
++        if params is None:
++            self._write_json(HTTPStatus.BAD_REQUEST, {"error": "A JSON object is required."})
++            return
++        if not DELIVERY_LOCK.acquire(blocking=False):
++            self._write_json(HTTPStatus.CONFLICT, {"error": "Reporting delivery is already running."})
++            return
++        try:
++            result = asyncio.run(run_reporting(CloudSettings(), params))
++            print(json.dumps({"event": "google_reporting_delivery", **result}), flush=True)
++            self._write_json(HTTPStatus.OK if result["ok"] else HTTPStatus.BAD_GATEWAY, result)
++        except Exception as exc:
++            self._write_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "error": "Google reporting failed.", "type": type(exc).__name__})
++        finally:
++            DELIVERY_LOCK.release()
++
+     def _handle_scheduled_snapshot(self) -> None:
+         if not self._authorized(scheduled=True):
+             self._write_json(HTTPStatus.UNAUTHORIZED, {"error": "Unauthorized."}, headers={"WWW-Authenticate": "Bearer"})

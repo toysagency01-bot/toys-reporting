@@ -15,3 +15,18 @@ test('Google accepted snapshots supply all hierarchy levels, reject gaps and nev
  db.prepare("UPDATE google_ads_receiver_batches SET status='receiving'").run();await assert.rejects(adapter({project,integration,request:{from,to:from}}),{code:'google_snapshot_coverage_missing'});
  }finally{db.close();}
 });
+
+test('unchanged authenticated delivery refreshes checked time without duplicating accepted data',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const source=readFileSync(new URL('../runtime/backend.js',import.meta.url),'utf8').split('// src/google-ads-cloudrun-ingestion.js')[1].split('// src/index.js')[0];
+ const {persistPage}=new Function('registerGoogleSnapshot','__name',source+';return {persistPage};')(registerGoogleSnapshot,()=>{});
+ const {db,env}=fixture();try{
+  const project={id:'prj_housevip_cxp7',slug:'housevip-cxp7',organizationId:'org_toys_agency'},id='e'.repeat(64);
+  const payload={snapshotId:id,customer:{id:'2662445825',currencyCode:'EUR',timeZone:'Europe/Prague'},range:{from:'2026-10-12',to:'2026-10-12'},coverage:Object.fromEntries(['campaign','ad_group','ad'].map(x=>[x,{complete:true,totalRows:0}])),page:{offset:0,pageSize:200,returnedRows:0,totalRows:0,nextCursor:null},rows:[]};
+  const first=await persistPage(env.TOYS_DB,payload,project,'f'.repeat(64),'2026-10-12T10:00:00.000Z');assert.equal(first.accepted,true);
+  await persistPage(env.TOYS_DB,payload,project,'f'.repeat(64),'2026-10-12T10:21:00.000Z');
+  const stored=db.prepare('SELECT accepted_at,updated_at FROM google_ads_receiver_batches').get();assert.equal(stored.accepted_at,'2026-10-12T10:00:00.000Z');assert.equal(stored.updated_at,'2026-10-12T10:21:00.000Z');assert.equal(db.prepare('SELECT COUNT(*) AS n FROM google_ads_receiver_pages').get().n,1);
+  const result=await createGoogleReceiverAdapter(env.TOYS_DB)({project,integration:{accountId:'2662445825',currency:'EUR',timezone:'Europe/Prague'},request:{from:'2026-10-12',to:'2026-10-12'}});assert.equal(result.sourceFetchedAt,stored.updated_at);
+  await assert.rejects(persistPage(env.TOYS_DB,payload,project,'a'.repeat(64),'2026-10-12T11:00:00.000Z'),{code:'replay_conflict'});assert.equal(db.prepare('SELECT updated_at FROM google_ads_receiver_batches').get().updated_at,stored.updated_at);
+ }finally{db.close();}
+});

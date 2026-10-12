@@ -7207,7 +7207,7 @@ async function persistPage(db, payload, project, pageHash, now) {
   ).bind(payload.snapshotId, payload.page.offset).first();
   if (replay) {
     if (replay.pageHash !== pageHash) fail9("replay_conflict", "Page replay changed its authenticated payload", 409);
-    const read=await readback(db,payload.snapshotId);if(read.batch.status==='accepted')await registerGoogleSnapshot(db,read.batch);return safeAccepted(read, project);
+    const read=await readback(db,payload.snapshotId);if(read.batch.status==='accepted'){if(!payload.page.nextCursor)await db.prepare("UPDATE google_ads_receiver_batches SET updated_at=? WHERE snapshot_id=? AND status='accepted'").bind(now,payload.snapshotId).run();await registerGoogleSnapshot(db,read.batch);}return safeAccepted(read, project);
   }
   if (batch.status === "accepted") fail9("snapshot_already_complete", "Accepted snapshot cannot receive another page", 409);
   if (Number(batch.nextExpectedOffset) !== payload.page.offset) {

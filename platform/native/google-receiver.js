@@ -3,7 +3,7 @@
 export function createGoogleReceiverAdapter(db){
  return async({project,integration,request})=>{
   const fail=code=>{throw Object.assign(new Error(code),{code});};
-  const batches=(await db.prepare(`SELECT snapshot_id AS id,range_from AS fromDate,range_to AS toDate,currency_code AS currency,time_zone AS timezone,accepted_at AS acceptedAt FROM google_ads_receiver_batches WHERE organization_id=? AND project_id=? AND customer_id=? AND status='accepted' AND range_from<=? AND range_to>=? ORDER BY accepted_at DESC,snapshot_id DESC`).bind(project.organizationId,project.id,integration.accountId,request.to,request.from).all()).results||[];
+  const batches=(await db.prepare(`SELECT snapshot_id AS id,range_from AS fromDate,range_to AS toDate,currency_code AS currency,time_zone AS timezone,updated_at AS checkedAt FROM google_ads_receiver_batches WHERE organization_id=? AND project_id=? AND customer_id=? AND status='accepted' AND range_from<=? AND range_to>=? ORDER BY updated_at DESC,snapshot_id DESC`).bind(project.organizationId,project.id,integration.accountId,request.to,request.from).all()).results||[];
   const days=new Map();for(let d=request.from;d<=request.to;d=new Date(Date.parse(d)+86400000).toISOString().slice(0,10)){
    const batch=batches.find(b=>b.fromDate<=d&&b.toDate>=d);if(!batch)fail('google_snapshot_coverage_missing');
    if(batch.currency!==integration.currency||batch.timezone!==integration.timezone)fail('google_snapshot_scope_mismatch');days.set(d,batch);
@@ -21,7 +21,7 @@ export function createGoogleReceiverAdapter(db){
    // Generic conversions are intentionally not relabelled as sales or leads.
    // Business outcomes require explicit categories from the producer contract.
   }
-  return {provider:'google_ads',accountId:integration.accountId,currency:integration.currency,timezone:integration.timezone,coverage:'complete',unsupportedMetrics:[],dailyMetrics:[...account].map(([date,metrics])=>({date,metrics})),campaigns:[...campaigns.values()].map(({groups,...c})=>({...c,adGroups:[...groups.values()].map(({items,...g})=>({...g,ads:[...items.values()]}))})),missingRanges:[],dataThroughDate:request.to,sourceFetchedAt:[...days.values()].map(b=>b.acceptedAt).sort()[0]};
+  return {provider:'google_ads',accountId:integration.accountId,currency:integration.currency,timezone:integration.timezone,coverage:'complete',unsupportedMetrics:[],dailyMetrics:[...account].map(([date,metrics])=>({date,metrics})),campaigns:[...campaigns.values()].map(({groups,...c})=>({...c,adGroups:[...groups.values()].map(({items,...g})=>({...g,ads:[...items.values()]}))})),missingRanges:[],dataThroughDate:request.to,sourceFetchedAt:[...days.values()].map(b=>b.checkedAt).sort()[0]};
  };
 }
 function micros(value){const n=BigInt(value),fraction=(n%1000000n).toString().padStart(6,'0').replace(/0+$/,'');return `${n/1000000n}${fraction?'.'+fraction:''}`;}
