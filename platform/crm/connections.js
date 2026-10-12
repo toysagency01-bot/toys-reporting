@@ -52,7 +52,7 @@ export async function discoverPages(env){
  let cursor=null,count=0;
  for(let page=0;page<50;page++){
  const params=new URLSearchParams({fields:'id,name,access_token',limit:'100',...(cursor?{after:cursor}:{})});
- const response=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/me/accounts?${params}`,{headers:{authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(20000)});const d=await response.json();if(!response.ok||d.error)fail('meta_'+(d.error?.code||response.status),502);
+ const response=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/me/accounts?${params}`,{headers:{authorization:'Bearer '+token},redirect:'manual',signal:AbortSignal.timeout(20000)});const d=await response.json();if(!response.ok||d.error)fail('meta_'+(d.error?.code||response.status),502);
  for(const item of d.data||[]){if(!/^\d+$/.test(item.id)||!item.access_token)continue;const now=new Date().toISOString();await env.TOYS_DB.prepare('INSERT INTO crm_pages(page_id,name,token_cipher,discovered_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(page_id) DO UPDATE SET name=excluded.name,token_cipher=excluded.token_cipher,updated_at=excluded.updated_at').bind(item.id,item.name||item.id,await crypt(env,item.access_token),now,now).run();count++;}
  if(!d.paging?.next)return {count};cursor=d.paging?.cursors?.after;if(!cursor)fail('page_pagination_incomplete');}
  fail('page_pagination_limit');

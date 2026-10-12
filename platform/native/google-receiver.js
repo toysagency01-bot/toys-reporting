@@ -14,7 +14,7 @@ export function createGoogleReceiverAdapter(db){
   const metrics=r=>({date:r.date,metrics:{impressions:r.metrics.impressions,clicks:r.metrics.clicks,spend:micros(r.metrics.costMicros),conversions:r.metrics.conversions,conversionValue:r.metrics.conversionValue}});
   for(const r of rows){
    if(!campaigns.has(r.campaign.id))campaigns.set(r.campaign.id,{...entity(r.campaign),groups:new Map()});const c=campaigns.get(r.campaign.id);
-   if(r.level==='campaign'){const daily=metrics(r);c.dailyMetrics.push(daily);const a=account.get(r.date)||{};for(const[k,v]of Object.entries(daily.metrics))a[k]=(Number(a[k]||0)+Number(v)).toString();account.set(r.date,a);continue;}
+   if(r.level==='campaign'){const daily=metrics(r);c.dailyMetrics.push(daily);const a=account.get(r.date)||{};for(const[k,v]of Object.entries(daily.metrics))a[k]=addDecimal(a[k]||'0',v);account.set(r.date,a);continue;}
    if(!c.groups.has(r.adGroup.id))c.groups.set(r.adGroup.id,{...entity(r.adGroup,c.id),items:new Map()});const g=c.groups.get(r.adGroup.id);
    if(r.level==='ad_group'){g.dailyMetrics.push(metrics(r));continue;}
    if(!g.items.has(r.ad.id))g.items.set(r.ad.id,{...entity(r.ad,g.id),creativeRef:r.creative.ref,outcomeDaily:[]});const ad=g.items.get(r.ad.id);ad.dailyMetrics.push(metrics(r));
@@ -25,6 +25,11 @@ export function createGoogleReceiverAdapter(db){
  };
 }
 function micros(value){const n=BigInt(value),fraction=(n%1000000n).toString().padStart(6,'0').replace(/0+$/,'');return `${n/1000000n}${fraction?'.'+fraction:''}`;}
+export function addDecimal(left,right){
+ const split=value=>{if(!/^\d+(?:\.\d+)?$/.test(String(value)))throw new Error('Invalid reporting decimal');const [whole,fraction='']=String(value).split('.');return {n:BigInt(whole+fraction),scale:fraction.length};};
+ const a=split(left),b=split(right),scale=Math.max(a.scale,b.scale),sum=a.n*10n**BigInt(scale-a.scale)+b.n*10n**BigInt(scale-b.scale);
+ const digits=sum.toString().padStart(scale+1,'0');return scale?digits.slice(0,-scale)+(digits.slice(-scale).replace(/0+$/,'')?'.'+digits.slice(-scale).replace(/0+$/,''):''):digits;
+}
 
 export async function registerGoogleSnapshot(db,batch){
  // Currency/timezone come from the authenticated provider, never the sheet or UI.

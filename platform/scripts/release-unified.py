@@ -36,7 +36,11 @@ if __name__=='__main__':
         if not any(b['name']=='MVP_MASTER_EMAILS' for b in bindings):
             owners=next(b['text'] for b in bindings if b['name']=='MVP_ALLOWED_EMAILS')
             bindings.append({'name':'MVP_MASTER_EMAILS','type':'plain_text','text':owners.lower()})
-        metadata={'main_module':'unified-worker.js','compatibility_date':settings['compatibility_date'],'compatibility_flags':settings['compatibility_flags'],'bindings':bindings,'keep_bindings':['secret_text'],'keep_assets':True,'assets':{'config':{'run_worker_first':['/login','/login/','/master','/master/','/api/*','/housevip-cxp7','/housevip-cxp7/*','/profkit-instashop-r4vk','/profkit-instashop-r4vk/*','/karlovarska-sul-k4rm','/karlovarska-sul-k4rm/*']}},'annotations':{'workers/message':'CRM and compact D1 storage '+hashlib.sha256(pathlib.Path('dist/unified-worker.js').read_bytes()).hexdigest()[:16]}}
+        for option,binding_name in [('--direct-import','DIRECT_ADS_IMPORT_ENABLED'),('--direct-read','DIRECT_ADS_READ_ENABLED')]:
+            if option in sys.argv:
+                bindings=[b for b in bindings if b['name']!=binding_name]
+                bindings.append({'name':binding_name,'type':'plain_text','text':'true'})
+        metadata={'main_module':'unified-worker.js','compatibility_date':settings['compatibility_date'],'compatibility_flags':settings['compatibility_flags'],'bindings':bindings,'keep_bindings':['secret_text'],'keep_assets':True,'assets':{'config':{'run_worker_first':['/login','/login/','/master','/master/','/api/*','/housevip-cxp7','/housevip-cxp7/*','/profkit-instashop-r4vk','/profkit-instashop-r4vk/*','/karlovarska-sul-k4rm','/karlovarska-sul-k4rm/*']}},'annotations':{'workers/message':'Direct advertising import '+hashlib.sha256(pathlib.Path('dist/unified-worker.js').read_bytes()).hexdigest()[:16]}}
         boundary='toys-'+uuid.uuid4().hex
         parts=[]
         for name,filename,kind,body in [('metadata',None,'application/json',json.dumps(metadata).encode()),('unified-worker.js','unified-worker.js','application/javascript+module',pathlib.Path('dist/unified-worker.js').read_bytes())]:

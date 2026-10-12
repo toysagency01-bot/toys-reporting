@@ -30,6 +30,7 @@ export function hierarchyRows(provider) {
     conversionLabel: 'Конверсии Meta', source: provider.source, children: campaign.children || [],
   })));
 }
+export const coversDate=(provider,date)=>provider.coveredDates?provider.coveredDates.includes(date):date>=provider.requestedRange.from&&date<=provider.requestedRange.to;
 export function advertisingModel(dashboard, ads, range) {
   let rows = snapshotRows(dashboard || {});
   const providers = ads?.providers || [];
@@ -38,7 +39,8 @@ export function advertisingModel(dashboard, ads, range) {
   for (const name of new Set(providers.map(p => p.provider))) {
     const group = providers.filter(p => p.provider === name);
     if (group.every(p => p.hierarchy && p.requestedRange?.from === range.from && p.requestedRange?.to === range.to)) {
-      rows = rows.filter(r => r.provider !== name).concat(group.flatMap(hierarchyRows));
+      rows = rows.filter(r => r.provider !== name || !group.every(p=>coversDate(p,r.date)))
+        .concat(group.flatMap(hierarchyRows).filter(r=>group.every(p=>coversDate(p,r.date))));
     }
   }
   return rows.filter(r => r.date >= range.from && r.date <= range.to);

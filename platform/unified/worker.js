@@ -1,3 +1,4 @@
+import {refreshUsdUah} from '../imports/fx.js';
 import {messageWebhook} from '../crm/messages.js';
 import {portalRoute,accessManagement,loginRedirect} from '../portal/routes.js';
 import {prepareAccessSchema} from '../portal/schema.js';
@@ -12,7 +13,7 @@ import masterStyle from '../master/styles.css';
 import masterClient from '../dist/master-client.txt';
 import {liveCommerce} from '../native/live-commerce.js';
 import {attachCRMQualification} from '../native/crm-attribution.js';
-import backend, {authorizeMvp, projectRecord, onDemandAdsService} from '../runtime/backend.js';
+import backend, {authorizeMvp, projectRecord, onDemandAdsService,runDirectAdsImports} from '../runtime/backend.js';
 import {creativeKey,loadMetaCreative} from '../native/meta-creative.js';
 import {rankCreatives} from '../native/top-creatives.js';
 export {AdsReadOnlyPreflight,activeProject,databaseHealth,handleApi,internalAuthorized,listProjects,projectLeadStatuses,publicDashboard,publicExchangeRate,publicLeads,publicTab,sameOriginWrite,scheduledHousevipSync,scheduledPilotSyncs,scheduledRealCommerceSync,validDate} from '../runtime/backend.js';
@@ -61,8 +62,8 @@ export default {
       try{
         let data=await onDemandAdsService(env,ctx).getStats({organizationId:project.organizationId,projectSlug:top[1],...range});
         const refreshing=data.providers.some(p=>p.refresh?.state==='refreshing'||p.refresh?.state==='rate_limited');
-        if(privateHierarchy)return Response.json({ok:true,...await attachCRMQualification(data,env,project,range),refreshing,commerce:liveCommerce(data.providers,range),crm:await crmSummary(env,project,range.from,range.to),access:{role:auth.role}},{headers:{'cache-control':'no-store'}});
-        if(top[2]==='ads-summary')return Response.json({ok:true,requestedRange:range,refreshing,commerce:liveCommerce(data.providers,range),crm:await crmSummary(env,project,range.from,range.to),providers:data.providers.map(p=>({provider:p.provider,freshness:p.freshness,requestedRange:p.requestedRange,hierarchy:p.hierarchy?{currency:p.hierarchy.currency,children:p.hierarchy.children.map(c=>({providerId:c.providerId,name:c.name,dailyMetrics:c.dailyMetrics,children:[]}))}:null}))},{headers:{'cache-control':'no-store'}});
+        if(privateHierarchy)return Response.json({ok:true,exchangeRates:top[1]==='profkit-instashop-r4vk'?(await env.TOYS_DB.prepare("SELECT rate_date AS date,rate FROM exchange_rates WHERE base_currency='USD' AND quote_currency='UAH' AND rate_date>=? AND rate_date<=?").bind(range.from,range.to).all()).results:[],...await attachCRMQualification(data,env,project,range),refreshing,commerce:liveCommerce(data.providers,range),crm:await crmSummary(env,project,range.from,range.to),access:{role:auth.role}},{headers:{'cache-control':'no-store'}});
+        if(top[2]==='ads-summary')return Response.json({ok:true,exchangeRates:top[1]==='profkit-instashop-r4vk'?(await env.TOYS_DB.prepare("SELECT rate_date AS date,rate FROM exchange_rates WHERE base_currency='USD' AND quote_currency='UAH' AND rate_date>=? AND rate_date<=?").bind(range.from,range.to).all()).results:[],requestedRange:range,refreshing,commerce:liveCommerce(data.providers,range),crm:await crmSummary(env,project,range.from,range.to),providers:data.providers.map(p=>({provider:p.provider,freshness:p.freshness,requestedRange:p.requestedRange,coveredDates:p.coveredDates,coverage:p.coverage,fetchedAt:p.fetchedAt,refresh:p.refresh,hierarchy:p.hierarchy?{currency:p.hierarchy.currency,children:p.hierarchy.children.map(c=>({providerId:c.providerId,name:c.name,dailyMetrics:c.dailyMetrics,children:[]}))}:null}))},{headers:{'cache-control':'no-store'}});
         data=await attachCRMQualification(data,env,project,range);
         // Publish only top-three presentation fields; never the private hierarchy,
         // account identifiers, CRM records, drafts or integration configuration.
@@ -127,5 +128,5 @@ export default {
     }
     return response;
   },
-  async scheduled(event,env,ctx){ctx.waitUntil(prepareAccessSchema(env).catch(()=>console.error('Client access schema preparation deferred')));ctx.waitUntil(drain(env));if(event.cron!=='*/2 * * * *')return backend.scheduled(event,env,ctx);},
+  async scheduled(event,env,ctx){ctx.waitUntil(prepareAccessSchema(env).catch(()=>console.error('Client access schema preparation deferred')));ctx.waitUntil(drain(env));ctx.waitUntil(runDirectAdsImports(env));if(env.DIRECT_ADS_IMPORT_ENABLED==='true')ctx.waitUntil(refreshUsdUah(env).catch(()=>console.error('NBU FX refresh failed; previous rates preserved')));if(event.cron!=='*/2 * * * *')return backend.scheduled(event,env,ctx);},
 };

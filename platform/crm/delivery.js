@@ -6,7 +6,7 @@ export async function signature(secret,body){const key=await crypto.subtle.impor
 export async function graph(env,path,token,body=null){
  if(!/^[\d/]+(?:events|subscribed_apps|leadgen_forms|leads)?$/.test(path)&&!/^me\/accounts$/.test(path))err('invalid_graph_path');
  const params=body?new URLSearchParams(body):null;
- const r=await (env.CRM_FETCH||fetch)('https://graph.facebook.com/v26.0/'+path,{method:body?'POST':'GET',headers:{authorization:'Bearer '+token,...(body?{'content-type':'application/x-www-form-urlencoded'}:{})},...(body?{body:params}:{}),redirect:'error',signal:AbortSignal.timeout(20000)});
+ const r=await (env.CRM_FETCH||fetch)('https://graph.facebook.com/v26.0/'+path,{method:body?'POST':'GET',headers:{authorization:'Bearer '+token,...(body?{'content-type':'application/x-www-form-urlencoded'}:{})},...(body?{body:params}:{}),redirect:'manual',signal:AbortSignal.timeout(20000)});
  const d=await r.json();if(!r.ok||d.error)err('meta_'+(d.error?.code||r.status),502);return d;
 }
 export async function capiPayload(env,lead,m,cfg){
@@ -22,10 +22,10 @@ async function metaLead(env,job){
  const data=parse(job.payload_json),page=await env.TOYS_DB.prepare('SELECT * FROM crm_pages WHERE page_id=? AND project_id=?').bind(data.pageId,job.project_id).first();if(!page?.token_cipher)err('page_token_missing');
  const token=await crypt(env,page.token_cipher,true);
  const params=new URLSearchParams({fields:'id,created_time,ad_id,adset_id,campaign_id,form_id,field_data'});
- const r=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(job.source_id)}?${params}`,{headers:{authorization:'Bearer '+token},redirect:'error'});const d=await r.json();if(!r.ok||d.error)err('meta_'+(d.error?.code||r.status));if(String(d.id)!==job.source_id)err('lead_identity_mismatch');
+ const r=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(job.source_id)}?${params}`,{headers:{authorization:'Bearer '+token},redirect:'manual'});const d=await r.json();if(!r.ok||d.error)err('meta_'+(d.error?.code||r.status));if(String(d.id)!==job.source_id)err('lead_identity_mismatch');
  const fields=Object.fromEntries((d.field_data||[]).map(f=>[f.name,Array.isArray(f.values)?f.values[0]:'']));
  let attribution=null;
- if(d.ad_id){try{const a=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(d.ad_id)}?fields=id,account_id`,{headers:{authorization:'Bearer '+(env.META_ADS_ACCESS_TOKEN||token)},redirect:'error'});const ad=await a.json();if(a.ok&&!ad.error&&String(ad.id)===String(d.ad_id))attribution={provider:'meta_ads',accountId:ad.account_id,adId:d.ad_id,campaignId:d.campaign_id,adsetId:d.adset_id};}catch{}}
+ if(d.ad_id){try{const a=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(d.ad_id)}?fields=id,account_id`,{headers:{authorization:'Bearer '+(env.META_ADS_ACCESS_TOKEN||token)},redirect:'manual'});const ad=await a.json();if(a.ok&&!ad.error&&String(ad.id)===String(d.ad_id))attribution={provider:'meta_ads',accountId:ad.account_id,adId:d.ad_id,campaignId:d.campaign_id,adsetId:d.adset_id};}catch{}}
 
  const p=await env.TOYS_DB.prepare('SELECT id FROM projects WHERE id=?').bind(job.project_id).first();
  return ingest(env,p,{name:fields.full_name||[fields.first_name,fields.last_name].filter(Boolean).join(' '),email:fields.email,phone:fields.phone_number,createdAt:d.created_time,sourceAdId:d.ad_id,pageId:data.pageId,formId:d.form_id,adAttribution:attribution},'meta_lead_ads',d.id);

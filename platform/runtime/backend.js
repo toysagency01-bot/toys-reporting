@@ -1,3 +1,5 @@
+import {readAdsSnapshot} from '../imports/ads-store.js';
+import {scheduledAds} from '../imports/scheduled-ads.js';
 import {clientGrant,staffIdentity,masterIdentity} from '../portal/access.js';
 import {attachMetaPreviews} from '../native/meta-previews.js';
 import {createGoogleReceiverAdapter,registerGoogleSnapshot} from '../native/google-receiver.js';
@@ -2346,7 +2348,8 @@ function createOnDemandAdsService({
   cacheTtlMinutes = 30,
   refreshCooldownMs = 1e4,
   refreshLeaseMs = 45e3,
-  waitUntil = null
+  waitUntil = null,
+  storedOnly = false
 } = {}) {
   if (!db?.prepare) fail2("db_required", "D1-compatible db is required");
   if (!Number.isFinite(cacheTtlMinutes) || cacheTtlMinutes <= 0 || cacheTtlMinutes > ADS_ON_DEMAND_MAX_CACHE_MINUTES) {
@@ -2409,6 +2412,7 @@ function createOnDemandAdsService({
     if (!scope.accountId || !scope.timezone) {
       return unavailable(scope, "missing", !scope.accountId ? "account_scope_missing" : "account_timezone_missing");
     }
+    if (storedOnly && ["housevip-cxp7","profkit-instashop-r4vk","karlovarska-sul-k4rm"].includes(scope.projectSlug)) return await readAdsSnapshot(db,scope,from,to,instant(now(),"now").getTime()) || unavailable(scope,"missing","direct_import_pending");
     const adapter = adapterFunction(providers[scope.provider]);
     if (!adapter) return unavailable(scope, "unsupported", "provider_adapter_unavailable");
     const key = cacheKey(scope, from, to);
@@ -2577,7 +2581,8 @@ function metricRow(date2, raw) {
     metrics: {
       impressions: text2(raw.impressions) || "0",
       clicks: text2(raw.clicks) || "0",
-      spend: text2(raw.spend) || "0"
+      spend: text2(raw.spend) || "0",
+      ...(raw.toysResult!==undefined?{conversions:raw.toysResult}:{} )
     }
   };
 }
@@ -2588,7 +2593,7 @@ function addDaily(target, row) {
     target.set(row.date, structuredClone(row));
     return;
   }
-  for (const metric3 of ["impressions", "clicks", "spend"]) {
+  for (const metric3 of ["impressions", "clicks", "spend",...row.metrics.conversions!==undefined?["conversions"]:[]]) {
     existing.metrics[metric3] = add(existing.metrics[metric3], row.metrics[metric3], metric3);
   }
 }
@@ -2679,7 +2684,7 @@ async function page(fetchImpl, endpoint, params, token, retry = {}) {
       response5 = await fetchImpl(`${endpoint}?${params}`, {
         method: "GET",
         headers: { accept: "application/json", authorization: `Bearer ${token}` },
-        redirect: 'error',signal:retry.signal||AbortSignal.timeout(18000)
+        redirect: 'manual',signal:retry.signal||AbortSignal.timeout(18000)
       });
     } catch (_) {
       if (retry.signal?.aborted) fail3('provider_timeout');
@@ -2710,7 +2715,7 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
   const secret = text2(appSecret);
   if (!token || !secret) return null;
   const proof = createHmac("sha256", secret).update(token).digest("hex");
-  return async ({ integration, request }) => {
+  return async ({ project, integration, request }) => {
     const deadline=AbortSignal.timeout(25000);
     const insightRetry={...retry,signal:AbortSignal.any([deadline,AbortSignal.timeout(18000)])};
     const expectedAccountId = accountId(integration?.accountId);
@@ -2756,6 +2761,8 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       seenCursors.add(cursor);
       if (pageNumber === 100) fail3("pagination_limit");
     }
+    const eventKeys=project?.slug==='housevip-cxp7'?['lead']:project?.slug==='profkit-instashop-r4vk'?['onsite_conversion.messaging_conversation_started_7d','messaging_conversation_started_7d','onsite_conversion.messaging_first_reply']:project?.slug==='karlovarska-sul-k4rm'?['omni_purchase','purchase','offsite_conversion.fb_pixel_purchase']:null;
+    if(eventKeys)for(const row of rows)row.toysResult=eventKeys.map(key=>row.actions?.find(a=>a.action_type===key)?.value).find(v=>v!=null)??'0';
     const normalized = hierarchy(rows, expectedAccountId);
     const creativeData = enrichMetaOutcomes(normalized, rows);
     const previewDeadline=AbortSignal.any([deadline,AbortSignal.timeout(6000)]);
@@ -2771,7 +2778,7 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       timezone: integration.timezone,
       currency: normalized.accountCurrency || integration.currency,
       coverage: "complete",
-      unsupportedMetrics: ["conversions", "conversionValue"],
+      unsupportedMetrics: eventKeys?["conversionValue"]:["conversions", "conversionValue"],
       dailyMetrics: normalized.accountDaily,
       campaigns: normalized.campaigns,
       missingRanges: missingRanges(from, to, normalized.observedDates),
@@ -3025,6 +3032,7 @@ function onDemandAdsService(env,ctx=null) {
       db: env.TOYS_DB,
       providers: {google_ads:createGoogleReceiverAdapter(env.TOYS_DB),...(metaAdapter?{meta_ads:metaAdapter}:{})},
       cacheTtlMinutes: 20,
+      storedOnly: env.DIRECT_ADS_READ_ENABLED === "true",
       ...(ctx?.waitUntil?{waitUntil:promise=>ctx.waitUntil(promise)}:{})
     });
 }
@@ -5399,10 +5407,10 @@ function table2(snapshot, key, requiredHeader, { workbook, sheet, optionalHeader
   if (sheet && source.sheet !== sheet) fail5("source_mismatch", `${key}: expected sheet ${sheet}`);
   const header = (source.values[0] || []).map(norm);
   requiredHeader.forEach((name, index) => {
-    if (header[index] !== name) fail5("schema_mismatch", `${key}: column ${index + 1} must be ${name}`);
+    if (header[index] !== name) fail5("schema_mismatch", `${key}: column ${index + 1} must be ${name}`, {table:key,column:index+1,expectedColumn:name});
   });
   for (const name of header.slice(requiredHeader.length)) {
-    if (!optionalHeader.includes(name)) fail5("schema_mismatch", `${key}: unexpected column ${name}`);
+    if (!optionalHeader.includes(name)) fail5("schema_mismatch", `${key}: unexpected column`, {table:key,column:header.indexOf(name)+1});
   }
   return { source, header, rows: source.values.slice(1), index: Object.fromEntries(header.map((name, index) => [name, index])) };
 }
@@ -5507,12 +5515,12 @@ function sourceDeliveryProvider(snapshot) {
   return snapshot?.delivery_provider === "public_gviz" ? "public_gviz" : "private_snapshot";
 }
 __name(sourceDeliveryProvider, "sourceDeliveryProvider");
-function parseProfkit(snapshot) {
+function parseProfkit(snapshot, {businessOnly=false}={}) {
   const project = REAL_COMMERCE_PROJECTS["profkit-instashop-r4vk"];
-  const meta = table2(snapshot, "profkit_meta", ["date", "platform", "account_name", "account_id", "currency", "campaign", "impressions", "clicks", "cost", "conversions"], { workbook: PROFIT_BOOK, sheet: "MetaAds", optionalHeader: ["spend_usd", "fx_usd_uah", "meta_direct_inquiries"] });
+  const meta = businessOnly ? {rows:[]} : table2(snapshot, "profkit_meta", ["date", "platform", "account_name", "account_id", "currency", "campaign", "impressions", "clicks", "cost", "conversions"], { workbook: PROFIT_BOOK, sheet: "MetaAds", optionalHeader: ["spend_usd", "fx_usd_uah", "meta_direct_inquiries"] });
   const sales = table2(snapshot, "profkit_sales", ["date", "qualified_inquiries", "unqualified_inquiries", "direct_inquiries", "sales", "revenue_uah"], { workbook: PROFIT_BOOK, sheet: "InstashopSales", optionalHeader: ["avg_check_uah", "source_tab", "source_url"] });
   const fx = table2(snapshot, "profkit_fx", ["date", "usd_uah", "source_url"], { workbook: PROFIT_BOOK, sheet: "FxRates" });
-  const weekly = table2(snapshot, "profkit_weekly", WEEKLY_HEADER, { workbook: PROFIT_BOOK, sheet: "WeeklyComments" });
+  const weekly = businessOnly ? {rows:[]} : table2(snapshot, "profkit_weekly", WEEKLY_HEADER, { workbook: PROFIT_BOOK, sheet: "WeeklyComments" });
   const deliveryProvider = sourceDeliveryProvider(snapshot);
   const metaDescriptor = { key: "profkit_meta", channelKey: "instashop", viewRole: "ads", deliveryProvider, businessProvider: "meta_ads", stableSourceRef: `${PROFIT_BOOK}:MetaAds`, sourceTimezone: "America/Los_Angeles", grain: "campaign_daily", sourceSchemaVersion: `${SCHEMA_VERSION}/profkit-meta`, attributionModel: "unknown", attributionWindow: "unknown" };
   const fxLookup = new Map(fx.rows.filter((raw) => raw.some((item) => norm(item))).map((raw, index) => [
@@ -5564,8 +5572,8 @@ function parseProfkit(snapshot) {
     const localDate = date(value(raw, fx, "date"), `profkit_fx[${index + 2}].date`);
     return observation(project, fxDescriptor, raw, localDate, { key: [localDate, "USD", "UAH"] }, [observedMetric("fx.usd_uah", value(raw, fx, "usd_uah"), "exchange_rate", null)]);
   });
-  const streams = [finishStream(project, metaDescriptor, metaRows), finishStream(project, salesDescriptor, salesRows), finishStream(project, fxDescriptor, fxRows)];
-  validateProfkit(streams);
+  const streams = [...businessOnly?[]:[finishStream(project, metaDescriptor, metaRows)], finishStream(project, salesDescriptor, salesRows), finishStream(project, fxDescriptor, fxRows)];
+  validateProfkit([null,streams.find(s=>s.key==="profkit_sales")]);
   return finishProject(project, streams, parseWeekly(weekly, project), [], {
     exchangeRates: fx.rows.filter((raw) => raw.some((item) => norm(item))).map((raw, index) => ({
       date: date(value(raw, fx, "date"), `profkit_fx[${index + 2}].date`),
@@ -7751,6 +7759,7 @@ async function scheduledPilotSyncs(env, {
   housevipRunner = syncHousevip,
   realCommerceRunner = syncRealCommerceProjects
 } = {}) {
+  if(env.DIRECT_ADS_READ_ENABLED === "true") return {business:await syncProfkitBusiness(env)};
   const results = {};
   try {
     results.housevip = await scheduledHousevipSync(env, housevipRunner);
@@ -8155,3 +8164,39 @@ export {
 export { authorizeMvp, projectRecord, handleMvpApi, onDemandAdsService };
 
 export {authenticateGoogleCloudRunPush};
+
+export async function runDirectAdsImports(env){
+ return scheduledAds(env,{metaAdapter:createMetaAdsHierarchyAdapter({accessToken:env.META_ADS_ACCESS_TOKEN,appSecret:env.META_APP_SECRET}),normalize:normalizeAdsHierarchy,makeScope:integrationScope,metrics:METRIC_NAMES});
+}
+
+// Business sales are not advertising conversions. Refresh only sales and explicit
+// FX, preserving advertising history, native materials and dashboard settings.
+export async function syncProfkitBusiness(env, {fetchImpl=fetch,now=()=>new Date()}={}){
+ const db=env.TOYS_DB,slug='profkit-instashop-r4vk',at=nowIso3(now);
+ const projectId=REAL_COMMERCE_PROJECTS[slug].id;
+ const runId=await startRun2(db,projectId,at);
+ try{
+  const specs=PROJECT_SPECS[slug].tables.filter(s=>['profkit_sales','profkit_fx'].includes(s.key));
+  const sources=await Promise.all(specs.map(s=>fetchGvizTable(fetchImpl,s,20000)));
+  const input={captured_at:at,delivery_provider:'public_gviz',tables:Object.fromEntries(sources.map(({spec,values})=>[spec.key,{spreadsheet_id:spec.spreadsheetId,sheet:spec.sheet,values}]))};
+  const project=parseProfkit(input,{businessOnly:true});
+  await preflightRealCommerceProject(db,project);
+  const current=await first5(db,`SELECT p.release_id AS releaseId,p.pointer_revision AS revision,r.manifest_json AS manifest FROM project_data_release_pointers p JOIN project_data_releases r ON r.id=p.release_id WHERE p.organization_id=? AND p.project_id=?`,ORGANIZATION_ID2,project.id);
+  const manifest=JSON.parse(current.manifest),candidate=project.manifest;
+  const changed=project.streams.some(s=>![...manifest.datasets,...manifest.auxiliaryStreams||[]].some(d=>d.key===s.key&&d.generationId===s.generationId));
+  if(changed){
+   for(const stream of project.streams)await stageStream(db,project,stream,at);
+   for(const field of ['datasets','auxiliaryStreams'])manifest[field]=(manifest[field]||[]).map(d=>(candidate[field]||[]).find(n=>n.key===d.key)||d);
+   const {sourceHash:oldHash,...content}=manifest;manifest.sourceHash=canonicalHash(content);
+   const id='rel_business_'+manifest.sourceHash.slice(0,24);
+   await db.batch([
+    db.prepare(`INSERT OR IGNORE INTO project_data_releases(id,organization_id,project_id,revision,status,manifest_json,source_hash,created_at) SELECT ?,?,?,COALESCE(MAX(revision),0)+1,'sealed',?,?,? FROM project_data_releases WHERE organization_id=? AND project_id=?`).bind(id,ORGANIZATION_ID2,project.id,JSON.stringify(manifest),manifest.sourceHash,at,ORGANIZATION_ID2,project.id),
+    db.prepare(`UPDATE project_data_release_pointers SET release_id=?,pointer_revision=pointer_revision+1,updated_at=? WHERE organization_id=? AND project_id=? AND release_id=? AND pointer_revision=?`).bind(id,at,ORGANIZATION_ID2,project.id,current.releaseId,current.revision)
+   ]);
+   const pointer=await first5(db,'SELECT release_id AS id FROM project_data_release_pointers WHERE organization_id=? AND project_id=?',ORGANIZATION_ID2,project.id);
+   if(pointer.id!==id)fail6('cas_conflict','Concurrent business update preserved');
+  }
+  await finishRun2(db,runId,'success',nowIso3(now),{rowsRead:project.streams.reduce((n,s)=>n+s.rows.length,0),rowsWritten:changed?project.streams.reduce((n,s)=>n+s.rows.length,0):0,message:'PROFKIT business sales and FX checked; no advertising Sheet read',details:{streams:['profkit_sales','profkit_fx']}});
+  return {ok:true,status:changed?'published':'already_current'};
+ }catch(e){await finishRun2(db,runId,'error',nowIso3(now),{message:'PROFKIT business import failed',details:{code:e.code||'business_import_failed',...e.details||{}}});return {ok:false,error:e.code||'business_import_failed'};}
+}

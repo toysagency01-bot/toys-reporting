@@ -1,0 +1,75 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
+import {resolve,join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {pathToFileURL} from 'node:url';
+import {build} from 'esbuild';
+import {fixture,testWorker,request} from './fixture.mjs';
+import {saveAdsSnapshot,readAdsSnapshot,scopeKey} from '../imports/ads-store.js';
+import {scheduledAds} from '../imports/scheduled-ads.js';
+import {advertisingModel} from '../unified/model.js';
+import {refreshUsdUah} from '../imports/fx.js';
+import {addDecimal} from '../native/google-receiver.js';
+const dir=mkdtempSync(join(tmpdir(),'direct-ads-'));
+await build({stdin:{contents:readFileSync('runtime/backend.js','utf8')+'\nexport {normalizeAdsHierarchy,integrationScope,parseProfkit,PROFIT_BOOK,METRIC_NAMES};',resolveDir:resolve('runtime')},outfile:join(dir,'runtime.mjs'),bundle:true,format:'esm',platform:'node',plugins:[{name:'cf',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'cf',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export class WorkerEntrypoint {}'}));}}]});
+const rt=await import(pathToFileURL(join(dir,'runtime.mjs')));rmSync(dir,{force:true,recursive:true});
+const worker=await testWorker();
+const setup=()=>{const f=fixture();f.db.exec(readFileSync('migrations/0017_direct_ads.sql','utf8'));return f;};
+const scope={organizationId:'org_toys_agency',projectId:'prj_housevip_cxp7',projectSlug:'housevip-cxp7',integrationId:'direct-meta',provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',metrics:rt.METRIC_NAMES};
+test('Google account totals preserve exact currency and fractional conversions',()=>{
+ assert.equal(addDecimal('21.23','8.404938'),'29.634938');assert.equal(addDecimal('0.1','0.2'),'0.3');assert.equal(addDecimal('9007199254740993','1'),'9007199254740994');
+});
+function payload(at='2026-10-12T18:00:00Z',spend='20'){
+ const day={date:'2026-10-12',metrics:{impressions:'100',clicks:'4',spend,conversions:'2',conversionValue:'0'}};
+ return {...rt.normalizeAdsHierarchy({provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',coverage:'complete',dailyMetrics:[day],campaigns:[{id:'1',name:'Synthetic',dailyMetrics:[day],adsets:[]}]},{...scope,from:'2026-10-11',to:'2026-10-12'}),fetchedAt:at};
+}
+test('daily store retains empty days, merges periods, blocks scope drift and refuses older overwrites',async()=>{
+ const{env,db}=setup();try{
+  await saveAdsSnapshot(env.TOYS_DB,scope,payload());await saveAdsSnapshot(env.TOYS_DB,scope,payload('2026-10-12T17:00:00Z','5'));
+  const p=await readAdsSnapshot(env.TOYS_DB,scope,'2026-10-10','2026-10-12',Date.parse('2026-10-12T18:10:00Z'));
+  assert.equal(p.coverage,'partial');assert.deepEqual(p.coveredDates,['2026-10-11','2026-10-12']);assert.equal(p.hierarchy.children[0].dailyMetrics[0].metrics.spend.value,'20');
+  assert.equal(await readAdsSnapshot(env.TOYS_DB,{...scope,accountId:'999'},'2026-10-11','2026-10-12'),null);
+  await assert.rejects(saveAdsSnapshot(env.TOYS_DB,{...scope,accountId:'999'},payload()),{code:'snapshot_scope_mismatch'});
+  const rows=advertisingModel({facts:{rows:[{date:'2026-10-10',campaign:{label:'Archived'},metrics:[{metricCode:'ads.spend',value:'7',state:'observed',currency:'IDR'}]},{date:'2026-10-11',campaign:{label:'Old'},metrics:[{metricCode:'ads.spend',value:'9',state:'observed',currency:'IDR'}]}]}},{providers:[p]},{from:'2026-10-10',to:'2026-10-12'});
+  assert.deepEqual(rows.map(r=>[r.date,r.spend]),[['2026-10-10',7],['2026-10-12',20]]);
+ }finally{db.close();}
+});
+test('a failed database transaction cannot publish part of an import',async()=>{
+ const{env,db}=setup();try{
+  db.exec("CREATE TRIGGER fail_second BEFORE INSERT ON ads_daily_snapshots WHEN NEW.local_date='2026-10-12' BEGIN SELECT RAISE(ABORT,'synthetic quota error'); END");
+  await assert.rejects(saveAdsSnapshot(env.TOYS_DB,scope,payload()),/synthetic quota/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ads_daily_snapshots').get().n,0);
+ }finally{db.close();}
+});
+test('scheduled imports survive provider failure, back off, recover and serve the dashboard without provider requests',async()=>{
+ const{env,db}=setup();const original=globalThis.fetch;try{
+  env.DIRECT_ADS_IMPORT_ENABLED='true';env.DIRECT_ADS_READ_ENABLED='true';
+  db.exec(`INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES('direct-meta','prj_housevip_cxp7','meta_ads','123','active','{"timezone":"UTC","currency":"IDR"}')`);
+  let time=Date.parse('2026-10-12T18:00:00Z'),calls=0,fail=true;
+  const deps={now:()=>time,makeScope:rt.integrationScope,normalize:rt.normalizeAdsHierarchy,metrics:rt.METRIC_NAMES,metaAdapter:async()=>{calls++;if(fail)throw Object.assign(new Error('Down'),{code:'provider_timeout'});return {provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',coverage:'complete',dailyMetrics:[],campaigns:[]};}};
+  assert.equal((await scheduledAds(env,deps))[0].error,'provider_timeout');
+  assert.equal((await scheduledAds(env,deps))[0].status,'not_due');assert.equal(calls,1);
+  fail=false;time+=121000;assert.equal((await scheduledAds(env,deps))[0].status,'success');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ads_daily_snapshots').get().n,30);
+  globalThis.fetch=()=>{throw new Error('A dashboard must not call a provider');};
+  const r=await worker.fetch(request('/api/v2/projects/housevip-cxp7/ads-summary?from=2026-10-11&to=2026-10-12'),env);
+  assert.equal(r.status,200);const data=await r.json();assert.equal(data.providers[0].coverage,'complete');assert.ok(data.providers[0].hierarchy);
+  const status=db.prepare('SELECT state,failure_count FROM ads_import_status').get();assert.equal(status.state,'success');assert.equal(status.failure_count,0);
+ }finally{globalThis.fetch=original;db.close();}
+});
+test('business-only PROFKIT parsing needs no advertising or content tables and still validates lead totals',()=>{
+ const make=(sheet,values)=>({spreadsheet_id:rt.PROFIT_BOOK,sheet,values});
+ const input={delivery_provider:'public_gviz',tables:{profkit_sales:make('InstashopSales',[['date','qualified_inquiries','unqualified_inquiries','direct_inquiries','sales','revenue_uah'],['2026-10-12',2,1,3,1,100]]),profkit_fx:make('FxRates',[['date','usd_uah','source_url'],['2026-10-12',41,'https://bank.gov.ua']])}};
+ const result=rt.parseProfkit(input,{businessOnly:true});assert.deepEqual(result.streams.map(s=>s.key),['profkit_sales','profkit_fx']);
+ input.tables.profkit_sales.values[1][3]=10;assert.throws(()=>rt.parseProfkit(input,{businessOnly:true}),{code:'cross_stream_mismatch'});
+});
+test('FX import accepts only the official rate for the requested date and preserves existing rates',async()=>{
+ const{env,db}=setup();try{
+  const day='2026-10-12';let calls=0;
+  await assert.rejects(refreshUsdUah(env,{now:new Date(day+'T18:00:00Z'),fetchImpl:async()=>Response.json([{cc:'USD',rate:41,exchangedate:'11.10.2026'}])}),/invalid/);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM exchange_rates WHERE base_currency='USD' AND quote_currency='UAH'").get().n,0);
+  await refreshUsdUah(env,{now:new Date(day+'T18:00:00Z'),fetchImpl:async url=>{calls++;const d=new URL(url).searchParams.get('date');return Response.json([{cc:'USD',rate:41,exchangedate:d.slice(6,8)+'.'+d.slice(4,6)+'.'+d.slice(0,4)}]);}});
+  assert.equal(calls,5);assert.equal(db.prepare("SELECT rate FROM exchange_rates WHERE rate_date=? AND base_currency='USD' AND quote_currency='UAH'").get(day).rate,41);
+ }finally{db.close();}
+});

@@ -12,8 +12,9 @@ export async function masterAPI(request,env,ctx){
  const projects=(await env.TOYS_DB.prepare(`SELECT p.id,p.slug,p.name,p.currency,p.timezone,p.project_type AS type,p.status,(SELECT COUNT(*) FROM leads l WHERE l.project_id=p.id) AS leadCount,(SELECT MAX(last_good_at) FROM ads_on_demand_cache c WHERE c.project_id=p.id) AS updatedAt,(SELECT COUNT(*) FROM crm_delivery d WHERE d.project_id=p.id AND d.state IN ('blocked','error')) AS deliveryIssues FROM projects p WHERE p.organization_id='org_toys_agency' AND p.status IN ('active','draft') ORDER BY p.name`).all()).results||[];
  const integrations=(await env.TOYS_DB.prepare('SELECT project_id AS projectId,provider,status FROM integrations').all()).results||[];
  const pages=(await env.TOYS_DB.prepare('SELECT page_id AS id,name,project_id AS projectId,subscribed FROM crm_pages ORDER BY name').all()).results||[];
+ const imports=env.DIRECT_ADS_IMPORT_ENABLED==='true'?(await env.TOYS_DB.prepare('SELECT project_id AS projectId,provider,state,last_success_at AS lastSuccessAt,last_attempt_at AS lastAttemptAt,last_error_code AS errorCode,range_from AS fromDate,range_to AS toDate FROM ads_import_status').all()).results||[]:[];
  const channels=(await env.TOYS_DB.prepare('SELECT provider,external_id AS id,name,project_id AS projectId FROM crm_channels ORDER BY provider,name').all()).results||[];
- return reply({ok:true,channels,projects:projects.map(p=>({...p,integrations:integrations.filter(i=>i.projectId===p.id)})),pages});
+ return reply({ok:true,channels,projects:projects.map(p=>({...p,imports:imports.filter(i=>i.projectId===p.id),integrations:integrations.filter(i=>i.projectId===p.id)})),pages});
  }
  if(path==='discover-pages'&&request.method==='POST'){
  const origin=request.headers.get('origin');if(origin&&origin!==url.origin&&origin!=='https://reports.toys-agency.com')return reply({ok:false,error:'origin_forbidden'},403);
@@ -30,7 +31,7 @@ export async function masterAPI(request,env,ctx){
  const rows=sources.flatMap(hierarchyRows).filter(r=>r.date>=from&&r.date<=to);for(const currency of new Set(rows.map(r=>r.currency))){const group=rows.filter(r=>r.currency===currency);ads.push({provider:name,currency,spend:total(group,'spend'),impressions:total(group,'impressions'),clicks:total(group,'clicks'),conversions:total(group,'conversions'),freshness:sources.every(s=>s.freshness==='fresh')?'fresh':'stale'});}}}
 
  catch(e){liveError='live_unavailable';}
- return reply({ok:true,project:p,crm,ads:ads.filter(a=>!provider||a.provider===provider),liveError,refreshing});
+ return reply({ok:true,project:p,crm,ads:ads.filter(a=>!provider||a.provider===provider),liveError,refreshing,imports:env.DIRECT_ADS_IMPORT_ENABLED==='true'?(await env.TOYS_DB.prepare('SELECT provider,state,last_success_at AS lastSuccessAt,last_error_code AS errorCode,range_to AS toDate FROM ads_import_status WHERE project_id=?').bind(p.id).all()).results:[]});
  }
  return reply({ok:false,error:'not_found'},404);
  }catch(e){return reply({ok:false,error:e.code||'master_unavailable'},e.status||500);}

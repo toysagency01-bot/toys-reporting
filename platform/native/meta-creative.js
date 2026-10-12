@@ -53,7 +53,7 @@ export async function loadMetaCreative(env,project,ref,{fetchImpl=fetch,cache=gl
  const get=async(path,fields,extra={})=>{
   if(!/^(?:\d+(?:_\d+)?|act_\d+\/adimages)$/.test(path))fail('creative_not_found');
   const params=new URLSearchParams({fields,appsecret_proof:proof,...extra});
-  const r=await fetchImpl(`https://graph.facebook.com/${version}/${path}?${params}`,{headers:{authorization:'Bearer '+token},redirect:'error',signal});
+  const r=await fetchImpl(`https://graph.facebook.com/${version}/${path}?${params}`,{headers:{authorization:'Bearer '+token},redirect:'manual',signal});
   const data=await r.json();if(!r.ok||data.error)fail('creative_unavailable');return data;
  };
  const ad=await get(String(ref.adId),'id,account_id,name,creative{id}');
