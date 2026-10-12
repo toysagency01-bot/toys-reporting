@@ -1,3 +1,4 @@
+import {attachCRMQualification} from '../native/crm-attribution.js';
 import backend, {authorizeMvp, projectRecord} from '../runtime/backend.js';
 export {AdsReadOnlyPreflight,activeProject,databaseHealth,handleApi,internalAuthorized,listProjects,projectLeadStatuses,publicDashboard,publicExchangeRate,publicLeads,publicTab,sameOriginWrite,scheduledHousevipSync,scheduledPilotSyncs,scheduledRealCommerceSync,validDate} from '../runtime/backend.js';
 import nativeAssets from '../dist/native-assets.json';
@@ -23,6 +24,12 @@ export default {
       return html(portal[1],true);
     }
     const response=await backend.fetch(request,env,ctx);
+    if(request.method==='GET' && response.ok && /^\/api\/v2\/projects\/[^/]+\/content-project\/ads\/hierarchy$/.test(url.pathname)) {
+      const project=await projectRecord(env,url.pathname.split('/')[4]);const body=await response.json();
+      const range=body.requestedRange || {from:url.searchParams.get('from'),to:url.searchParams.get('to')};
+      try{return Response.json(await attachCRMQualification(body,env,project,range),{status:response.status,headers:response.headers});}
+      catch{return Response.json({...body,crmAttribution:{status:'unavailable'}},{status:response.status,headers:response.headers});}
+    }
     // Advertise only storage that is actually bound and has an enabled quota.
     // Authentication/project checks remain in the recovered API before this branch.
     if(request.method==='GET' && response.ok && /^\/api\/v2\/projects\/[^/]+\/content-project\/creatives$/.test(url.pathname)) {

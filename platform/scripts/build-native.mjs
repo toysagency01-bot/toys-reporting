@@ -17,7 +17,7 @@ for(const path of ['core/core.js','housevip-cxp7/core.js','core/instashop.js']){
  if(isShop)source=source.replace('src="../assets/toys-logo.svg"','src="${window.TOYS_PLATFORM.asset(\'assets/toys-logo.svg\')}"');
  source=source.replace("fetch(`https://latest.currency-api.pages.dev/v1/currencies/${encodeURIComponent(from.toLowerCase())}.json`, {cache:'no-store'})","window.TOYS_PLATFORM.fx(from,to)");
  // Keep the original renderer and expose only refresh hooks to the platform adapter.
- const hook=isShop?`window.TOYS_NATIVE={refreshAds(rows){META=rows;render();},render};`:`window.TOYS_NATIVE={refreshAds(rows){DATA=rows;render();},render};`;
+ const hook=isShop?`window.TOYS_NATIVE={refreshAds(rows){META=rows;render();},refreshSnapshot(t){META=M.parseMeta(t.MetaAds);SALES=M.parseSales(t.InstashopSales);render();},setPeriod(from,to){period={from,to};render();},render};`:`window.TOYS_NATIVE={refreshAds(rows){DATA=rows;render();},refreshSnapshot(t){DATA=parseData(t.MetaAds,"Meta Ads").concat(parseData(t.GoogleAds,"Google Ads"));ECOM=parseEcomFunnel(t.EcomFunnel);ECOM_CAMPAIGNS=parseEcomCampaignFunnel(t.EcomFunnelCampaign);render();},setPeriod(from,to){period={from,to};render();},render};`;
  source=source.replace(/\}\)\(\);\s*$/,hook+'\n})();');
  // Renderer boundary: the platform masks missing metrics and mounts nested tools.
  source=source.replace('function render(){','function render(){\n queueMicrotask(()=>window.TOYS_PLATFORM.afterRender());');
@@ -26,6 +26,7 @@ for(const path of ['core/core.js','housevip-cxp7/core.js','core/instashop.js']){
  assets[path]={type:'text/javascript; charset=utf-8',body:source};
 }
 for(const path of ['core/theme.js','core/instashop-model.js','core/ux-v2.js','core/ux-v2-instashop.js','core/ux-v2.css','housevip-cxp7/ux-v2.js','housevip-cxp7/ux-v2.css','assets/toys-logo.svg','assets/favicon.svg'])assets[path]={type:path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':'text/javascript',body:await read(path)};
+assets['assets/toys-black.svg']={type:'image/svg+xml',body:await read('assets/toys-black')};
 assets['vendor/chart.umd.js']={type:'text/javascript',body:await readFile('node_modules/chart.js/dist/chart.umd.js','utf8')};
 assets['platform-tools.css']={type:'text/css',body:await readFile('native/tools.css','utf8')};
 let fontCss=await readFile('native/fonts.css','utf8');

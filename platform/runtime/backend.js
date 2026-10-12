@@ -1,3 +1,4 @@
+import {normalizeOutcomes,enrichMetaOutcomes,safePreview} from '../native/outcomes.js';
 var __defProp = Object.defineProperty;
 var __name = (target, value2) => __defProp(target, "name", { value: value2, configurable: true });
 
@@ -1997,7 +1998,11 @@ function normalizeEntity(raw, { level, providerLevel, parentProviderId = null, .
     dailyMetrics: normalizeDailyMetrics(raw?.dailyMetrics, context),
     children: []
   };
-  if (level === "ad") output.creativeRef = text(raw?.creativeRef) || null;
+  if (level === "ad") {
+    output.creativeRef = text(raw?.creativeRef) || null;
+    output.previewUrl = safePreview(raw?.previewUrl);
+    output.outcomeDaily = normalizeOutcomes(raw?.outcomeDaily,context.from,context.to);
+  }
   return output;
 }
 __name(normalizeEntity, "normalizeEntity");
@@ -2397,7 +2402,7 @@ function createOnDemandAdsService({
     const row = await readCache(db, key);
     const payload = cachedPayload(row);
     const checkedAt = instant(now(), "now");
-    if (!forceRefresh && payload && new Date(row.expiresAt).getTime() > checkedAt.getTime()) {
+    if (!forceRefresh && payload && new Date(row.expiresAt).getTime() > checkedAt.getTime() && new Date(row.lastGoodAt).getTime() + cacheTtlMinutes * 60000 > checkedAt.getTime()) {
       return decorated(payload, { source: "cache", freshness: "fresh", refreshState: "not_needed", row });
     }
     let promise = inFlight.get(key);
@@ -2684,7 +2689,7 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
     const endpoint = `https://graph.facebook.com/${apiVersion}/act_${expectedAccountId}/insights`;
     const params = new URLSearchParams({
       appsecret_proof: proof,
-      fields: "account_id,account_currency,campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,date_start,date_stop,impressions,clicks,spend",
+      fields: "account_id,account_currency,campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,date_start,date_stop,impressions,clicks,spend,actions,action_values",
       level: "ad",
       time_increment: "1",
       time_range: JSON.stringify({ since: from, until: to }),
@@ -2719,6 +2724,17 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       if (pageNumber === 100) fail3("pagination_limit");
     }
     const normalized = hierarchy(rows, expectedAccountId);
+    const creativeData = enrichMetaOutcomes(normalized, rows);
+    if (creativeData.ids.length) {
+      try {
+        const metadata = await page(fetchImpl, `https://graph.facebook.com/${apiVersion}/`, new URLSearchParams({appsecret_proof:proof,ids:creativeData.ids.join(','),fields:'id,creative{id,thumbnail_url,image_url}'}), token, {maxAttempts:1});
+        for (const ad of creativeData.ads) {
+          const item=metadata[ad.id];if (!item || String(item.id)!==String(ad.id))continue;
+          ad.creativeRef=item.creative?.id ? String(item.creative.id) : null;
+          ad.previewUrl=safePreview(item.creative?.image_url)||safePreview(item.creative?.thumbnail_url);
+        }
+      } catch (_) { /* Preview failure must not discard usable metrics. */ }
+    }
     if (normalized.accountCurrency && integration.currency && normalized.accountCurrency !== integration.currency) {
       fail3("currency_scope_mismatch");
     }
@@ -2992,7 +3008,7 @@ function onDemandAdsService(env) {
     adsService = createOnDemandAdsService({
       db: env.TOYS_DB,
       providers: metaAdapter ? { meta_ads: metaAdapter } : {},
-      cacheTtlMinutes: 60
+      cacheTtlMinutes: 20
     });
   }
   return adsService;
