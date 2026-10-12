@@ -2796,6 +2796,7 @@ var HOUSEVIP_PROJECT_TABS = /* @__PURE__ */ new Set([
   "\u041E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u0435 \u043F\u0440\u043E\u0444\u0438\u043B\u044F (SMM)",
   "\u041A\u043E\u043D\u0442\u0435\u043D\u0442-\u043F\u043B\u0430\u043D \u043D\u0430 \u0441\u0435\u043D\u0442\u044F\u0431\u0440\u044C (SMM)",
   "\u0422\u0435\u043A\u0441\u0442\u044B / \u041B\u0435\u043D\u0442\u0430 \u043D\u0430 \u0441\u0435\u043D\u0442\u044F\u0431\u0440\u044C (SMM)",
+  "Тексты / Сторис на октябрь (SMM)",
   "\u041F\u043B\u0430\u043D \u0440\u0430\u0431\u043E\u0442 (Meta)",
   "\u041C\u0435\u0441\u044F\u0447\u043D\u0430\u044F \u0441\u0432\u043E\u0434\u043A\u0430 (Meta)",
   "\u0410\u043D\u0430\u043B\u0438\u0437 \u043A\u043E\u043D\u043A\u0443\u0440\u0435\u043D\u0442\u043E\u0432 (Meta)",
@@ -5253,6 +5254,17 @@ var KARL_TAB_TITLES = /* @__PURE__ */ new Set([
 ]);
 var PUBLIC_TAB_EMAIL = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 var PUBLIC_TAB_SENSITIVE_HEADER = /^(?:phone|telephone|e-?mail|lead(?: id| name)?|customer (?:name|phone|email)|телефон|тел\.?|почта|имя лида|контакт лида)$/i;
+function isPublicTabDateRange(text4) {
+  const match = text4.match(/^(\d{2})\.(\d{2})\.(\d{2}|\d{4})\s*[-–—]\s*(\d{2})\.(\d{2})\.(\d{2}|\d{4})$/);
+  if (!match) return false;
+  const dates = [1, 4].map((offset) => {
+    const year = match[offset + 2].length === 2 ? 2000 + Number(match[offset + 2]) : Number(match[offset + 2]);
+    const month = Number(match[offset + 1]), day = Number(match[offset]);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day ? parsed.getTime() : null;
+  });
+  return dates.every((value2) => value2 !== null) && dates[0] <= dates[1];
+}
 function assertPublicTabPrivacy(title, values) {
   for (let rowIndex = 0; rowIndex < values.length; rowIndex += 1) {
     for (const raw of values[rowIndex]) {
@@ -5260,7 +5272,7 @@ function assertPublicTabPrivacy(title, values) {
       if (!text4) continue;
       if (PUBLIC_TAB_EMAIL.test(text4)) fail5("project_tab_pii", `${title}: email-like value is not allowed`);
       const digits2 = (text4.match(/\d/g) || []).length;
-      if (digits2 >= 9 && digits2 <= 15 && /^[+\d][\d\s().-]+\d$/.test(text4) && (text4.startsWith("+") || /[\s()-]/.test(text4))) {
+      if (!isPublicTabDateRange(text4) && digits2 >= 9 && digits2 <= 15 && /^[+\d][\d\s().-]+\d$/.test(text4) && (text4.startsWith("+") || /[\s()-]/.test(text4))) {
         fail5("project_tab_pii", `${title}: phone-like value is not allowed`);
       }
       if (rowIndex < 5 && text4.length <= 64 && PUBLIC_TAB_SENSITIVE_HEADER.test(text4)) {
@@ -6108,7 +6120,7 @@ var PROJECT_SPECS = Object.freeze({
       ["\u0421\u0442\u0440\u0430\u0442\u0435\u0433\u0438\u044F (Meta)", 153807577],
       ["\u041F\u043B\u0430\u043D \u0440\u0430\u0431\u043E\u0442\u044B (Google)", 1273008772],
       ["\u0415\u0436\u0435\u043D\u0435\u0434\u0435\u043B\u044C\u043D\u0430\u044F \u0441\u0432\u043E\u0434\u043A\u0430 (Google)", 285813732, true],
-      ["\u041C\u0435\u0441\u044F\u0447\u043D\u0430\u044F \u0441\u0432\u043E\u0434\u043A\u0430 (Google)", 1413680168],
+      ["\u041C\u0435\u0441\u044F\u0447\u043D\u0430\u044F \u0441\u0432\u043E\u0434\u043A\u0430 (Google)", 1413680168, true],
       ["\u041A\u043B\u044E\u0447\u0435\u0432\u044B\u0435 \u0441\u043B\u043E\u0432\u0430 (Google)", 773569530],
       ["\u041E\u0431\u044A\u044F\u0432\u043B\u0435\u043D\u0438\u044F (Google)", 952683325],
       ["\u041F\u043B\u0430\u043D \u0440\u0430\u0431\u043E\u0442\u044B (SMM)", 1787148352],
