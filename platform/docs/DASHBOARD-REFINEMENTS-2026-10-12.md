@@ -185,3 +185,29 @@ Rollback Worker: `fb0823de-32a3-4ce7-88ba-fc3929345911`. Meta registrations
 are independent of code rollback; disable only `native-meta-karlovarska-sul-k4rm`
 and `native-meta-profkit-instashop-r4vk` to undo them. No Google integration has
 been activated without an accepted authenticated provider snapshot.
+
+## Meta preview correction
+
+Remote D1 inspection after the owner's report found 30 Karlovarska ads in the
+2026-10-05–2026-10-11 response, with zero preview URLs and zero creative references.
+The batch metadata failure was swallowed, so its precise provider reason was not
+recorded. This is evidence of missing metadata, not a browser/CDN diagnosis.
+
+Selected ads now use bounded-concurrency ad-node reads and, if needed, a creative
+node read for its thumbnail. Failures are isolated by ad and retain only safe
+error codes/subcodes in the protected hierarchy/cache. Public cards receive a
+presentation status, not provider error payloads. Official cdninstagram.com URLs
+are accepted alongside fbcdn.net/fbsbx.com. No broad arbitrary image-host proxy
+or token-bearing image URL is introduced.
+
+Validation covers partial failures, ad identity mismatch, thumbnail fallback,
+Instagram URLs, lookalike rejection and preview propagation through the public
+ranking API. Actual Meta image delivery still requires a successful live refresh;
+local fixtures alone do not establish it.
+
+Published Worker: `3daa115b-737f-4d9a-a2a7-7e015aca717e` (100%, API verified).
+Rollback: `aae15321-9606-4fd8-803f-7264eb944f50`.
+Bundle SHA256: `1b790e44d70b7bf825525647cb97d3f2edaa929540e7b190aeb761dd6b92e9f8`.
+26 API/model tests and 10 Chromium scenarios passed. Existing Meta cache entries
+were expired while retaining their last-good payload, so the next board read
+requests metadata again instead of reusing the preview-less cache.

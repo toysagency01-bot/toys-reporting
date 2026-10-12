@@ -10,4 +10,4 @@ export function enrichMetaOutcomes(normalized,rows){
  const ids=new Set();for(const key of ['leads','purchases','purchaseValue','roas'])ads.filter(a=>score(a,key)!==null).sort((a,b)=>score(b,key)-score(a,key)).slice(0,3).forEach(a=>ids.add(a.id));
  return {ads,ids:[...ids]};
 }
-export function safePreview(value){try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password&&/(^|\.)(fbcdn\.net|fbsbx\.com)$/.test(u.hostname)?u.href:null;}catch{return null;}}
+export function safePreview(value){try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password&&/(^|\.)(fbcdn\.net|fbsbx\.com|cdninstagram\.com)$/.test(u.hostname)?u.href:null;}catch{return null;}}

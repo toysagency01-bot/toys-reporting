@@ -28,7 +28,7 @@ export default {
         // Publish only top-three presentation fields; never the private hierarchy,
         // account identifiers, CRM records, drafts or integration configuration.
         const rankings=Object.fromEntries(['roas','purchases','leads','qualifiedLeads'].map(basis=>[basis,
-          rankCreatives(data.providers,range,basis).map(group=>({...group,rows:group.rows.map(({name,previewUrl,currency,score,ctr,spend,freshness})=>({name,previewUrl,currency,score,ctr,spend,freshness}))}))
+          rankCreatives(data.providers,range,basis).map(group=>({...group,rows:group.rows.map(({name,previewUrl,previewStatus,currency,score,ctr,spend,freshness})=>({name,previewUrl,previewStatus,currency,score,ctr,spend,freshness}))}))
           .concat(['meta_ads','google_ads'].filter(provider=>!data.providers.some(p=>p.provider===provider&&p.hierarchy)).map(provider=>({provider,basis,rows:[],unavailable:true})))
         ]));
         return Response.json({ok:true,requestedRange:range,rankings},{headers:{'cache-control':'no-store'}});

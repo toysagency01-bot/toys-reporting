@@ -1,3 +1,4 @@
+import {attachMetaPreviews} from '../native/meta-previews.js';
 import {createGoogleReceiverAdapter,registerGoogleSnapshot} from '../native/google-receiver.js';
 import {normalizeOutcomes,enrichMetaOutcomes,safePreview} from '../native/outcomes.js';
 var __defProp = Object.defineProperty;
@@ -2002,6 +2003,8 @@ function normalizeEntity(raw, { level, providerLevel, parentProviderId = null, .
   if (level === "ad") {
     output.creativeRef = text(raw?.creativeRef) || null;
     output.previewUrl = safePreview(raw?.previewUrl);
+    output.previewStatus = ['ready','request_failed','image_unavailable'].includes(raw?.previewStatus)?raw.previewStatus:'not_requested';
+    if(raw?.previewError)output.previewError=raw.previewError;
     output.outcomeDaily = normalizeOutcomes(raw?.outcomeDaily,context.from,context.to);
   }
   return output;
@@ -2665,7 +2668,9 @@ async function page(fetchImpl, endpoint, params, token, retry = {}) {
         await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
         continue;
       }
-      fail3([401, 403].includes(response5.status) ? "provider_unauthorized" : response5.status === 429 ? "provider_rate_limited" : "provider_http_error");
+      const error=new MetaHierarchyError([401,403].includes(response5.status)?'provider_unauthorized':response5.status===429?'provider_rate_limited':'provider_http_error');
+      try{const body=await response5.json();error.providerCode=body.error?.code;error.providerSubcode=body.error?.error_subcode;}catch{}
+      throw error;
     }
     try {
       return await response5.json();
@@ -2727,16 +2732,7 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
     }
     const normalized = hierarchy(rows, expectedAccountId);
     const creativeData = enrichMetaOutcomes(normalized, rows);
-    if (creativeData.ids.length) {
-      try {
-        const metadata = await page(fetchImpl, `https://graph.facebook.com/${apiVersion}/`, new URLSearchParams({appsecret_proof:proof,ids:creativeData.ids.join(','),fields:'id,creative{id,thumbnail_url,image_url}'}), token, {maxAttempts:1});
-        for (const ad of creativeData.ads) {
-          const item=metadata[ad.id];if (!item || String(item.id)!==String(ad.id))continue;
-          ad.creativeRef=item.creative?.id ? String(item.creative.id) : null;
-          ad.previewUrl=safePreview(item.creative?.image_url)||safePreview(item.creative?.thumbnail_url);
-        }
-      } catch (_) { /* Preview failure must not discard usable metrics. */ }
-    }
+    await attachMetaPreviews(creativeData.ads,creativeData.ids,(id,fields)=>page(fetchImpl,`https://graph.facebook.com/${apiVersion}/${id}`,new URLSearchParams({appsecret_proof:proof,fields}),token,{maxAttempts:2}));
     if (normalized.accountCurrency && integration.currency && normalized.accountCurrency !== integration.currency) {
       fail3("currency_scope_mismatch");
     }
