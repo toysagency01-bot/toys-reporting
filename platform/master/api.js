@@ -3,7 +3,7 @@ import {authorizeMvp,onDemandAdsService} from '../runtime/backend.js';
 import {project,summary,reply,readJSON,crypt} from '../crm/service.js';
 import {discoverPages} from '../crm/connections.js';
 export async function masterAuth(request,env){return authorizeMvp(request,env,'__master','editor');}
-export async function masterAPI(request,env){
+export async function masterAPI(request,env,ctx){
  const url=new URL(request.url),m=url.pathname.match(/^\/api\/v2\/master(?:\/(.*))?$/);if(!m)return null;
  const auth=await masterAuth(request,env);if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  try{
@@ -23,14 +23,14 @@ export async function masterAPI(request,env){
  if(overview&&request.method==='GET'){
  const p=await project(env,overview[1]);if(!p)return reply({ok:false,error:'not_found'},404);const from=url.searchParams.get('from'),to=url.searchParams.get('to');const crm=await summary(env,p,from,to,url.searchParams.get('provider')||null);
  const provider=url.searchParams.get('provider');const fallback=(await env.TOYS_DB.prepare(`SELECT provider,currency,SUM(spend) AS spend,SUM(impressions) AS impressions,SUM(clicks) AS clicks,SUM(leads) AS conversions FROM ad_metrics_daily WHERE project_id=? AND metric_date BETWEEN ? AND ? GROUP BY provider,currency`).bind(p.id,from,to).all()).results||[];
- let ads=fallback.map(r=>({...r,freshness:'snapshot'})),liveError=null;
+ let ads=fallback.map(r=>({...r,freshness:'snapshot'})),liveError=null,refreshing=false;
  if(p.status==='draft')return reply({ok:true,project:p,crm,ads:ads.filter(a=>!provider||a.provider===provider),liveError});
- try{const live=await onDemandAdsService(env).getStats({organizationId:p.organizationId,projectSlug:p.slug,from,to});
+ try{const live=await onDemandAdsService(env,ctx).getStats({organizationId:p.organizationId,projectSlug:p.slug,from,to});refreshing=live.providers.some(p=>p.refresh?.state==='refreshing'||p.refresh?.state==='rate_limited');
  for(const name of new Set((live.providers||[]).map(s=>s.provider))){const sources=live.providers.filter(s=>s.provider===name);if(!sources.every(s=>s.hierarchy&&s.requestedRange?.from===from&&s.requestedRange?.to===to))continue;ads=ads.filter(a=>a.provider!==name);
  const rows=sources.flatMap(hierarchyRows).filter(r=>r.date>=from&&r.date<=to);for(const currency of new Set(rows.map(r=>r.currency))){const group=rows.filter(r=>r.currency===currency);ads.push({provider:name,currency,spend:total(group,'spend'),impressions:total(group,'impressions'),clicks:total(group,'clicks'),conversions:total(group,'conversions'),freshness:sources.every(s=>s.freshness==='fresh')?'fresh':'stale'});}}}
 
  catch(e){liveError='live_unavailable';}
- return reply({ok:true,project:p,crm,ads:ads.filter(a=>!provider||a.provider===provider),liveError});
+ return reply({ok:true,project:p,crm,ads:ads.filter(a=>!provider||a.provider===provider),liveError,refreshing});
  }
  return reply({ok:false,error:'not_found'},404);
  }catch(e){return reply({ok:false,error:e.code||'master_unavailable'},e.status||500);}

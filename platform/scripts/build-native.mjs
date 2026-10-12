@@ -53,5 +53,6 @@ ${creatives}
  window.addEventListener('beforeunload',e=>{if(state.dirty){e.preventDefault();e.returnValue='';}});
  return {loadWeekly,loadWeeklyArchive,loadCreatives};
 }`);
-await build({entryPoints:['native/boot.js'],outfile:'dist/native-boot.txt',bundle:true,format:'iife',target:'es2022'});
+await writeFile('dist/native-crm-style.mjs','export default '+JSON.stringify(assets['core/core.js'].body.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'')+';');
+await build({entryPoints:['native/boot.js'],outfile:'dist/native-boot.txt',bundle:true,format:'iife',target:'es2022',loader:{'.html':'text','.css':'text'}});
 console.log('Native board assets built from repository originals.');

@@ -21,7 +21,7 @@ function bundledShell(slug){
  const paths=shop?['core/instashop-model.js','core/instashop.js','core/ux-v2-instashop.js','core/theme.js']:[`${base}/core.js`,`${base}/ux-v2.js`,'core/theme.js'];
  return `window.TOYS_BUNDLED_SCRIPTS={${paths.map(p=>JSON.stringify(p)+':function(){'+nativeAssets[p].body+'\n}').join(',')}};window.TOYS_BUNDLED_STYLES=${JSON.stringify(Object.fromEntries([`${base}/ux-v2.css`,'platform-tools.css'].map(p=>[p,nativeAssets[p].body])))};`;
 }
-const html = (slug,privateMode=true,assetBase=null) => new Response(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title><style>${nativeAssets['platform-fonts.css'].body}</style><style>#loading{display:none!important}body[data-platform-loading] #content{display:block!important}body[data-platform-loading] .value{color:transparent!important;background:var(--panel-2);border-radius:8px;min-height:28px}body[data-platform-loading] #controls,body[data-platform-loading] .controls{pointer-events:none;opacity:.6}</style></head><body data-platform-loading="true"><script>window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_MVP_PROJECT_PORTAL=${privateMode};window.TOYS_UI_ASSET_BASE=${JSON.stringify(assetBase)};${(bundledShell(slug)+nativeBoot).replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
+const html = (slug,privateMode=true,assetBase=null) => new Response(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title><style>${nativeAssets['platform-fonts.css'].body}</style><style>#loading{display:none!important}body[data-platform-loading] #content{display:block!important}body[data-platform-loading] .value{color:transparent!important;background:var(--panel-2);border-radius:8px;min-height:28px}body[data-platform-loading] #controls,body[data-platform-loading] .controls{pointer-events:none;opacity:.6}</style></head><body data-platform-loading="true"><script>window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_FAVICON=${JSON.stringify('data:image/svg+xml,'+encodeURIComponent(nativeAssets['assets/favicon.svg'].body))};window.TOYS_MVP_PROJECT_PORTAL=${privateMode};window.TOYS_UI_ASSET_BASE=${JSON.stringify(assetBase)};${(bundledShell(slug)+nativeBoot).replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
 
 export default {
   async fetch(request, env, ctx) {
@@ -32,6 +32,8 @@ export default {
       const project=clientCRM?await crmProject(env,clientCRM[1]):null;
       if(clientCRM&&!project)return new Response('Not found',{status:404});
       const context=project?{project:{id:project.id,slug:project.slug,name:project.name,currency:project.currency},canEdit:true}:null;
+      if(clientCRM&&url.searchParams.get('format')==='json')return Response.json({ok:true,context},{headers:{'cache-control':'no-store'}});
+      if(clientCRM&&projects.has(clientCRM[1]))return html(clientCRM[1],true);
       const coreStyle=nativeAssets['core/core.js'].body.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';
       const doc=masterDocument.replace('</head>',`<style>${nativeAssets['platform-fonts.css'].body}${coreStyle}${nativeAssets['platform-tools.css'].body}${masterStyle}</style></head>`).replace('</body>',`<script>window.TOYS_CLIENT_CRM=${JSON.stringify(context).replace(/</g,'\\u003c')};${masterClient.replace(/<\/script/gi,'<\\/script')}</script></body>`);
       return new Response(doc,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'same-origin'}});
@@ -39,20 +41,23 @@ export default {
     const bridged=await agentBridge(request,env);if(bridged)return bridged;
     const messaging=await messageWebhook(request,env);if(messaging)return messaging;
     const incoming=await webhook(request,env,ctx);if(incoming)return incoming;
-    const agency=await masterAPI(request,env);if(agency)return agency;
+    const agency=await masterAPI(request,env,ctx);if(agency)return agency;
     const connection=await connections(request,env,ctx);if(connection)return connection;
     const crm=await crmRoute(request,env,ctx);if(crm){if(crm.ok&&request.method==='PATCH')ctx?.waitUntil(drain(env));return crm;}
 
-    const top=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/(top-creatives|ads-summary)$/);
+    const privateHierarchy=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/content-project\/ads\/hierarchy$/);
+    const top=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/(top-creatives|ads-summary)$/)||privateHierarchy;
     if(top && request.method==='GET'){
-      const auth=await authorizeMvp(request,env,top[1],'viewer','dashboard');
+      const auth=await authorizeMvp(request,env,top[1],'viewer',privateHierarchy?'protected':'dashboard');
       if(!auth.ok)return Response.json({ok:false,error:auth.error},{status:auth.status});
       const project=await projectRecord(env,top[1]);
       if(!project)return Response.json({ok:false,error:'not_found'},{status:404});
       const range={from:url.searchParams.get('from'),to:url.searchParams.get('to')};
       try{
-        let data=await onDemandAdsService(env).getStats({organizationId:project.organizationId,projectSlug:top[1],...range});
-        if(top[2]==='ads-summary')return Response.json({ok:true,requestedRange:range,commerce:liveCommerce(data.providers,range),crm:await crmSummary(env,project,range.from,range.to),providers:data.providers.map(p=>({provider:p.provider,freshness:p.freshness,requestedRange:p.requestedRange,hierarchy:p.hierarchy?{currency:p.hierarchy.currency,children:p.hierarchy.children.map(c=>({providerId:c.providerId,name:c.name,dailyMetrics:c.dailyMetrics,children:[]}))}:null}))},{headers:{'cache-control':'no-store'}});
+        let data=await onDemandAdsService(env,ctx).getStats({organizationId:project.organizationId,projectSlug:top[1],...range});
+        const refreshing=data.providers.some(p=>p.refresh?.state==='refreshing'||p.refresh?.state==='rate_limited');
+        if(privateHierarchy)return Response.json({ok:true,...await attachCRMQualification(data,env,project,range),refreshing,commerce:liveCommerce(data.providers,range),crm:await crmSummary(env,project,range.from,range.to),access:{role:auth.role}},{headers:{'cache-control':'no-store'}});
+        if(top[2]==='ads-summary')return Response.json({ok:true,requestedRange:range,refreshing,commerce:liveCommerce(data.providers,range),crm:await crmSummary(env,project,range.from,range.to),providers:data.providers.map(p=>({provider:p.provider,freshness:p.freshness,requestedRange:p.requestedRange,hierarchy:p.hierarchy?{currency:p.hierarchy.currency,children:p.hierarchy.children.map(c=>({providerId:c.providerId,name:c.name,dailyMetrics:c.dailyMetrics,children:[]}))}:null}))},{headers:{'cache-control':'no-store'}});
         data=await attachCRMQualification(data,env,project,range);
         // Publish only top-three presentation fields; never the private hierarchy,
         // account identifiers, CRM records, drafts or integration configuration.
@@ -60,7 +65,7 @@ export default {
           rankCreatives(data.providers,range,basis).map(group=>({...group,rows:group.rows.map(({name,previewUrl,previewStatus,currency,score,ctr,spend,freshness})=>({name,previewUrl,previewStatus,currency,score,ctr,spend,freshness}))}))
           .concat(['meta_ads','google_ads'].filter(provider=>!data.providers.some(p=>p.provider===provider&&p.hierarchy)).map(provider=>({provider,basis,rows:[],unavailable:true})))
         ]));
-        return Response.json({ok:true,requestedRange:range,rankings},{headers:{'cache-control':'no-store'}});
+        return Response.json({ok:true,requestedRange:range,refreshing,rankings},{headers:{'cache-control':'no-store'}});
       }catch(error){return Response.json({ok:false,error:['invalid_date','invalid_date_range'].includes(error.code)?error.code:'creatives_unavailable'},{status:['invalid_date','invalid_date_range'].includes(error.code)?400:503});}
     }
     const assetKey=url.pathname.startsWith('/api/ui/reference/')?url.pathname.slice('/api/ui/reference/'.length):null;

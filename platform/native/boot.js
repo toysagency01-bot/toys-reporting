@@ -1,22 +1,28 @@
 import {mountCalendar} from './calendar.js';
+import {mountClientNavigation} from './client-navigation.js';
 import {renderTopCreatives} from './top-creatives.js';
 import {sourceTable,weeklyTable} from './data.js';
 import {tools} from '../dist/native-tools.mjs';
 import {advertisingModel,snapshotRows,campaignGroups,nodeTotals,aggregate,escapeHtml as h,validRange,valueOf} from '../unified/model.js';
 const slug=window.TOYS_UNIFIED_PROJECT;
 const entryHash=location.hash;
+const initialCRM=location.pathname.endsWith('/content-crm')||entryHash==='#crm';
 const prefix=location.pathname.startsWith('/mvp/')?'/mvp':'';
 const api=`${prefix}/api/v2/projects/${slug}`;
 // Use the same authenticated, forwarded route as the document. The Pages
 // gateway does not necessarily forward arbitrary /api/ui/* asset paths.
-const asset=path=>window.TOYS_UI_ASSET_BASE?`${window.TOYS_UI_ASSET_BASE}${encodeURIComponent(path)}`:`${api}/content-project?ui=${encodeURIComponent(path)}`;
+const assetBase=window.TOYS_UI_ASSET_BASE?new URL(window.TOYS_UI_ASSET_BASE,location.href).href:null;
+const asset=path=>assetBase?`${assetBase}${encodeURIComponent(path)}`:`${api}/content-project?ui=${encodeURIComponent(path)}`;
 const privateMode=window.TOYS_MVP_PROJECT_PORTAL===true;
 const shop=slug==='profkit-instashop-r4vk';
 const title=({'housevip-cxp7':'HOUSEVIP','profkit-instashop-r4vk':'PROFKIT','karlovarska-sul-k4rm':'Karlovarska Sul'})[slug];
 const $=id=>document.getElementById(id);
 let creativeRankings=null,creativeState="loading",creativeSequence=0;
-let crmStats=null;
+let crmStats=null,clientNavigation;
 let dashboard,allRows=[],ads=null,snapshotPromise,tabsPromise,ready=false,toolkit,refreshing=false,sequence=0,calendar,refreshTimer,periodTimer;
+const retryTimers={},retryCounts={},retryDelays=[1500,3000,5000,8000,12000,20000,30000];
+function resetRetries(){for(const key of ['ads','creatives']){clearTimeout(retryTimers[key]);retryCounts[key]=0;}}
+function retrySoon(key,requested,run){clearTimeout(retryTimers[key]);const attempt=retryCounts[key]||0;if(attempt>=retryDelays.length)return;retryCounts[key]=attempt+1;retryTimers[key]=setTimeout(()=>{if(!document.hidden&&JSON.stringify(range())===JSON.stringify(requested))run();},retryDelays[attempt]);}
 const json=async(url,options={})=>{const r=await fetch(url,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000),...options});const d=await r.json();if(!r.ok||!(d.ok||d.status==='ok'))throw new Error(d.error||`HTTP ${r.status}`);return d;};
 const range=()=>({from:$(shop?'from':'dateFrom')?.value||'',to:$(shop?'to':'dateTo')?.value||''});
 function notice(text,error=false){const n=$('platformNotice');if(n){n.textContent=text;n.dataset.error=String(error);}}
@@ -72,8 +78,9 @@ async function refresh(){
   let commerce=null;if(dashboard.ecommerce&&result.commerce?.completeProviders?.length){const updated=new Set(result.commerce.completeProviders.map(p=>p==='meta_ads'?'Meta Ads':'Google Ads'));for(const [key,rows]of [['account',result.commerce.account],['campaigns',result.commerce.campaigns]]){const previous=dashboard.ecommerce[key]||{};dashboard.ecommerce[key]={...previous,rows:[...(previous.rows||[]).filter(r=>!updated.has(r.platform)||r.date<requested.from||r.date>requested.to),...rows]};}commerce={account:sourceTable(dashboard,'EcomFunnel'),campaigns:sourceTable(dashboard,'EcomFunnelCampaign')};}
   if(shop){const mapped=shopLiveRows(all);if(mapped.some(r=>r===null)){notice('Детализация получена. Для сводки в гривнах не хватает подтверждённого курса; сохранены опубликованные показатели.',true);attachHierarchy();return;}allRows=all;window.TOYS_NATIVE.refreshAds(mapped);}
   else {allRows=all;window.TOYS_NATIVE.refreshAds(all.map(r=>({date:r.date,platform:r.provider==='google_ads'?'Google Ads':'Meta Ads',account:title,accountId:r.integrationId||'',currency:r.currency,campaign:r.name,campaignId:r.campaignId,impr:r.impressions,clicks:r.clicks,cost:r.spend,conv:r.conversions})),commerce);}
-  notice(result.providers?.map(p=>`${p.provider==='google_ads'?'Google Ads':'Meta Ads'}: ${p.hierarchy?(p.freshness==='fresh'?'обновлено':'сохранённые данные'):'подключение не завершено'}`).join(' · ')||'Показаны опубликованные данные.');maskUnavailable();
- }catch(e){notice(`Не удалось обновить кабинет. Сохранены опубликованные данные. ${e.message}`,true);}finally{refreshing=false;renderCreatives();if(JSON.stringify(range())!==JSON.stringify(requested))queueRefresh();}
+  if(result.refreshing){notice('Обновляем рекламные данные. Последние доступные показатели сохранены.');retrySoon('ads',requested,refresh);}
+  else{clearTimeout(retryTimers.ads);notice(result.providers?.map(p=>`${p.provider==='google_ads'?'Google Ads':'Meta Ads'}: ${p.hierarchy?(p.freshness==='fresh'?'обновлено':'сохранённые данные'):'подключение не завершено'}`).join(' · ')||'Показаны опубликованные данные.');}maskUnavailable();
+ }catch(e){notice('Не удалось обновить кабинет. Последние данные сохранены; повторяем запрос автоматически.',true);retrySoon('ads',requested,refresh);}finally{refreshing=false;renderCreatives();if(JSON.stringify(range())!==JSON.stringify(requested))queueRefresh();}
 }
 
 function renderCRM(){
@@ -84,15 +91,15 @@ function renderCRM(){
 }
 function renderCreatives(){if(!ready)return;const channels=Object.keys(dashboard.advertising?.channels||{}).map(c=>/google/i.test(c)?'google_ads':'meta_ads');renderTopCreatives({rankings:creativeRankings,state:creativeState,activeChannel:document.querySelector('#platformSeg .active')?.dataset.platform||'__all',range:range(),channels:channels.length?[...new Set(channels)]:['meta_ads'],slug});}
 async function refreshCreatives(){
- const requested=range(),seq=++creativeSequence;creativeRankings=null;creativeState='loading';renderCreatives();
- try{const data=await json(`${api}/top-creatives?from=${requested.from}&to=${requested.to}`);if(seq!==creativeSequence||JSON.stringify(range())!==JSON.stringify(requested))return;creativeRankings=data.rankings;creativeState='ready';}
- catch{if(seq!==creativeSequence)return;creativeState='error';}
+ const requested=range(),seq=++creativeSequence;if(!creativeRankings)creativeState='loading';renderCreatives();
+ try{const data=await json(`${api}/top-creatives?from=${requested.from}&to=${requested.to}`);if(seq!==creativeSequence||JSON.stringify(range())!==JSON.stringify(requested))return;creativeRankings=data.rankings;creativeState=data.refreshing?'refreshing':'ready';if(data.refreshing)retrySoon('creatives',requested,refreshCreatives);else clearTimeout(retryTimers.creatives);}
+ catch{if(seq!==creativeSequence)return;creativeState='error';retrySoon('creatives',requested,refreshCreatives);}
  finally{if(seq===creativeSequence)renderCreatives();}
 }
-function queueRefresh(){crmStats=null;renderCRM();creativeSequence++;creativeRankings=null;creativeState='loading';clearTimeout(periodTimer);periodTimer=setTimeout(()=>{renderCreatives();refreshCreatives();refresh();},300);}
+function queueRefresh(){resetRetries();crmStats=null;renderCRM();creativeSequence++;creativeRankings=null;creativeState='loading';clearTimeout(periodTimer);periodTimer=setTimeout(()=>{renderCreatives();refreshCreatives();refresh();},300);}
 let lastAutoRefresh=Date.now(),autoRunning=false;
 async function autoRefresh(){
- if(autoRunning||document.hidden||Date.now()-lastAutoRefresh<20*60*1000)return;autoRunning=true;lastAutoRefresh=Date.now();
+ if(autoRunning||document.hidden||Date.now()-lastAutoRefresh<20*60*1000)return;autoRunning=true;lastAutoRefresh=Date.now();resetRetries();
  try{const d=await json(api+'/dashboard');const changed=JSON.stringify(d.dashboard)!==JSON.stringify(dashboard);dashboard=d.dashboard;snapshotPromise=Promise.resolve(dashboard);if(changed){allRows=snapshotRows(dashboard);const names=['MetaAds','GoogleAds','InstashopSales','EcomFunnel','EcomFunnelCampaign'];window.TOYS_NATIVE.refreshSnapshot(Object.fromEntries(names.map(n=>[n,sourceTable(dashboard,n)])));}await Promise.all([refresh(),refreshCreatives()]);}catch(e){notice('Автообновление временно недоступно. Сохранены последние данные.',true);}finally{autoRunning=false;}
 }
 
@@ -122,7 +129,7 @@ async function boot(){
  // Font availability must never prevent the dashboard and data from opening.
 
  const channels=slug==='housevip-cxp7'?[{key:'smm',label:'SMM'},{key:'meta',label:'Meta'}]:[{key:'smm',label:'SMM'},{key:'meta',label:'Meta'},{key:'google',label:'Google'}];
- document.title=`TOYS × ${title} — Дашборд результатов`;const icon=document.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=asset('assets/favicon.svg');document.head.append(icon);
+ document.title=`TOYS × ${title} — Дашборд результатов`;const icon=document.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=window.TOYS_FAVICON||asset('assets/favicon.svg');document.head.append(icon);
  window.DASH_CONFIG={...(slug==='housevip-cxp7'?{spendFx:{from:'IDR',to:'EUR'}}:{}),title,locked:true,showDrafts:false,sheetId:'platform',projectSheetId:'platform',projectApiKey:'platform',projectChannels:channels,weeklyProjectKey:slug,weeklyFormUrl:'#platform-weekly',conversionLabel:'Конверсии',conversionShortLabel:'Конв.'};
  window.INSTASHOP_CONFIG={title,sheetId:'platform',weeklyFormUrl:'#platform-weekly'};
  snapshotPromise=json(api+'/dashboard').then(d=>dashboard=d.dashboard);tabsPromise=json(api+'/content/tabs').then(d=>d.tabs||[]);
@@ -135,6 +142,7 @@ async function boot(){
  const controls=$('controls')||document.querySelector('.controls');
  const n=document.createElement('div');n.id='platformNotice';n.className='platform-notice';n.setAttribute('role','status');controls.after(n);notice(dashboard.coverage?.warning||'Опубликованные данные проекта.');
  await css('platform-tools.css');ready=true;mountTools();maskUnavailable();
+ clientNavigation=mountClientNavigation({slug,api,prefix,asset,initialCRM,onChange:async()=>{try{const requested=range(),d=await json(`${api}/crm/summary?from=${requested.from}&to=${requested.to}`);if(JSON.stringify(range())===JSON.stringify(requested)){crmStats=d;renderCRM();}}catch{}}});
  const from=$(shop?'from':'dateFrom'),to=$(shop?'to':'dateTo');
  calendar=mountCalendar({from,to,apply:(start,end)=>{document.querySelectorAll('#periodSeg button').forEach(b=>b.classList.remove('active'));sequence++;ads=null;window.TOYS_NATIVE.setPeriod(start,end);queueRefresh();}});
  const logo=document.querySelector('header img[alt="TOYS"]');const theme=()=>{if(logo)logo.src=asset(document.documentElement.dataset.theme==='light'?'assets/toys-black.svg':'assets/toys-logo.svg');};theme();new MutationObserver(theme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});

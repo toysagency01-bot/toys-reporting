@@ -2344,7 +2344,8 @@ function createOnDemandAdsService({
   randomId = /* @__PURE__ */ __name(() => globalThis.crypto.randomUUID(), "randomId"),
   cacheTtlMinutes = 30,
   refreshCooldownMs = 1e4,
-  refreshLeaseMs = 45e3
+  refreshLeaseMs = 45e3,
+  waitUntil = null
 } = {}) {
   if (!db?.prepare) fail2("db_required", "D1-compatible db is required");
   if (!Number.isFinite(cacheTtlMinutes) || cacheTtlMinutes <= 0 || cacheTtlMinutes > ADS_ON_DEMAND_MAX_CACHE_MINUTES) {
@@ -2417,10 +2418,23 @@ function createOnDemandAdsService({
     if (!forceRefresh && payload && new Date(row.expiresAt).getTime() > checkedAt.getTime() && new Date(row.lastGoodAt).getTime() + cacheTtlMinutes * 60000 > checkedAt.getTime()) {
       return decorated(payload, { source: "cache", freshness: "fresh", refreshState: "not_needed", row });
     }
+    if (waitUntil && row.lastAttemptStatus === 'running' && checkedAt.getTime()-Date.parse(row.lastAttemptAt)<refreshLeaseMs) {
+      return fallbackOrUnavailable(scope,row,{state:'refreshing',code:'refresh_in_progress'});
+    }
+    if (waitUntil && row.lastAttemptStatus === 'error' && checkedAt.getTime()-Date.parse(row.lastAttemptAt)<30000) {
+      return fallbackOrUnavailable(scope,row,{state:'failed',code:row.lastErrorCode});
+    }
     let promise = inFlight.get(key);
     if (!promise) {
       promise = refresh(scope, adapter, key).finally(() => inFlight.delete(key));
       inFlight.set(key, promise);
+    }
+    if (waitUntil) {
+      // Keep provider I/O alive after the response and after browser navigation.
+      // D1's lease coordinates separate requests; no request-owned promise is
+      // retained globally in a Worker isolate.
+      waitUntil(promise.catch(()=>{}));
+      return fallbackOrUnavailable(scope,row,{state:'refreshing',code:'refresh_in_progress'});
     }
     return promise;
   }
@@ -2663,9 +2677,11 @@ async function page(fetchImpl, endpoint, params, token, retry = {}) {
     try {
       response5 = await fetchImpl(`${endpoint}?${params}`, {
         method: "GET",
-        headers: { accept: "application/json", authorization: `Bearer ${token}` }
+        headers: { accept: "application/json", authorization: `Bearer ${token}` },
+        redirect: 'error',signal:retry.signal||AbortSignal.timeout(18000)
       });
     } catch (_) {
+      if (retry.signal?.aborted) fail3('provider_timeout');
       if (attempt === attempts) fail3("provider_unavailable");
       await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
       continue;
@@ -2694,6 +2710,8 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
   if (!token || !secret) return null;
   const proof = createHmac("sha256", secret).update(token).digest("hex");
   return async ({ integration, request }) => {
+    const deadline=AbortSignal.timeout(25000);
+    const insightRetry={...retry,signal:AbortSignal.any([deadline,AbortSignal.timeout(18000)])};
     const expectedAccountId = accountId(integration?.accountId);
     const from = isoDate2(request?.from);
     const to = isoDate2(request?.to);
@@ -2715,7 +2733,7 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
     for (let pageNumber = 1; pageNumber <= 100; pageNumber += 1) {
       if (cursor) params.set("after", cursor);
       else params.delete("after");
-      const payload = await page(fetchImpl, endpoint, params, token, retry);
+      const payload = await page(fetchImpl, endpoint, params, token, insightRetry);
       if (!Array.isArray(payload?.data)) fail3("provider_schema_mismatch");
       rows.push(...payload.data);
       const next = payload?.paging?.next;
@@ -2739,7 +2757,8 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
     }
     const normalized = hierarchy(rows, expectedAccountId);
     const creativeData = enrichMetaOutcomes(normalized, rows);
-    await attachMetaPreviews(creativeData.ads,creativeData.ids,(id,fields)=>page(fetchImpl,`https://graph.facebook.com/${apiVersion}/${id}`,new URLSearchParams({appsecret_proof:proof,fields}),token,{maxAttempts:2}));
+    const previewDeadline=AbortSignal.any([deadline,AbortSignal.timeout(6000)]);
+    await attachMetaPreviews(creativeData.ads,creativeData.ids,(id,fields)=>page(fetchImpl,`https://graph.facebook.com/${apiVersion}/${id}`,new URLSearchParams({appsecret_proof:proof,fields}),token,{maxAttempts:1,signal:previewDeadline}));
     if (normalized.accountCurrency && integration.currency && normalized.accountCurrency !== integration.currency) {
       fail3("currency_scope_mismatch");
     }
@@ -3003,22 +3022,17 @@ async function projectRecord(env, slug2) {
   ).bind(slug2).first();
 }
 __name(projectRecord, "projectRecord");
-var adsServiceDb = null;
-var adsService = null;
-function onDemandAdsService(env) {
-  if (adsServiceDb !== env.TOYS_DB || !adsService) {
-    adsServiceDb = env.TOYS_DB;
+function onDemandAdsService(env,ctx=null) {
     const metaAdapter = createMetaAdsHierarchyAdapter({
       accessToken: env.META_ADS_ACCESS_TOKEN,
       appSecret: env.META_APP_SECRET
     });
-    adsService = createOnDemandAdsService({
+    return createOnDemandAdsService({
       db: env.TOYS_DB,
       providers: {google_ads:createGoogleReceiverAdapter(env.TOYS_DB),...(metaAdapter?{meta_ads:metaAdapter}:{})},
-      cacheTtlMinutes: 20
+      cacheTtlMinutes: 20,
+      ...(ctx?.waitUntil?{waitUntil:promise=>ctx.waitUntil(promise)}:{})
     });
-  }
-  return adsService;
 }
 __name(onDemandAdsService, "onDemandAdsService");
 async function protectedProject(request, env, slug2, requiredRole = "viewer") {

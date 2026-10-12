@@ -1,10 +1,10 @@
-export function mountCalendar({from,to,apply,timeZone='Asia/Tbilisi'}){
+export function mountCalendar({from,to,apply,timeZone='Asia/Tbilisi',root=document}){
  const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  const format=d=>new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(d+'T12:00:00Z'));
  const host=from.parentElement;host.classList.add('platform-date-range');
  const trigger=document.createElement('button');trigger.type='button';trigger.id='platformCalendar';trigger.setAttribute('aria-haspopup','dialog');host.append(trigger);
  [from,to].forEach(n=>{n.classList.add('platform-native-date');n.tabIndex=-1;});
- const dialog=document.createElement('dialog');dialog.className='platform-calendar';dialog.setAttribute('aria-label','Выбор периода');document.body.append(dialog);
+ const dialog=document.createElement('dialog');dialog.className='platform-calendar';dialog.setAttribute('aria-label','Выбор периода');(root.body||root).append(dialog);
  let start='',end='',month='',pickingEnd=false;
  const sync=()=>{from.max=to.max=today();trigger.textContent=from.value&&to.value?`${format(from.value)} — ${format(to.value)}`:'Выбрать период';};
  const move=n=>{const d=new Date(month+'-01T12:00:00Z');d.setUTCMonth(d.getUTCMonth()+n);month=d.toISOString().slice(0,7);draw();};
@@ -17,6 +17,6 @@ export function mountCalendar({from,to,apply,timeZone='Asia/Tbilisi'}){
  dialog.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-cancel'))dialog.close();else if(b.hasAttribute('data-prev'))move(-1);else if(b.hasAttribute('data-next'))move(1);else if(b.hasAttribute('data-apply')){apply(start,end);sync();dialog.close();}else if(b.dataset.date){const day=b.dataset.date;if(!pickingEnd){start=day;end='';pickingEnd=true;}else{end=day;if(end<start)[start,end]=[end,start];pickingEnd=false;}draw();dialog.querySelector(`[data-date="${day}"]`)?.focus();}});
  dialog.addEventListener('keydown',e=>{if(!e.target.dataset.date)return;const offsets={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7};if(!(e.key in offsets))return;e.preventDefault();const d=new Date(e.target.dataset.date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+offsets[e.key]);const iso=d.toISOString().slice(0,10);if(iso>today()||(from.min&&iso<from.min))return;month=iso.slice(0,7);draw();dialog.querySelector(`[data-date="${iso}"]`)?.focus();});
  dialog.addEventListener('close',()=>trigger.focus());
- const yesterday=document.querySelector('#periodSeg [data-days="1"]');if(yesterday){yesterday.textContent='Сегодня';yesterday.addEventListener('click',e=>{e.stopImmediatePropagation();apply(today(),today());document.querySelectorAll('#periodSeg button').forEach(b=>b.classList.toggle('active',b===yesterday));sync();},true);}
+ const yesterday=root.querySelector('#periodSeg [data-days="1"]');if(yesterday){yesterday.textContent='Сегодня';yesterday.addEventListener('click',e=>{e.stopImmediatePropagation();apply(today(),today());root.querySelectorAll('#periodSeg button').forEach(b=>b.classList.toggle('active',b===yesterday));sync();},true);}
  sync();return {sync,today};
 }

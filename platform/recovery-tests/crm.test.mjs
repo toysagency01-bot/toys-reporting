@@ -78,6 +78,8 @@ test('CRM and master are never public; clients manage only their own leads witho
  assert.equal((await worker.fetch(request(base,{role:null}),env)).status,401);
  assert.equal((await worker.fetch(request(base+'/connections',{role:'viewer'}),env)).status,403);
  assert.equal((await worker.fetch(request('/api/v2/projects/'+p.slug+'/content-crm',{role:null}),env)).status,401);
+ assert.equal((await worker.fetch(request('/api/v2/projects/'+p.slug+'/content-crm?format=json',{role:null}),env)).status,401);
+ assert.equal((await worker.fetch(request('/api/v2/projects/other/content-crm?format=json',{role:'viewer'}),env)).status,403);
  assert.equal((await worker.fetch(request('/api/v2/projects/'+p.slug+'/content-crm',{role:'viewer'}),env)).status,200);
  assert.equal((await worker.fetch(request('/api/v2/master',{role:'viewer'}),env)).status,403);
  assert.equal((await worker.fetch(request('/api/v2/projects/other/crm'),env)).status,403);

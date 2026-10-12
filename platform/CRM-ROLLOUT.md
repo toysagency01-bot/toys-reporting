@@ -57,12 +57,12 @@ replay conflict checks, cross-page duplicate detection, exact readback counts an
 all hierarchy metrics are preserved. Old snapshots were not rewritten or deleted.
 The 20-minute reporting schedule remains. No paid plan was enabled.
 
-Worker release: `3cbbc86a-2651-4c1a-896d-29e7b89b519e`.
-Rollback: `02d51ef7-f035-4332-9f3a-9191471ba3ac` (CRM before Make intake).
+Worker release: `17d2b8af-5464-44be-a28c-ee0a37c5fe74`.
+Rollback: `3cbbc86a-2651-4c1a-896d-29e7b89b519e` (before cache/navigation repair).
 Migrations 0012–0014 are additive and already applied. Encryption key was generated
 once; do not replace it or stored credentials will become unreadable.
 
-Validation: 38 recovery tests (explicit in-process runner), 16 Chromium scenarios, 3 mocked discovery tests,
+Validation: 42 recovery tests (explicit in-process runner), 18 Chromium scenarios, 3 mocked discovery tests,
 and a syntax/guard check against the existing Cloud Run source patch. Browser
 checks were local; live site domains are not allowed in this execution environment.
 
@@ -76,3 +76,23 @@ Existing 20-minute cron and new 2-minute CRM retry
 cron were also read back. No test contacts were written to production.
 The first real Google delivery using compact storage was verified at
 2026-10-12T13:20:39Z: 1,353 detail rows stored in 8 compact pages.
+
+October 12 cache/navigation repair applies to all three published client boards:
+HOUSEVIP, Karlovarska Sul and PROFKIT. The dashboard and authenticated CRM now
+remain mounted when switching sections; browser history, selected period and CRM
+filters survive the round trip. CRM reads use a bounded, project/query-scoped
+60-second memory cache, shared requests and immediate invalidation after writes.
+No lead data is persisted to localStorage or a shared HTTP cache. CRM updates its
+visible list in the background; advertising retains the 20-minute schedule.
+The direct protected `content-crm` URL opens the same client shell.
+
+Provider refreshes run in `waitUntil`, coordinated by the existing D1 leases.
+Requests return last-good data immediately and the browser polls a pending refresh
+with bounded backoff. Worker isolates no longer retain request-owned provider
+promises across requests. Meta insight requests are capped at 18 seconds and preview
+requests at 6 seconds, within a 25-second adapter deadline; missing previews do not
+discard statistics. The date selector has a single border. Verification includes
+blocked-provider concurrency, stale cache recovery, writes invalidating the CRM
+cache, zero data requests on a quick section round trip, browser history and mobile
+layout. Live Meta/browser verification remains unavailable under the environment's
+network policy; the active deployment is verified through the Cloudflare API.

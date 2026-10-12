@@ -14,9 +14,9 @@ html body .toys-tools input,html body .toys-tools textarea,html body .toys-tools
 :root[data-theme="light"],:root[data-theme="dark"]{--accent:#26ddcc;--accent-dim:rgba(38,221,204,.14)}
 :root[data-theme="light"] header img[alt="TOYS"]{background:transparent;border-radius:0;padding:0}
 html body .card .value,html body .mval,html body .ppct,html body .ux-period-metrics b,html body .top-metrics b{font-weight:600}
-.platform-date-range{position:relative}.platform-date-range>span{display:none}.platform-native-date{position:absolute!important;width:1px!important;height:1px!important;opacity:0;pointer-events:none;padding:0!important;border:0!important}
+.platform-date-range{position:relative}.daterange.platform-date-range,.range.platform-date-range{border:0;padding:0;background:transparent;box-shadow:none;gap:0}.platform-date-range>span{display:none}.platform-native-date{position:absolute!important;width:1px!important;height:1px!important;opacity:0;pointer-events:none;padding:0!important;border:0!important}
 #platformCalendar{background:var(--panel-2);border:1px solid var(--line);color:var(--text);padding:11px 16px;border-radius:11px;font-size:13px;font-weight:500;cursor:pointer}
-#platformCalendar:hover,#platformCalendar:focus-visible{border-color:var(--accent);outline:2px solid var(--accent-dim);outline-offset:2px}
+#platformCalendar:hover{border-color:var(--accent)}#platformCalendar:focus-visible{border-color:var(--accent);outline:2px solid var(--accent-dim);outline-offset:2px}
 .platform-calendar{margin:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:22px;padding:24px;width:380px;max-width:calc(100vw - 24px);box-shadow:0 24px 80px #0004}
 .platform-calendar::backdrop{background:#07131288;backdrop-filter:blur(4px)}
 .calendar-heading,.calendar-month,.calendar-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.calendar-heading small{font-size:10px;letter-spacing:.1em;color:var(--muted)}.calendar-heading h2{font-size:21px;font-weight:600;margin:4px 0}.platform-calendar p{font-size:12px;color:var(--muted);margin:8px 0 20px}

@@ -135,13 +135,32 @@ test('master keeps Home and CRM separate; create, qualify and sell a lead persis
  await page.screenshot({path:'dist/master-crm.png',fullPage:true,animations:'disabled'});await page.locator('#theme').click();await expect(page.locator('#brandLogo')).toHaveAttribute('src',/toys-black/);expect(errors).toEqual([]);
 });
 
-test('client board opens its own CRM without calling the master API',async({page})=>{
- const calls=[];page.on('request',r=>calls.push(new URL(r.url()).pathname));
+test('client keeps Home and CRM mounted, caches leads and preserves period and filters without document reloads',async({page})=>{
+ const calls=[],documents=[],urls=[];page.on('request',r=>{calls.push(new URL(r.url()).pathname);urls.push(r.url());if(r.isNavigationRequest())documents.push(r.url());});
  await page.goto('/mvp'+portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
+ const marker=await page.evaluate(()=>window.navigationTestMarker=crypto.randomUUID());const period=await page.locator('body > :not(#platformClientCRM) #dateFrom').inputValue();
  await page.locator('#platformCRMNav').click();await expect(page.locator('#heading')).toHaveText('CRM');
  await expect(page.locator('#projectSelect')).toBeHidden();await expect(page.locator('#connections')).toBeHidden();
  await expect(page.locator('#leadsTable')).not.toBeEmpty();expect(calls.some(p=>p.includes('/master'))).toBe(false);
- await page.getByRole('button',{name:'Главная',exact:true}).click();await expect(page).toHaveURL(/\/mvp\/housevip-cxp7\/(?:#overview)?$/);
+ await page.locator('#statusFilter').selectOption('Квалифицирован');await expect(page.locator('#leadsTable')).not.toBeEmpty();
+ // Wait for the new filter request, then ensure a quick round trip uses memory.
+ await expect.poll(()=>calls.filter(p=>p.endsWith('/crm')).length).toBe(2);await page.waitForTimeout(100);
+ const requests=calls.length;
+ await page.getByRole('link',{name:'Главная',exact:true}).click();await expect(page).toHaveURL(/\/mvp\/housevip-cxp7\/(?:#overview)?$/);
+ await expect(page.locator('body > :not(#platformClientCRM) #dateFrom')).toHaveValue(period);
+ await page.locator('#platformCRMNav').click();await expect(page.locator('#statusFilter')).toHaveValue('Квалифицирован');await expect(page.locator('#leadsTable')).not.toBeEmpty();
+ expect(await page.evaluate(()=>window.navigationTestMarker)).toBe(marker);expect(documents).toHaveLength(1);expect(urls.slice(requests)).toEqual([]);
+ await page.goBack();await expect(page.locator('#platformClientCRM')).toBeHidden();await page.goForward();await expect(page.locator('#platformClientCRM')).toBeVisible();expect(documents).toHaveLength(1);
+ await page.screenshot({path:'dist/client-crm-cached.png',fullPage:true,animations:'disabled'});
+ await page.locator('#platformClientCRM #theme').click();await expect(page.locator('html')).toHaveAttribute('data-theme','light');await page.getByRole('link',{name:'Главная',exact:true}).click();await expect(page.locator('header img[alt="TOYS"]')).toHaveAttribute('src',/toys-black/);
+ await page.locator('#platformCRMNav').click();await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+
+test('direct client CRM link opens the unified screen, writes invalidate lead cache and update the board',async({page})=>{
+ await page.goto('/mvp/api/v2/projects/housevip-cxp7/content-crm');await expect(page.locator('#heading')).toHaveText('CRM');await expect(page.locator('#leadsTable')).not.toBeEmpty();
+ await page.locator('#newLead').click();await page.locator('[name="name"]').fill('Cache invalidation lead');await page.locator('[name="email"]').fill('cache@example.test');await page.getByRole('button',{name:'Добавить',exact:true}).click();
+ await expect(page.locator('#leadsTable')).toContainText('Cache invalidation lead');await page.getByRole('button',{name:'Cache invalidation lead',exact:true}).click();await page.locator('[name="status"]').selectOption('Квалифицирован');await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#leadsTable')).toContainText('Квалифицирован');
+ await page.getByRole('link',{name:'Главная',exact:true}).click();await expect(page.locator('#platformCRMStats')).toContainText('Квал-лиды CRM');await page.locator('#platformCRMNav').click();await expect(page.locator('#leadsTable')).toContainText('Cache invalidation lead');
 });
 
 test('agency connection settings explain Make intake and do not require the direct Meta webhook',async({page})=>{
@@ -153,4 +172,14 @@ test('agency connection settings explain Make intake and do not require the dire
  await expect(page.locator('#websiteKey')).toBeVisible();
  await expect(page.locator('#pageList')).toBeVisible();
  await expect(page.getByText('Только для прямого подключения:',{exact:false})).toBeHidden();
+});
+
+test('pending provider refresh automatically updates both statistics and creatives without a reload',async({page})=>{
+ let stats=0,creatives=0;
+ await page.setExtraHTTPHeaders({'x-test-public':'true'});
+ await page.route('**/ads-summary?*',route=>{const u=new URL(route.request().url()),range={from:u.searchParams.get('from'),to:u.searchParams.get('to')};const pending=++stats===1,m=v=>({value:String(v),state:'observed'});return route.fulfill({json:{ok:true,refreshing:pending,providers:[{provider:'meta_ads',freshness:pending?'refreshing':'fresh',requestedRange:range,hierarchy:pending?null:{currency:'IDR',children:[{providerId:'live',name:'Updated',dailyMetrics:[{date:range.to,metrics:{impressions:m(200),clicks:m(88),spend:m(900),conversions:m(3)}}]}]}}]}});});
+ await page.route('**/top-creatives?*',route=>{const pending=++creatives===1;return route.fulfill({json:{ok:true,refreshing:pending,rankings:{leads:[{provider:'meta_ads',rows:pending?[]:[{name:'Automatically refreshed creative',score:4,ctr:2,spend:100,currency:'IDR',freshness:'fresh'}]}]}}});});
+ await page.clock.install();await page.goto('/mvp/housevip-cxp7/');
+ await expect(page.locator('#platformNotice')).toContainText('Обновляем рекламные данные');await expect(page.locator('.top-basis')).toContainText('Обновляем креативы');
+ await page.clock.fastForward(2000);await expect(page.locator('#kClicks')).toHaveText('88');await expect(page.locator('.top-creative h3')).toHaveText('Automatically refreshed creative');await expect(page.locator('#platformNotice')).toContainText('обновлено');expect(stats).toBe(2);expect(creatives).toBe(2);
 });
