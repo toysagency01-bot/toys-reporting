@@ -28,6 +28,6 @@ function micros(value){const n=BigInt(value),fraction=(n%1000000n).toString().pa
 
 export async function registerGoogleSnapshot(db,batch){
  // Currency/timezone come from the authenticated provider, never the sheet or UI.
- await db.prepare(`INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES(?,?,'google_ads',?,'active',?) ON CONFLICT(project_id,provider,external_account_id) DO NOTHING`).bind('google-receiver-'+batch.projectId+'-'+batch.customerId,batch.projectId,batch.customerId,JSON.stringify({accountTimezone:batch.timeZone,expectedCurrency:batch.currencyCode,apiVersion:'v25',source:'authenticated_cloudrun_receiver'})).run();
+ await db.prepare(`INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES(?,?,'google_ads',?,'active',?) ON CONFLICT(project_id,provider,external_account_id) DO UPDATE SET status='active',config_json=json_patch(integrations.config_json,excluded.config_json),updated_at=datetime('now') WHERE integrations.status='pending'`).bind('google-receiver-'+batch.projectId+'-'+batch.customerId,batch.projectId,batch.customerId,JSON.stringify({accountTimezone:batch.timeZone,expectedCurrency:batch.currencyCode,apiVersion:'v25',source:'authenticated_cloudrun_receiver'})).run();
  await db.prepare(`UPDATE ads_on_demand_cache SET expires_at=last_good_at WHERE project_id=? AND provider='google_ads' AND last_good_at IS NOT NULL`).bind(batch.projectId).run();
 }

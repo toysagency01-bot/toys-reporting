@@ -30,3 +30,14 @@ test('unchanged authenticated delivery refreshes checked time without duplicatin
   await assert.rejects(persistPage(env.TOYS_DB,payload,project,'a'.repeat(64),'2026-10-12T11:00:00.000Z'),{code:'replay_conflict'});assert.equal(db.prepare('SELECT updated_at FROM google_ads_receiver_batches').get().updated_at,stored.updated_at);
  }finally{db.close();}
 });
+
+
+test('accepted Google snapshots activate pending setup, preserve config and never re-enable disabled integrations',async()=>{
+ const {db,env}=fixture();try{
+  const batch={projectId:'prj_housevip_cxp7',customerId:'9632942627',timeZone:'Europe/Prague',currencyCode:'CZK'};
+  db.prepare("INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES('existing',?,'google_ads',?,'pending',?)").run(batch.projectId,batch.customerId,JSON.stringify({customField:'keep',expectedCurrency:'USD'}));
+  await registerGoogleSnapshot(env.TOYS_DB,batch);
+  const row=db.prepare("SELECT id,status,config_json FROM integrations WHERE id='existing'").get();assert.equal(row.status,'active');assert.equal(JSON.parse(row.config_json).expectedCurrency,'CZK');assert.equal(JSON.parse(row.config_json).customField,'keep');assert.equal(db.prepare("SELECT COUNT(*) AS n FROM integrations WHERE provider='google_ads'").get().n,1);
+  db.prepare("UPDATE integrations SET status='disabled' WHERE id='existing'").run();await registerGoogleSnapshot(env.TOYS_DB,batch);assert.equal(db.prepare("SELECT status FROM integrations WHERE id='existing'").get().status,'disabled');
+ }finally{db.close();}
+});

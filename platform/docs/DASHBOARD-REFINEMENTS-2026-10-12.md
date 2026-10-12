@@ -272,3 +272,26 @@ Receiver Worker release: `ccf11def-aa54-4bad-8979-c3b9545d78c9` (100%, API verif
 Rollback: `e7236f3a-9cc4-4f6b-aa43-a2e395227c30`.
 Bundle SHA256: `170f27b90672c27b84e5b6901d121322dfba225483ec57b82290b8c13785f20f`;
 the active downloaded module matches the local build. No schema/Pages change.
+
+### Cloud Run installation confirmed by owner; remote readback
+
+After the owner reported DONE, D1 confirmed accepted campaign/ad-group/ad snapshots
+for both Karlovarska and AM Klinika, monthly history from January 2026 and the
+current 90-day window through October 12. Latest initial-delivery confirmations:
+Karlovarska 12:04:53 UTC (EUR), AM Klinika 12:04:59 UTC (CZK). Both contain today's
+rows (18 and 35 across the three grains respectively; these are not additive
+business totals). Karlovarska also has a successful live Google dashboard cache
+refresh with no provider error.
+
+AM Klinika's pre-existing pending integration prevented registration because the
+old upsert did nothing on conflict. Accepted delivery now activates only pending
+integrations and merges verified provider currency/timezone into existing config.
+Disabled integrations remain disabled. The already-accepted AM Klinika account was
+activated with a conditional D1 update using its authenticated batch metadata;
+readback confirms both Google integrations active. All 3 Google receiver tests
+pass, including pending activation, config preservation and disabled preservation.
+
+Worker release: `0781dc47-5873-430d-a390-eceb8b32b0f7` (100%, API verified).
+Rollback: `ccf11def-aa54-4bad-8979-c3b9545d78c9`. No schema change.
+The owner's DONE confirms installer completion; an independent subsequent
+Scheduler-triggered delivery has not yet been observed at this readback.
