@@ -20,3 +20,15 @@ accepted message from Meta must be verified before calling this connection live.
 Instagram Direct and WhatsApp Business are **not activated** by this installer.
 Their future inbound webhook, project bindings and message storage exist separately.
 No campaigns, budgets or ads are modified.
+
+## One Cloud Shell command
+
+Open Cloud Shell in `toys-codex-media-buyer`, then run:
+
+```bash
+mkdir -p "$HOME/toys-crm-connect"
+curl -fL 'https://raw.githubusercontent.com/toysagency01-bot/toys-reporting/95d835a/platform/cloudrun-crm/update.zip' -o "$HOME/toys-crm-connect/update.zip" && unzip -o "$HOME/toys-crm-connect/update.zip" -d "$HOME/toys-crm-connect" && python3 "$HOME/toys-crm-connect/install.py"
+```
+
+Send only the final `pages`, `pagesWithToken`, `accounts` counts / permission warnings
+or the `STOP` message. Do not send tokens or environment variables.

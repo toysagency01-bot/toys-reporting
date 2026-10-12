@@ -39,3 +39,13 @@ once; do not replace it or stored credentials will become unreadable.
 Validation: 36 recovery tests, 15 Chromium scenarios, 3 mocked discovery tests,
 and a syntax/guard check against the existing Cloud Run source patch. Browser
 checks were local; live site domains are not allowed in this execution environment.
+
+Pages publication was attempted three times and failed with Cloudflare's
+`Failed to publish your Function. Got error: Unknown internal error occurred.`
+Canonical Pages deployment remains `96dd2411-b276-4582-b0a7-e977ba453123`.
+Its existing API forwarding already supports the client CRM and master view URL
+above, so use `/mvp/api/v2/master/view` until the short alias deploy succeeds.
+Worker deployment and bundle SHA prefix `b05dcf7cb718f179` were independently read
+back from the Cloudflare API. Existing 20-minute cron and new 2-minute CRM retry
+cron were also read back. No test contacts were written to production.
+The first real Google delivery using compact storage has not yet been observed.
