@@ -116,3 +116,11 @@ Rollback to shadow import with legacy reads: `ff66474b-91d9-4503-80b7-904fa8bafc
 Post-cutover verification used a deliberately accelerated one-off due time for
 the four successful imports. Subsequent runs return to normal 20-minute slots.
 The actual NBU rate for October 12 was successfully stored from NBU API.
+
+Final verification at 19:41:24 UTC: all four ordinary scheduled imports succeeded
+in the 19:40 slot and scheduled their next attempt for 20:00 UTC. The independent
+PROFKIT business job succeeded in 3.94 seconds and read only profkit_sales and
+profkit_fx. All three SELECT-only live-D1 dashboard checks passed, including
+today's USD/UAH rate, with external provider fetch deliberately disabled.
+Final suite: 60 tests passed; 13 relevant Chromium scenarios passed across the
+two browser runs.
