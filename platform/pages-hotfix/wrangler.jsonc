@@ -1,0 +1,10 @@
+{
+ "name":"toys-agency-dashboard",
+ "pages_build_output_dir":"../dist/pages-hotfix",
+ "compatibility_date":"2026-09-28",
+ "services":[
+  {"binding":"STAGING_MVP","service":"toys-agency-platform-staging"},
+  {"binding":"PRODUCTION_API","service":"toys-agency-platform"}
+ ],
+ "vars":{"MVP_MOUNT_PREFIX":"/mvp","MVP_PROJECT_SLUG":"housevip-cxp7"}
+}

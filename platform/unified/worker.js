@@ -11,7 +11,7 @@ export default {
     const url=new URL(request.url);
     const assetKey=url.pathname.startsWith('/api/ui/reference/')?url.pathname.slice('/api/ui/reference/'.length):null;
     if(assetKey && Object.hasOwn(nativeAssets,assetKey) && ['GET','HEAD'].includes(request.method)){const a=nativeAssets[assetKey];return new Response(request.method==='HEAD'?null:a.body,{headers:{'content-type':a.type,'cache-control':'no-cache','x-content-type-options':'nosniff'}});}
-    const publicBoard=url.pathname.match(/^\/([^/]+)\/(?:index\.html)?$/)||url.pathname.match(/^\/([^/]+)$/);
+    const publicBoard=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/board$/)||url.pathname.match(/^\/([^/]+)\/(?:index\.html)?$/)||url.pathname.match(/^\/([^/]+)$/);
     if(publicBoard && projects.has(publicBoard[1]) && request.method==='GET'){
       const slug=publicBoard[1];
       const publicAuth=await authorizeMvp(request,env,slug,'viewer','dashboard');

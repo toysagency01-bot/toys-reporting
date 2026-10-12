@@ -110,3 +110,34 @@ shape in Chromium for Karlovarska and Profkit.
 Corrected release: `c1606094-4ee6-4f82-8fbf-96a145559b74` (100%).
 SHA256: `893881cead8a0d3890f188ccd9379e351a04075d4275438ade50d774c6700973`.
 19 API/model/asset checks and 8 Chromium scenarios passed.
+
+## Pages entry-point correction after the unchanged-page report
+
+The Worker-only release above did not correct the owner's Pages URL. The prior
+test fixture invoked the Worker directly and missed the static delivery layer.
+`pages-hotfix/_worker.js` now rewrites the three supported short project URLs to
+`/api/v2/projects/{slug}/board` through the existing STAGING_MVP service binding.
+Query assets use the same route. Existing API bindings and authentication remain
+in place. Unrelated static GET/HEAD routes use the frozen previous Pages
+deployment; credentials are stripped before this fallback request.
+
+Worker version: `fb0823de-32a3-4ce7-88ba-fc3929345911`.
+Worker bundle SHA256: `f1c2db3956edd308d192a6b541d59dceb1500c25442633693f53cd4d9e01191f`.
+Pages production: `96dd2411-b276-4582-b0a7-e977ba453123`.
+Cloudflare API confirmed success, the reports.toys-agency.com alias, and both
+unchanged service bindings. Previous Pages deployment (rollback/static fallback):
+`3c1b0ab9-f432-4134-83a6-5b0c89ecf421`. Previous Worker version:
+`c1606094-4ee6-4f82-8fbf-96a145559b74`.
+
+21 model/API/routing checks and 8 Chromium scenarios passed. Browser fixtures now
+include the actual Pages wrapper and simulate an assets-first upstream that
+returns the old HTML for non-API paths. Live-site visual verification remains
+blocked by this environment's network policy; deployment confirmation is not a
+claim of live browser verification.
+
+To reproduce the Pages release, copy `pages-hotfix/_worker.js` to
+`dist/pages-hotfix/_worker.js`, then run `wrangler pages deploy --project-name
+toys-agency-dashboard --branch main --commit-dirty=true` from `pages-hotfix/` with
+the configured Cloudflare account. Preserve the frozen fallback deployment.
+The older generic `pages:deploy` command builds a different site and must not be
+used to redeploy this hotfix.
