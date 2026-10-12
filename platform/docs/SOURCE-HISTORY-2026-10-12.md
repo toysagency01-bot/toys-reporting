@@ -27,7 +27,7 @@ formulas and 458 explicit hyperlinks. Reapplying the same bundle wrote zero rows
 interrupted imports, tampering, repeated capture, project boundaries, and
 concurrent content edits.
 
-## Reconciliation results
+## Initial reconciliation
 
 Compared the captured source with a readback of the three active release
 manifests: 3,157 observations and 15,341 metric values. Monetary values were
@@ -80,9 +80,23 @@ preflight reported 18 already current, zero pending. The bundle SHA-256 is
 `2156cd2e78c978e52ef1fd55f71f8aec8384e9c5faf52c704fd64909ccd16c85`.
 
 Worker `870f7ed3-1605-4d49-8b12-ea810dd78f20` is deployed at 100%. Rollback version:
-`de84a872-b68c-45d7-b4bf-417aa1811412`. Final advertising-release reconciliation is
-performed after the normal scheduled sync; the archive itself does not change
-live metrics.
+`de84a872-b68c-45d7-b4bf-417aa1811412`.
+
+The scheduled sync had not produced a new release by the final check. A scoped
+metrics importer therefore staged and verified Karlovarska's four generations
+from the captured source. It published a new composite release with a pointer
+compare-and-swap, without touching project settings, dashboard configuration,
+CRM, materials or native editor revisions. The legacy GViz stream identity and
+normalization are retained; the actual capture transport is the Google Drive
+connector, recorded by the private source archive.
+
+Final D1 readback finished at **18:44:36 UTC**. All **3,202 observations and 15,586
+metric values** match the captured source: zero missing, changed or platform-only
+observations across all eight source streams. All **30 allowed public material
+tabs and seven period reports** match. The three native content items, their
+existing revision and block are byte-for-byte unchanged. Source history step 1
+is complete for business materials and reporting; the excluded personal lead
+tabs are not part of this migration. Source switching remains a later step.
 
 The runtime fix allows the legitimately empty Karlovarska monthly Google report,
 which previously aborted the whole import. Advertising tables still require
@@ -127,10 +141,19 @@ public Worker assets.
    existing reports are immutable. It does not change CRM, project settings,
    native content revisions, memberships, or release pointers.
 
-4. Let the normal Karlovarska sync publish the current advertising snapshot with
-   the empty-report fix, then export the new active release and reconcile again.
-   Do not run the old destructive HOUSEVIP import or republish all projects from
-   a stale capture. The historical source archive itself does not change metrics.
+4. Prefer the normal Karlovarska sync with the empty-report fix for future data.
+   To resume this particular historical import from its verified capture:
+
+   ```sh
+   node --use-env-proxy scripts/import-history-metrics.mjs /workspace/toys-history-20261012 --cloudflare
+   node --use-env-proxy scripts/import-history-metrics.mjs /workspace/toys-history-20261012 --cloudflare --apply
+   ```
+
+   Preflight is read-only. Apply requires the source archive, a nonregressing
+   date/account/currency scope, and the expected release pointer. Generation
+   readback must match exactly before publication. Repeated execution recognizes
+   the active generations and performs verification only. Do not run the old
+   destructive HOUSEVIP import or overwrite a newer release from a stale capture.
 5. Export the new state without replacing the original backup, then reconcile:
 
    ```sh

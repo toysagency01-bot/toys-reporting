@@ -19,7 +19,8 @@ mkdirSync(join(root,'prepared'),{recursive:true,mode:0o700});
 // from the Worker. The temporary module and every data artifact remain private.
 const exports=['parsePrivateSnapshot','PROJECT_SPECS','REAL_COMMERCE_INTERNALS','HOUSEVIP_PROJECT_TABS',
  'parseGvizMetaAds','normalizeMetaAdsRows','METRIC_CODES','parseWeekly','WEEKLY_HEADER','gviz',
- 'assertPublicTabPrivacy','canonicalJson','canonicalHash','addDecimals2','trimValues','parseGvizTable'];
+ 'assertPublicTabPrivacy','canonicalJson','canonicalHash','addDecimals2','trimValues','parseGvizTable',
+ 'stageStream','finishProject','preflightRealCommerceProject','reconcileGeneration2'];
 await build({stdin:{contents:readFileSync(join(platform,'runtime/backend.js'),'utf8')+'\nexport { '+exports.join(',')+' };',
  resolveDir:join(platform,'runtime'),sourcefile:'history-reader.js'},outfile:join(root,'prepared','runtime-reader.mjs'),
  bundle:true,platform:'node',format:'esm',loader:{'.html':'text','.css':'text','.txt':'text'},
