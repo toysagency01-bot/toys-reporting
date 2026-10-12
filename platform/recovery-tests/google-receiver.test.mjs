@@ -41,3 +41,18 @@ test('accepted Google snapshots activate pending setup, preserve config and neve
   db.prepare("UPDATE integrations SET status='disabled' WHERE id='existing'").run();await registerGoogleSnapshot(env.TOYS_DB,batch);assert.equal(db.prepare("SELECT status FROM integrations WHERE id='existing'").get().status,'disabled');
  }finally{db.close();}
 });
+
+test('compact Google delivery stores a complete page once and preserves every hierarchy row and metric',async()=>{
+ const{readFileSync}=await import('node:fs');const source=readFileSync(new URL('../runtime/backend.js',import.meta.url),'utf8').split('// src/google-ads-cloudrun-ingestion.js')[1].split('// src/index.js')[0];
+ const{persistPage}=new Function('registerGoogleSnapshot','__name',source+';return {persistPage};')(registerGoogleSnapshot,()=>{});
+ const{db,env}=fixture();try{
+ const project={id:'prj_housevip_cxp7',slug:'housevip-cxp7',organizationId:'org_toys_agency'},date='2026-10-12';
+ const rows=['campaign','ad_group','ad'].map(level=>({level,date,campaign:{id:'1',name:'C'},adGroup:level==='campaign'?null:{id:'2',name:'G'},ad:level==='ad'?{id:'3',name:'A'}:null,creative:level==='ad'?{ref:'google-ad:3'}:null,metrics:{impressions:'100',clicks:'5',costMicros:'12000001',conversions:'2',conversionValue:'100'}}));
+ const payload={snapshotId:'c'.repeat(64),customer:{id:'2662445825',currencyCode:'EUR',timeZone:'Europe/Prague'},range:{from:date,to:date},coverage:Object.fromEntries(['campaign','ad_group','ad'].map(l=>[l,{complete:true,totalRows:1}])),page:{offset:0,pageSize:200,returnedRows:3,totalRows:3,nextCursor:null},rows};
+ const accepted=await persistPage(env.TOYS_DB,payload,project,'d'.repeat(64),date+'T12:00:00Z');assert.equal(accepted.accepted,true);assert.equal(accepted.persistedRows,3);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM google_ads_receiver_rows').get().n,0);assert.equal(db.prepare('SELECT COUNT(*) n FROM google_ads_receiver_row_pages').get().n,1);
+ const data=await createGoogleReceiverAdapter(env.TOYS_DB)({project,integration:{accountId:'2662445825',currency:'EUR',timezone:'Europe/Prague'},request:{from:date,to:date}});
+ assert.equal(data.dailyMetrics[0].metrics.spend,'12.000001');assert.equal(data.campaigns[0].adGroups[0].ads[0].dailyMetrics[0].metrics.conversions,'2');
+ await persistPage(env.TOYS_DB,payload,project,'d'.repeat(64),date+'T12:20:00Z');assert.equal(db.prepare('SELECT COUNT(*) n FROM google_ads_receiver_row_pages').get().n,1);
+ }finally{db.close();}
+});

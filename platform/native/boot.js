@@ -15,6 +15,7 @@ const shop=slug==='profkit-instashop-r4vk';
 const title=({'housevip-cxp7':'HOUSEVIP','profkit-instashop-r4vk':'PROFKIT','karlovarska-sul-k4rm':'Karlovarska Sul'})[slug];
 const $=id=>document.getElementById(id);
 let creativeRankings=null,creativeState="loading",creativeSequence=0;
+let crmStats=null;
 let dashboard,allRows=[],ads=null,snapshotPromise,tabsPromise,ready=false,toolkit,refreshing=false,sequence=0,calendar,refreshTimer,periodTimer;
 const json=async(url,options={})=>{const r=await fetch(url,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000),...options});const d=await r.json();if(!r.ok||!(d.ok||d.status==='ok'))throw new Error(d.error||`HTTP ${r.status}`);return d;};
 const range=()=>({from:$(shop?'from':'dateFrom')?.value||'',to:$(shop?'to':'dateTo')?.value||''});
@@ -22,7 +23,7 @@ function notice(text,error=false){const n=$('platformNotice');if(n){n.textConten
 const load=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_SCRIPTS?.[path]){try{window.TOYS_BUNDLED_SCRIPTS[path]();resolve();}catch(e){reject(e);}return;}const s=document.createElement('script');s.src=asset(path);s.onload=resolve;s.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(s);});
 const css=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_STYLES?.[path]){const style=document.createElement('style');style.textContent=window.TOYS_BUNDLED_STYLES[path];document.head.append(style);resolve();return;}const l=document.createElement('link');l.rel='stylesheet';l.href=asset(path);l.onload=resolve;l.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(l);});
 const metric=r=>r.metrics||[];
-window.TOYS_PLATFORM={asset,async fx(from,to){const d=await json(`${api}/exchange-rate?base=${from}&quote=${to}`);return Response.json({date:d.rate.date,[from.toLowerCase()]:{[to.toLowerCase()]:Number(d.rate.rate)}});},tabs:()=>tabsPromise,afterRender(){if(ready){attachHierarchy();maskUnavailable();calendar?.sync();renderCreatives();}},async table(name,raw){
+window.TOYS_PLATFORM={asset,async fx(from,to){const d=await json(`${api}/exchange-rate?base=${from}&quote=${to}`);return Response.json({date:d.rate.date,[from.toLowerCase()]:{[to.toLowerCase()]:Number(d.rate.rate)}});},tabs:()=>tabsPromise,afterRender(){if(ready){attachHierarchy();maskUnavailable();calendar?.sync();renderCRM();renderCreatives();}},async table(name,raw){
  if(name==='WeeklyComments')return weeklyTable((await json(api+'/weekly-reports')).reports||[]);
  if(['GoogleAds','MetaAds','InstashopSales','EcomFunnel','EcomFunnelCampaign','Insights','MetaAdsFormat','QualifiedLeads'].includes(name))return sourceTable(await snapshotPromise,name);
  return json(`${api}/content/tabs?tab=${encodeURIComponent(name)}${raw?'&raw=1':''}`);
@@ -65,7 +66,7 @@ function shopLiveRows(rows){
 async function refresh(){
  if(refreshing)return;const requested=range();if(!validRange(requested.from,requested.to)||(Date.parse(requested.to)-Date.parse(requested.from))/86400000>=366){notice('Для обновления кабинета выберите период не длиннее года.',true);return;}
  refreshing=true;const seq=++sequence;notice('Обновляем рекламные кабинеты…');
- try{const result=await json(`${api}/${privateMode?'content-project/ads/hierarchy':'ads-summary'}?from=${requested.from}&to=${requested.to}`);if(seq!==sequence||JSON.stringify(range())!==JSON.stringify(requested))return;ads=result;
+ try{const result=await json(`${api}/${privateMode?'content-project/ads/hierarchy':'ads-summary'}?from=${requested.from}&to=${requested.to}`);if(seq!==sequence||JSON.stringify(range())!==JSON.stringify(requested))return;ads=result;crmStats=result.crm||null;renderCRM();
   const names=[...new Set((ads.providers||[]).map(p=>p.provider))].filter(name=>ads.providers.filter(p=>p.provider===name).every(p=>p.hierarchy&&p.requestedRange?.from===requested.from&&p.requestedRange?.to===requested.to));
   const normalized=advertisingModel(dashboard,ads,requested);const live=allRows.filter(r=>r.date>=requested.from&&r.date<=requested.to&&!names.includes(r.provider)).concat(normalized.filter(r=>names.includes(r.provider)));const base=allRows.filter(r=>r.date<requested.from||r.date>requested.to);const all=[...base,...live];
   let commerce=null;if(dashboard.ecommerce&&result.commerce?.completeProviders?.length){const updated=new Set(result.commerce.completeProviders.map(p=>p==='meta_ads'?'Meta Ads':'Google Ads'));for(const [key,rows]of [['account',result.commerce.account],['campaigns',result.commerce.campaigns]]){const previous=dashboard.ecommerce[key]||{};dashboard.ecommerce[key]={...previous,rows:[...(previous.rows||[]).filter(r=>!updated.has(r.platform)||r.date<requested.from||r.date>requested.to),...rows]};}commerce={account:sourceTable(dashboard,'EcomFunnel'),campaigns:sourceTable(dashboard,'EcomFunnelCampaign')};}
@@ -75,6 +76,12 @@ async function refresh(){
  }catch(e){notice(`Не удалось обновить кабинет. Сохранены опубликованные данные. ${e.message}`,true);}finally{refreshing=false;renderCreatives();if(JSON.stringify(range())!==JSON.stringify(requested))queueRefresh();}
 }
 
+function renderCRM(){
+ let panel=$('platformCRMStats');if(!panel){const host=$('mainCards')||$('cards')||document.querySelector('#uxOverview .cards');if(!host)return;panel=document.createElement('div');panel.id='platformCRMStats';panel.className='cards';host.after(panel);}
+ panel.hidden=!crmStats?.available;if(panel.hidden)return;
+ panel.innerHTML=[['Квал-лиды CRM',format(crmStats.qualified)],['Продажи CRM',format(crmStats.sales)],['Выручка CRM',(crmStats.revenue||[]).map(r=>format(r.value)+' '+h(r.currency)).join('<br>')||'—']].map(([label,value])=>`<div class="card"><div class="label">${label}</div><div class="value">${value}</div></div>`).join('');
+ if(privateMode&&!$('platformCRMLink')){const link=document.createElement('a');link.id='platformCRMLink';link.href=api+'/content-crm';link.textContent='Открыть CRM';link.className='secondary';panel.after(link);}
+}
 function renderCreatives(){if(!ready)return;const channels=Object.keys(dashboard.advertising?.channels||{}).map(c=>/google/i.test(c)?'google_ads':'meta_ads');renderTopCreatives({rankings:creativeRankings,state:creativeState,activeChannel:document.querySelector('#platformSeg .active')?.dataset.platform||'__all',range:range(),channels:channels.length?[...new Set(channels)]:['meta_ads'],slug});}
 async function refreshCreatives(){
  const requested=range(),seq=++creativeSequence;creativeRankings=null;creativeState='loading';renderCreatives();
@@ -82,7 +89,7 @@ async function refreshCreatives(){
  catch{if(seq!==creativeSequence)return;creativeState='error';}
  finally{if(seq===creativeSequence)renderCreatives();}
 }
-function queueRefresh(){creativeSequence++;creativeRankings=null;creativeState='loading';clearTimeout(periodTimer);periodTimer=setTimeout(()=>{renderCreatives();refreshCreatives();refresh();},300);}
+function queueRefresh(){crmStats=null;renderCRM();creativeSequence++;creativeRankings=null;creativeState='loading';clearTimeout(periodTimer);periodTimer=setTimeout(()=>{renderCreatives();refreshCreatives();refresh();},300);}
 let lastAutoRefresh=Date.now(),autoRunning=false;
 async function autoRefresh(){
  if(autoRunning||document.hidden||Date.now()-lastAutoRefresh<20*60*1000)return;autoRunning=true;lastAutoRefresh=Date.now();
@@ -90,6 +97,9 @@ async function autoRefresh(){
 }
 
 function mountTools(){
+ if(!$('platformClientNav')){const nav=document.createElement('aside');nav.id='platformClientNav';nav.setAttribute('aria-label','Разделы кабинета');nav.innerHTML=`<a class="active" href="${prefix}/${encodeURIComponent(slug)}/"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span>Главная</span></a><a id="platformCRMNav" href="${api}/content-crm"><svg viewBox="0 0 24 24"><path d="M3 5h18l-7 8v5l-4 2v-7L3 5Z"/></svg><span>CRM</span></a>`;document.body.append(nav);document.body.classList.add('platform-client-shell');const style=document.createElement('style');style.textContent=`body.platform-client-shell{padding-left:180px}#platformClientNav{position:fixed;left:0;top:0;bottom:0;width:160px;padding:32px 12px;border-right:1px solid var(--line);background:var(--panel);z-index:40;display:flex;flex-direction:column;gap:8px;box-sizing:border-box}#platformClientNav a{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;color:var(--muted);text-decoration:none;font:500 14px 'Golos Text',sans-serif}#platformClientNav a:hover,#platformClientNav a.active{background:var(--accent-dim);color:var(--accent)}#platformClientNav svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8}#platformClientNav a:first-child svg{fill:currentColor;stroke:none}@media(max-width:760px){body.platform-client-shell{padding-left:76px}#platformClientNav{width:64px;padding:20px 6px}#platformClientNav a{padding:12px 6px;flex-direction:column;gap:6px;font-size:10px}}`;document.head.append(style);}
+
+
  // Replace only the old editing workflow; the native navigation/panels stay in place.
  $('weeklyModal')?.remove();
  const weeklyHost=$('weeklyPanel')||$('weekly')?.closest('.panel');

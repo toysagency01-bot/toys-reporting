@@ -8,7 +8,7 @@ export function createGoogleReceiverAdapter(db){
    const batch=batches.find(b=>b.fromDate<=d&&b.toDate>=d);if(!batch)fail('google_snapshot_coverage_missing');
    if(batch.currency!==integration.currency||batch.timezone!==integration.timezone)fail('google_snapshot_scope_mismatch');days.set(d,batch);
   }
-  const rows=[];for(const id of new Set([...days.values()].map(b=>b.id))){const result=await db.prepare('SELECT payload_json AS payload FROM google_ads_receiver_rows WHERE snapshot_id=? AND metric_date>=? AND metric_date<=? ORDER BY metric_date').bind(id,request.from,request.to).all();for(const stored of result.results||[]){const r=JSON.parse(stored.payload);if(days.get(r.date)?.id===id)rows.push(r);}}
+  const rows=[];for(const id of new Set([...days.values()].map(b=>b.id))){const result=await db.prepare('SELECT payload_json AS payload FROM google_ads_receiver_all_rows WHERE snapshot_id=? AND metric_date>=? AND metric_date<=? ORDER BY metric_date').bind(id,request.from,request.to).all();for(const stored of result.results||[]){const r=JSON.parse(stored.payload);if(days.get(r.date)?.id===id)rows.push(r);}}
   const campaigns=new Map(),account=new Map();
   const entity=(r,parentId)=>({id:r.id,name:r.name,status:r.status,parentId,dailyMetrics:[]});
   const metrics=r=>({date:r.date,metrics:{impressions:r.metrics.impressions,clicks:r.metrics.clicks,spend:micros(r.metrics.costMicros),conversions:r.metrics.conversions,conversionValue:r.metrics.conversionValue}});

@@ -2854,9 +2854,10 @@ async function authorizeAccess(request, env, projectSlug, requiredRole) {
   if (!email || (!allowedEmails.has(email)&&!clientAllowed)) {
     return { ok: false, status: 403, error: "owner_email_forbidden" };
   }
+  const isMaster = allowedEmails.has(email) && projectSet(env.MVP_MASTER_EMAILS).has(email);
   const editorScopes = projectSet(env.MVP_EDITOR_PROJECTS);
   const viewerScopes = projectSet(env.MVP_VIEW_PROJECTS);
-  const role = allowedEmails.has(email)?(editorScopes.has(projectSlug)?"editor":viewerScopes.has(projectSlug)?"viewer":null):(clientAllowed?"viewer":null);
+  const role = isMaster ? "editor" : allowedEmails.has(email)?(editorScopes.has(projectSlug)?"editor":viewerScopes.has(projectSlug)?"viewer":null):(clientAllowed?"viewer":null);
   if (!role) return { ok: false, status: 403, error: "project_scope_forbidden" };
   if (requiredRole === "editor" && role !== "editor") {
     return { ok: false, status: 403, error: "editor_role_required" };
@@ -7116,7 +7117,7 @@ async function readback(db, snapshotId) {
   ).bind(snapshotId).first();
   if (!batch) fail9("snapshot_missing", "Snapshot readback is missing", 500);
   const levels = await db.prepare(
-    `SELECT level,COUNT(*) AS rows FROM google_ads_receiver_rows
+    `SELECT level,COUNT(*) AS rows FROM google_ads_receiver_all_rows
       WHERE snapshot_id=? GROUP BY level ORDER BY level`
   ).bind(snapshotId).all();
   const page2 = await db.prepare(
@@ -7207,33 +7208,21 @@ async function persistPage(db, payload, project, pageHash, now) {
   ).bind(payload.snapshotId, payload.page.offset).first();
   if (replay) {
     if (replay.pageHash !== pageHash) fail9("replay_conflict", "Page replay changed its authenticated payload", 409);
-    const read=await readback(db,payload.snapshotId);if(read.batch.status==='accepted'){if(!payload.page.nextCursor)await db.prepare("UPDATE google_ads_receiver_batches SET updated_at=? WHERE snapshot_id=? AND status='accepted'").bind(now,payload.snapshotId).run();await registerGoogleSnapshot(db,read.batch);}return safeAccepted(read, project);
+    const read=await readback(db,payload.snapshotId);if(read.batch.status==='accepted'&&!payload.page.nextCursor){await db.prepare("UPDATE google_ads_receiver_batches SET updated_at=? WHERE snapshot_id=? AND status='accepted'").bind(now,payload.snapshotId).run();await registerGoogleSnapshot(db,read.batch);}return safeAccepted(read, project);
   }
   if (batch.status === "accepted") fail9("snapshot_already_complete", "Accepted snapshot cannot receive another page", 409);
   if (Number(batch.nextExpectedOffset) !== payload.page.offset) {
     fail9("pagination_incomplete", "Delivered page offset is not contiguous", 409);
   }
+  const priorKeys=new Set(((await db.prepare('SELECT metric_date,level,campaign_id,ad_group_id,ad_id FROM google_ads_receiver_all_rows WHERE snapshot_id=?').bind(payload.snapshotId).all()).results||[]).map(r=>[r.metric_date,r.level,r.campaign_id,r.ad_group_id||'',r.ad_id||''].join('\u001f')));
+  for(const row of payload.rows){const key=rowKey3(row);if(priorKeys.has(key))fail9('duplicate_reporting_row','Reporting entity/day occurs in more than one page',409);priorKeys.add(key);}
   const statements = [db.prepare(
     `INSERT INTO google_ads_receiver_pages
       (snapshot_id,page_offset,page_hash,row_count,has_next,received_at) VALUES (?,?,?,?,?,?)`
   ).bind(payload.snapshotId, payload.page.offset, pageHash, payload.page.returnedRows, payload.page.nextCursor ? 1 : 0, now)];
-  for (const row of payload.rows) {
-    statements.push(db.prepare(
-      `INSERT INTO google_ads_receiver_rows
-        (snapshot_id,row_key,page_offset,level,metric_date,campaign_id,ad_group_id,ad_id,payload_json)
-       VALUES (?,?,?,?,?,?,?,?,?)`
-    ).bind(
-      payload.snapshotId,
-      rowKey3(row),
-      payload.page.offset,
-      row.level,
-      row.date,
-      row.campaign.id,
-      row.adGroup?.id || null,
-      row.ad?.id || null,
-      JSON.stringify(row)
-    ));
-  }
+  if(payload.rows.length)statements.push(db.prepare(
+    `INSERT INTO google_ads_receiver_row_pages(snapshot_id,page_offset,rows_json) VALUES(?,?,?)`
+  ).bind(payload.snapshotId,payload.page.offset,JSON.stringify(payload.rows)));
   statements.push(db.prepare(
     `UPDATE google_ads_receiver_batches
         SET next_expected_offset=?,received_rows=received_rows+?,updated_at=?
@@ -8145,3 +8134,5 @@ export {
 
 // Recovered from deployed 0f6a980d; exports for the unified shell, not HTTP endpoints.
 export { authorizeMvp, projectRecord, handleMvpApi, onDemandAdsService };
+
+export {authenticateGoogleCloudRunPush};

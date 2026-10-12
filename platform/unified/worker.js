@@ -1,3 +1,13 @@
+import {messageWebhook} from '../crm/messages.js';
+import {agentBridge} from '../crm/agent-bridge.js';
+import {project as crmProject,summary as crmSummary} from '../crm/service.js';
+import {crmRoute} from '../crm/routes.js';
+import {connections} from '../crm/connections.js';
+import {webhook,drain} from '../crm/delivery.js';
+import {masterAuth,masterAPI} from '../master/api.js';
+import masterDocument from '../master/index.html';
+import masterStyle from '../master/styles.css';
+import masterClient from '../dist/master-client.txt';
 import {liveCommerce} from '../native/live-commerce.js';
 import {attachCRMQualification} from '../native/crm-attribution.js';
 import backend, {authorizeMvp, projectRecord, onDemandAdsService} from '../runtime/backend.js';
@@ -16,6 +26,23 @@ const html = (slug,privateMode=true,assetBase=null) => new Response(`<!doctype h
 export default {
   async fetch(request, env, ctx) {
     const url=new URL(request.url);
+    const clientCRM=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/content-crm$/);
+    if((clientCRM||['/api/v2/master/view','/master','/master/'].includes(url.pathname))&&request.method==='GET'){
+      const auth=clientCRM?await authorizeMvp(request,env,clientCRM[1],'viewer'):await masterAuth(request,env);if(!auth.ok)return Response.json({ok:false,error:auth.error},{status:auth.status,headers:{'cache-control':'no-store'}});
+      const project=clientCRM?await crmProject(env,clientCRM[1]):null;
+      if(clientCRM&&!project)return new Response('Not found',{status:404});
+      const context=project?{project:{id:project.id,slug:project.slug,name:project.name,currency:project.currency},canEdit:true}:null;
+      const coreStyle=nativeAssets['core/core.js'].body.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';
+      const doc=masterDocument.replace('</head>',`<style>${nativeAssets['platform-fonts.css'].body}${coreStyle}${nativeAssets['platform-tools.css'].body}${masterStyle}</style></head>`).replace('</body>',`<script>window.TOYS_CLIENT_CRM=${JSON.stringify(context).replace(/</g,'\\u003c')};${masterClient.replace(/<\/script/gi,'<\\/script')}</script></body>`);
+      return new Response(doc,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'same-origin'}});
+    }
+    const bridged=await agentBridge(request,env);if(bridged)return bridged;
+    const messaging=await messageWebhook(request,env);if(messaging)return messaging;
+    const incoming=await webhook(request,env,ctx);if(incoming)return incoming;
+    const agency=await masterAPI(request,env);if(agency)return agency;
+    const connection=await connections(request,env,ctx);if(connection)return connection;
+    const crm=await crmRoute(request,env,ctx);if(crm){if(crm.ok&&request.method==='PATCH')ctx?.waitUntil(drain(env));return crm;}
+
     const top=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/(top-creatives|ads-summary)$/);
     if(top && request.method==='GET'){
       const auth=await authorizeMvp(request,env,top[1],'viewer','dashboard');
@@ -25,7 +52,7 @@ export default {
       const range={from:url.searchParams.get('from'),to:url.searchParams.get('to')};
       try{
         let data=await onDemandAdsService(env).getStats({organizationId:project.organizationId,projectSlug:top[1],...range});
-        if(top[2]==='ads-summary')return Response.json({ok:true,requestedRange:range,commerce:liveCommerce(data.providers,range),providers:data.providers.map(p=>({provider:p.provider,freshness:p.freshness,requestedRange:p.requestedRange,hierarchy:p.hierarchy?{currency:p.hierarchy.currency,children:p.hierarchy.children.map(c=>({providerId:c.providerId,name:c.name,dailyMetrics:c.dailyMetrics,children:[]}))}:null}))},{headers:{'cache-control':'no-store'}});
+        if(top[2]==='ads-summary')return Response.json({ok:true,requestedRange:range,commerce:liveCommerce(data.providers,range),crm:await crmSummary(env,project,range.from,range.to),providers:data.providers.map(p=>({provider:p.provider,freshness:p.freshness,requestedRange:p.requestedRange,hierarchy:p.hierarchy?{currency:p.hierarchy.currency,children:p.hierarchy.children.map(c=>({providerId:c.providerId,name:c.name,dailyMetrics:c.dailyMetrics,children:[]}))}:null}))},{headers:{'cache-control':'no-store'}});
         data=await attachCRMQualification(data,env,project,range);
         // Publish only top-three presentation fields; never the private hierarchy,
         // account identifiers, CRM records, drafts or integration configuration.
@@ -63,7 +90,7 @@ export default {
     const response=await backend.fetch(request,env,ctx);
     if(request.method==='GET' && response.ok && /^\/api\/v2\/projects\/[^/]+\/content-project\/ads\/hierarchy$/.test(url.pathname)) {
       const project=await projectRecord(env,url.pathname.split('/')[4]);const body=await response.json();
-      const range=body.requestedRange || {from:url.searchParams.get('from'),to:url.searchParams.get('to')};body.commerce=liveCommerce(body.providers,range);
+      const range=body.requestedRange || {from:url.searchParams.get('from'),to:url.searchParams.get('to')};body.commerce=liveCommerce(body.providers,range);body.crm=await crmSummary(env,project,range.from,range.to);
       try{return Response.json(await attachCRMQualification(body,env,project,range),{status:response.status,headers:response.headers});}
       catch{return Response.json({...body,crmAttribution:{status:'unavailable'}},{status:response.status,headers:response.headers});}
     }
@@ -79,5 +106,5 @@ export default {
     }
     return response;
   },
-  scheduled: backend.scheduled,
+  async scheduled(event,env,ctx){ctx.waitUntil(drain(env));if(event.cron!=='*/2 * * * *')return backend.scheduled(event,env,ctx);},
 };

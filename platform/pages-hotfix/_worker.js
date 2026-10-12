@@ -6,6 +6,9 @@ export default {
   const incoming=new URL(request.url);const target=new URL(request.url);const headers=new Headers(request.headers);headers.set('x-toys-public-host',incoming.host);
   const short=incoming.pathname.match(/^\/mvp\/([^/]+)(?:\/(?:index\.html)?)?$/);
   let service;
+  if(['/master','/master/'].includes(incoming.pathname))return Response.redirect(incoming.origin+'/mvp/master/',302);
+  if(['/mvp/master','/mvp/master/'].includes(incoming.pathname)){target.pathname='/api/v2/master/view';service=env.STAGING_MVP;}
+  else
   if(short&&projects.has(short[1])){target.pathname=`/api/v2/projects/${short[1]}/board`;service=env.STAGING_MVP;}
   else if(incoming.pathname.startsWith('/mvp/api/')){target.pathname=incoming.pathname.slice(4);service=env.STAGING_MVP;}
   else if(incoming.pathname.startsWith('/api/'))service=env.PRODUCTION_API;

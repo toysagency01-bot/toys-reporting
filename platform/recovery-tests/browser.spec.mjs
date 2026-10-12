@@ -122,3 +122,24 @@ test('signed-in client sees only review actions and sends the displayed version 
  await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('[data-ux-view="project"]').click();await page.locator('#uxProjectChannels [data-legacy-view="meta"],#uxProjectChannels [data-channel="meta"]').first().click();
  await expect(page.locator('#uploadFile')).toHaveCount(0);await expect(page.locator('[data-status="archived"]')).toHaveCount(0);await page.locator('.review-reason').fill('Заменить заголовок');await page.locator('[data-status="rejected"]').click();await expect.poll(()=>decision?.status).toBe('rejected');expect(decision.expectedVersion).toBe(2);expect(decision.reason).toBe('Заменить заголовок');await expect(page.locator('.creative-card .badge')).toHaveText('Нужны изменения');
 });
+
+
+test('master keeps Home and CRM separate; create, qualify and sell a lead persist across reload',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/mvp/master/');await expect(page.locator('#projectSelect')).toContainText('HOUSEVIP');
+ await expect(page.locator('.master-sidebar')).toBeVisible();await expect(page.locator('#home')).toBeVisible();await expect(page.locator('#crm')).toBeHidden();
+ await page.locator('[data-view="crm"]').click();await expect(page.locator('#crm')).toBeVisible();await expect(page.locator('#home')).toBeHidden();
+ await page.locator('#newLead').click();await page.locator('[name="name"]').fill('Synthetic CRM Browser');await page.locator('[name="email"]').fill('crm-browser@example.test');await page.getByRole('button',{name:'Добавить',exact:true}).click();
+ await expect(page.locator('#leadsTable')).toContainText('Synthetic CRM Browser');await page.getByRole('button',{name:'Synthetic CRM Browser',exact:true}).click();await page.locator('[name="status"]').selectOption('Квалифицирован');await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#crmSummary')).toContainText('1');
+ await page.reload();await expect(page.locator('#leadsTable')).toContainText('Квалифицирован');await page.getByRole('button',{name:'Synthetic CRM Browser',exact:true}).click();await page.locator('[name="status"]').selectOption('Продажа');await page.locator('[name="value"]').fill('150');await page.locator('[name="currency"]').fill('EUR');await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#crmSummary')).toContainText('150 EUR');
+ await page.screenshot({path:'dist/master-crm.png',fullPage:true,animations:'disabled'});await page.locator('#theme').click();await expect(page.locator('#brandLogo')).toHaveAttribute('src',/toys-black/);expect(errors).toEqual([]);
+});
+
+test('client board opens its own CRM without calling the master API',async({page})=>{
+ const calls=[];page.on('request',r=>calls.push(new URL(r.url()).pathname));
+ await page.goto('/mvp'+portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
+ await page.locator('#platformCRMNav').click();await expect(page.locator('#heading')).toHaveText('CRM');
+ await expect(page.locator('#projectSelect')).toBeHidden();await expect(page.locator('#connections')).toBeHidden();
+ await expect(page.locator('#leadsTable')).not.toBeEmpty();expect(calls.some(p=>p.includes('/master'))).toBe(false);
+ await page.getByRole('button',{name:'Главная',exact:true}).click();await expect(page).toHaveURL(/\/mvp\/housevip-cxp7\/(?:#overview)?$/);
+});

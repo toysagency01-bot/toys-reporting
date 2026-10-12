@@ -4,14 +4,14 @@
 Usage: python scripts/release-unified.py upload
        python scripts/release-unified.py deploy VERSION EXPECTED_CURRENT_VERSION
 """
-import json, os, pathlib, sys, urllib.request, urllib.error, uuid
+import json, os, pathlib, sys, urllib.request, urllib.error, uuid, hashlib
 ACCOUNT='6e1e68500c0dc88e70dde2da4117c79d'
 SCRIPT='toys-agency-platform-staging'
 BASE=f'https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/workers/scripts/{SCRIPT}'
 
 def api(suffix, method='GET', payload=None, content_type='application/json'):
     data=payload if isinstance(payload,bytes) else json.dumps(payload).encode() if payload is not None else None
-    req=urllib.request.Request(BASE+suffix,data=data,method=method,headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Content-Type':content_type})
+    req=urllib.request.Request(BASE+suffix,data=data,method=method,headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Content-Type':content_type,'Accept-Encoding':'identity','Connection':'close'})
     try:
         with urllib.request.urlopen(req,timeout=60) as response: result=json.load(response)
     except urllib.error.HTTPError as error:
@@ -33,7 +33,10 @@ if __name__=='__main__':
             if b['type']=='secret_text':continue
             if b['type']=='d1':b.pop('id',None)
             bindings.append(b)
-        metadata={'main_module':'unified-worker.js','compatibility_date':settings['compatibility_date'],'compatibility_flags':settings['compatibility_flags'],'bindings':bindings,'keep_bindings':['secret_text'],'keep_assets':True,'assets':{'config':{'run_worker_first':['/api/*','/housevip-cxp7','/housevip-cxp7/*','/profkit-instashop-r4vk','/profkit-instashop-r4vk/*','/karlovarska-sul-k4rm','/karlovarska-sul-k4rm/*']}},'annotations':{'workers/message':'Unified project dashboard; existing backend, assets and data preserved'}}
+        if not any(b['name']=='MVP_MASTER_EMAILS' for b in bindings):
+            owners=next(b['text'] for b in bindings if b['name']=='MVP_ALLOWED_EMAILS')
+            bindings.append({'name':'MVP_MASTER_EMAILS','type':'plain_text','text':owners.lower()})
+        metadata={'main_module':'unified-worker.js','compatibility_date':settings['compatibility_date'],'compatibility_flags':settings['compatibility_flags'],'bindings':bindings,'keep_bindings':['secret_text'],'keep_assets':True,'assets':{'config':{'run_worker_first':['/api/*','/housevip-cxp7','/housevip-cxp7/*','/profkit-instashop-r4vk','/profkit-instashop-r4vk/*','/karlovarska-sul-k4rm','/karlovarska-sul-k4rm/*']}},'annotations':{'workers/message':'CRM and compact D1 storage '+hashlib.sha256(pathlib.Path('dist/unified-worker.js').read_bytes()).hexdigest()[:16]}}
         boundary='toys-'+uuid.uuid4().hex
         parts=[]
         for name,filename,kind,body in [('metadata',None,'application/json',json.dumps(metadata).encode()),('unified-worker.js','unified-worker.js','application/javascript+module',pathlib.Path('dist/unified-worker.js').read_bytes())]:
