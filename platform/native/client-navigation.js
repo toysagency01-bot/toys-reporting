@@ -30,14 +30,14 @@ export function mountClientNavigation({slug,api,prefix,asset,onChange,initialCRM
   if(crm&&!active){homeHash=location.hash||homeHash;homeScroll=scrollY;}
   if(!crm&&active)crmScroll=scrollY;
   active=crm;host.hidden=!crm;document.body.classList.toggle('platform-show-crm',crm);
-  nav.querySelectorAll('a').forEach(a=>a.classList.toggle('active',crm===a.id.endsWith('CRMNav')));
+  nav.querySelectorAll('#platformHomeNav,#platformCRMNav').forEach(a=>a.classList.toggle('active',crm===a.id.endsWith('CRMNav')));
   if(historyMode!=='none')history[historyMode+'State'](null,'',crm?api+'/content-crm':prefix+'/'+encodeURIComponent(slug)+'/'+homeHash);
   window.scrollTo(0,crm?crmScroll:homeScroll);
   if(crm)load();
  }
  document.addEventListener('click',e=>{
   if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
-  const link=e.target.closest('#platformClientNav a,#platformCRMLink');if(!link)return;
+  const link=e.target.closest('#platformHomeNav,#platformCRMNav,#platformCRMLink');if(!link)return;
   e.preventDefault();const crm=link.id==='platformCRMNav'||link.id==='platformCRMLink';if(crm!==active)show(crm);
  });
  window.addEventListener('popstate',()=>show(location.pathname.endsWith('/content-crm'),{historyMode:'none'}));

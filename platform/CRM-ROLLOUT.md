@@ -57,12 +57,12 @@ replay conflict checks, cross-page duplicate detection, exact readback counts an
 all hierarchy metrics are preserved. Old snapshots were not rewritten or deleted.
 The 20-minute reporting schedule remains. No paid plan was enabled.
 
-Worker release: `ba9efebe-f9c7-40f4-9582-be7c97099ae8`.
-Rollback: `17d2b8af-5464-44be-a28c-ee0a37c5fe74` (before UI performance optimization).
+Worker release: `6445efdc-ad13-43fa-9a45-e0030d73405e`.
+Rollback: `ba9efebe-f9c7-40f4-9582-be7c97099ae8` (before branded entry and client access).
 Migrations 0012–0014 are additive and already applied. Encryption key was generated
 once; do not replace it or stored credentials will become unreadable.
 
-Validation: 42 recovery tests (explicit in-process runner), 21 Chromium scenarios, 3 mocked discovery tests,
+Validation: 46 recovery tests (explicit in-process runner), 24 Chromium scenarios, 3 mocked discovery tests,
 and a syntax/guard check against the existing Cloud Run source patch. Browser
 checks were local; live site domains are not allowed in this execution environment.
 
@@ -103,3 +103,10 @@ report/approval views. Existing styles and 20-minute advertising refresh remain.
 See [the performance audit](docs/UI-PERFORMANCE-2026-10-12.md) for reproducible local
 measurements and limitations. The active Worker version and exact bundle hash were
 verified through the Cloudflare API; no migration or production test data was needed.
+
+Branded entry and master-managed client grants are described in
+[Client access rollout](docs/CLIENT-ACCESS-2026-10-12.md). Migration 0015 is pending:
+D1's daily write allowance was exhausted, so the existing scheduled handler will
+retry after 2026-10-13 00:00 UTC. Client creation remains visibly disabled until
+schema readiness. The broader verified-email Access policy awaits explicit owner
+confirmation; existing owner authentication remains in force.

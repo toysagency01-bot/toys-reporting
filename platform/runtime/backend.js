@@ -1,3 +1,4 @@
+import {clientGrant,staffIdentity,masterIdentity} from '../portal/access.js';
 import {attachMetaPreviews} from '../native/meta-previews.js';
 import {createGoogleReceiverAdapter,registerGoogleSnapshot} from '../native/google-receiver.js';
 import {normalizeOutcomes,enrichMetaOutcomes,safePreview} from '../native/outcomes.js';
@@ -2839,49 +2840,41 @@ function accessJwks(issuer) {
   return jwks;
 }
 __name(accessJwks, "accessJwks");
+const verifiedAccessRequests = new WeakMap();
+export async function accessIdentity(request, env) {
+  if (verifiedAccessRequests.get(request)?.env===env) return verifiedAccessRequests.get(request).verify;
+  const verify = (async () => {
+    const audience=String(env.CF_ACCESS_AUD||''),issuer=String(env.CF_ACCESS_ISSUER||'').replace(/\/$/,'');
+    if(!audience||!issuer)return {ok:false,status:403,error:'access_auth_not_configured'};
+    let issuerUrl;try{issuerUrl=new URL(issuer);}catch{return {ok:false,status:401,error:'invalid_access_issuer'};}
+    if(issuerUrl.protocol!=='https:'||!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(issuerUrl.hostname)||issuerUrl.origin!==issuer)return {ok:false,status:401,error:'invalid_access_issuer'};
+    const cookie=String(request.headers.get('cookie')||'').split(';').map(v=>v.trim()).find(v=>v.startsWith('CF_Authorization='))?.slice('CF_Authorization='.length);
+    const token=String(request.headers.get('cf-access-jwt-assertion')||cookie||'');
+    if(!token)return {ok:false,status:401,error:'access_authentication_required'};
+    try{
+      const {payload}=await jwtVerify(token,accessJwks(issuer),{issuer,audience,algorithms:['RS256'],clockTolerance:5});
+      const email=String(payload.email||'').trim().toLowerCase();
+      if(!email||!payload.sub)return {ok:false,status:401,error:'invalid_access_identity'};
+      return {ok:true,email,subject:'access:'+payload.sub};
+    }catch{return {ok:false,status:401,error:'invalid_access_token'};}
+  })();
+  verifiedAccessRequests.set(request,{env,verify});return verify;
+}
 async function authorizeAccess(request, env, projectSlug, requiredRole) {
-  const audience = String(env.CF_ACCESS_AUD || "");
-  const issuer = String(env.CF_ACCESS_ISSUER || "").replace(/\/$/, "");
-  const allowedEmails = new Set([...projectSet(env.MVP_ALLOWED_EMAILS)].map((item) => item.toLowerCase()));
-  const token = String(request.headers.get("cf-access-jwt-assertion") || "");
-  if (!audience || !issuer || (!allowedEmails.size&&!Object.keys(safeJson(env.MVP_CLIENT_PROJECTS)).length)) {
-    return { ok: false, status: 403, error: "access_auth_not_configured" };
+  const identity=await accessIdentity(request,env);if(!identity.ok)return identity;
+  const {email,subject}=identity;
+  const staff=staffIdentity(email,env),master=masterIdentity(email,env);
+  let role=master?'editor':staff?(projectSet(env.MVP_EDITOR_PROJECTS).has(projectSlug)?'editor':projectSet(env.MVP_VIEW_PROJECTS).has(projectSlug)?'viewer':null):null;
+  if(!staff&&projectSlug!=='__master'){
+    const grant=await clientGrant(env,email,projectSlug);
+    if(grant)role='viewer';
+    // Preserve the previous explicitly configured clients until they are managed in D1.
+    // An existing D1 account always overrides the legacy mapping, including revocation.
+    else{const managed=await env.TOYS_DB.prepare('SELECT id FROM users WHERE email=?').bind(email).first();const legacy=safeJson(env.MVP_CLIENT_PROJECTS);if(!managed&&Array.isArray(legacy[email])&&legacy[email].includes(projectSlug))role='viewer';}
   }
-  if (!token) return { ok: false, status: 401, error: "access_authentication_required" };
-  let issuerUrl;
-  try {
-    issuerUrl = new URL(issuer);
-  } catch (_) {
-    return { ok: false, status: 401, error: "invalid_access_issuer" };
-  }
-  if (issuerUrl.protocol !== "https:" || !/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(issuerUrl.hostname) || issuerUrl.origin !== issuer) {
-    return { ok: false, status: 401, error: "invalid_access_issuer" };
-  }
-  let payload;
-  try {
-    ({ payload } = await jwtVerify(token, accessJwks(issuer), {
-      issuer,
-      audience,
-      algorithms: ["RS256"],
-      clockTolerance: 5
-    }));
-  } catch (_) {
-    return { ok: false, status: 401, error: "invalid_access_token" };
-  }
-  const email = String(payload.email || "").trim().toLowerCase();
-  const clientProjects=safeJson(env.MVP_CLIENT_PROJECTS);const clientAllowed=Array.isArray(clientProjects[email])&&clientProjects[email].includes(projectSlug);
-  if (!email || (!allowedEmails.has(email)&&!clientAllowed)) {
-    return { ok: false, status: 403, error: "owner_email_forbidden" };
-  }
-  const isMaster = allowedEmails.has(email) && projectSet(env.MVP_MASTER_EMAILS).has(email);
-  const editorScopes = projectSet(env.MVP_EDITOR_PROJECTS);
-  const viewerScopes = projectSet(env.MVP_VIEW_PROJECTS);
-  const role = isMaster ? "editor" : allowedEmails.has(email)?(editorScopes.has(projectSlug)?"editor":viewerScopes.has(projectSlug)?"viewer":null):(clientAllowed?"viewer":null);
-  if (!role) return { ok: false, status: 403, error: "project_scope_forbidden" };
-  if (requiredRole === "editor" && role !== "editor") {
-    return { ok: false, status: 403, error: "editor_role_required" };
-  }
-  return { ok: true, role, subject: `access:${String(payload.sub || "owner")}`, projectSlug };
+  if(!role)return {ok:false,status:403,error:'project_scope_forbidden'};
+  if(requiredRole==='editor'&&role!=='editor')return {ok:false,status:403,error:'editor_role_required'};
+  return {ok:true,role,subject,projectSlug};
 }
 __name(authorizeAccess, "authorizeAccess");
 async function sha256Text3(value2) {

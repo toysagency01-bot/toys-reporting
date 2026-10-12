@@ -1,4 +1,6 @@
 import {messageWebhook} from '../crm/messages.js';
+import {portalRoute,accessManagement,loginRedirect} from '../portal/routes.js';
+import {prepareAccessSchema} from '../portal/schema.js';
 import {agentBridge} from '../crm/agent-bridge.js';
 import {project as crmProject,summary as crmSummary} from '../crm/service.js';
 import {crmRoute} from '../crm/routes.js';
@@ -21,19 +23,21 @@ function bundledShell(slug){
  const paths=shop?['core/instashop-model.js','core/instashop.js','core/ux-v2-instashop.js','core/theme.js']:[`${base}/core.js`,`${base}/ux-v2.js`,'core/theme.js'];
  return `window.TOYS_BUNDLED_SCRIPTS={${paths.map(p=>JSON.stringify(p)+':function(){'+nativeAssets[p].body+'\n}').join(',')}};window.TOYS_BUNDLED_STYLES=${JSON.stringify(Object.fromEntries([`${base}/ux-v2.css`,'platform-tools.css'].map(p=>[p,nativeAssets[p].body])))};`;
 }
-const html = (slug,privateMode=true,assetBase=null) => new Response(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title><style>${nativeAssets['platform-fonts.css'].body}</style><style>#loading{display:none!important}body[data-platform-loading] #content{display:block!important}body[data-platform-loading] .value{color:transparent!important;background:var(--panel-2);border-radius:8px;min-height:28px}body[data-platform-loading] #controls,body[data-platform-loading] .controls{pointer-events:none;opacity:.6}</style></head><body data-platform-loading="true"><script>window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_FAVICON=${JSON.stringify('data:image/svg+xml,'+encodeURIComponent(nativeAssets['assets/favicon.svg'].body))};window.TOYS_MVP_PROJECT_PORTAL=${privateMode};window.TOYS_UI_ASSET_BASE=${JSON.stringify(assetBase)};${(bundledShell(slug)+nativeBoot).replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
+const html = (slug,privateMode=true,assetBase=null,role=null) => new Response(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title><style>${nativeAssets['platform-fonts.css'].body}</style><style>#loading{display:none!important}body[data-platform-loading] #content{display:block!important}body[data-platform-loading] .value{color:transparent!important;background:var(--panel-2);border-radius:8px;min-height:28px}body[data-platform-loading] #controls,body[data-platform-loading] .controls{pointer-events:none;opacity:.6}</style></head><body data-platform-loading="true"><script>window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_FAVICON=${JSON.stringify('data:image/svg+xml,'+encodeURIComponent(nativeAssets['assets/favicon.svg'].body))};window.TOYS_MVP_PROJECT_PORTAL=${privateMode};window.TOYS_ACCESS_ROLE=${JSON.stringify(role)};window.TOYS_UI_ASSET_BASE=${JSON.stringify(assetBase)};${(bundledShell(slug)+nativeBoot).replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
 
 export default {
   async fetch(request, env, ctx) {
     const url=new URL(request.url);
+    const entry=await portalRoute(request,env,nativeAssets);if(entry)return entry;
+    const access=await accessManagement(request,env);if(access)return access;
     const clientCRM=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/content-crm$/);
     if((clientCRM||['/api/v2/master/view','/master','/master/'].includes(url.pathname))&&request.method==='GET'){
-      const auth=clientCRM?await authorizeMvp(request,env,clientCRM[1],'viewer'):await masterAuth(request,env);if(!auth.ok)return Response.json({ok:false,error:auth.error},{status:auth.status,headers:{'cache-control':'no-store'}});
+      const auth=clientCRM?await authorizeMvp(request,env,clientCRM[1],'viewer'):await masterAuth(request,env);if(!auth.ok){if(url.searchParams.get('format')!=='json'&&request.headers.get('accept')?.includes('text/html'))return loginRedirect(request,auth);return Response.json({ok:false,error:auth.error},{status:auth.status,headers:{'cache-control':'no-store'}});}
       const project=clientCRM?await crmProject(env,clientCRM[1]):null;
       if(clientCRM&&!project)return new Response('Not found',{status:404});
       const context=project?{project:{id:project.id,slug:project.slug,name:project.name,currency:project.currency},canEdit:true}:null;
       if(clientCRM&&url.searchParams.get('format')==='json')return Response.json({ok:true,context},{headers:{'cache-control':'no-store'}});
-      if(clientCRM&&projects.has(clientCRM[1]))return html(clientCRM[1],true);
+      if(clientCRM&&projects.has(clientCRM[1]))return html(clientCRM[1],true,null,auth.role);
       const coreStyle=nativeAssets['core/core.js'].body.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';
       const doc=masterDocument.replace('</head>',`<style>${nativeAssets['platform-fonts.css'].body}${coreStyle}${nativeAssets['platform-tools.css'].body}${masterStyle}</style></head>`).replace('</body>',`<script>window.TOYS_CLIENT_CRM=${JSON.stringify(context).replace(/</g,'\\u003c')};${masterClient.replace(/<\/script/gi,'<\\/script')}</script></body>`);
       return new Response(doc,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'same-origin'}});
@@ -77,20 +81,20 @@ export default {
       if(!publicAuth.ok)return Response.json({ok:false,error:publicAuth.error},{status:publicAuth.status,headers:{'cache-control':'no-store'}});
       const resource=url.searchParams.get('ui');
       if(resource!==null){const a=nativeAssets[resource];if(!Object.hasOwn(nativeAssets,resource))return new Response('Not found',{status:404});return new Response(a.body,{headers:{'content-type':a.type,'cache-control':'no-store','x-content-type-options':'nosniff'}});}
-      const editor=await authorizeMvp(request,env,slug,'editor');
-      return html(slug,editor.ok,'?ui=');
+      const member=await authorizeMvp(request,env,slug,'viewer');
+      return html(slug,member.ok,'?ui=',member.role);
     }
     const portal=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/content-(project|editor)$/);
     if(portal && projects.has(portal[1]) && request.method==='GET') {
       const auth=await authorizeMvp(request,env,portal[1],portal[2]==='editor'?'editor':'viewer');
-      if(!auth.ok)return Response.json({ok:false,error:auth.error},{status:auth.status,headers:{'cache-control':'no-store'}});
+      if(!auth.ok){if(!url.searchParams.has('ui')&&request.headers.get('accept')?.includes('text/html'))return loginRedirect(request,auth);return Response.json({ok:false,error:auth.error},{status:auth.status,headers:{'cache-control':'no-store'}});}
       const resource=url.searchParams.get('ui');
       if(resource!==null){
         if(!Object.hasOwn(nativeAssets,resource))return new Response('Not found',{status:404});
         const asset=nativeAssets[resource];
         return new Response(asset.body,{headers:{'content-type':asset.type,'cache-control':'no-store','x-content-type-options':'nosniff'}});
       }
-      return html(portal[1],true);
+      return html(portal[1],true,null,auth.role);
     }
     const response=await backend.fetch(request,env,ctx);
     if(request.method==='GET' && response.ok && /^\/api\/v2\/projects\/[^/]+\/content-project\/ads\/hierarchy$/.test(url.pathname)) {
@@ -111,5 +115,5 @@ export default {
     }
     return response;
   },
-  async scheduled(event,env,ctx){ctx.waitUntil(drain(env));if(event.cron!=='*/2 * * * *')return backend.scheduled(event,env,ctx);},
+  async scheduled(event,env,ctx){ctx.waitUntil(prepareAccessSchema(env).catch(()=>console.error('Client access schema preparation deferred')));ctx.waitUntil(drain(env));if(event.cron!=='*/2 * * * *')return backend.scheduled(event,env,ctx);},
 };

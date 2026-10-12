@@ -1,6 +1,23 @@
 import {test,expect} from '@playwright/test';
 import {rankCreatives} from '../native/top-creatives.js';
 const portal='/api/v2/projects/housevip-cxp7/content-project';
+test('TOYS login is self-contained, branded and usable on mobile',async({page})=>{
+ const requests=[],errors=[];page.on('request',r=>requests.push(r.url()));page.on('pageerror',e=>errors.push(e.message));
+ await page.setViewportSize({width:1440,height:960});await page.goto('/mvp/api/v2/portal/login');await page.evaluate(()=>document.fonts.ready);
+ await expect(page.getByRole('heading',{level:1})).toHaveText('Платформа для клиентов TOYS.');await expect(page.locator('.brand-description')).toHaveText('Наслаждайтесь менеджментом маркетинговых процессов нового поколения в all-in экосистеме');
+ await expect(page.getByRole('link',{name:'Войти по email'})).toHaveAttribute('href','/mvp/api/v2/portal/session');
+ expect(await page.evaluate(()=>document.fonts.check('600 40px "Golos Text"','Платформа'))).toBe(true);
+ await page.screenshot({path:'dist/login-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.getByRole('link',{name:'Войти по email'}).scrollIntoViewIfNeeded();await expect(page.getByRole('link',{name:'Войти по email'})).toBeVisible();await page.screenshot({path:'dist/login-mobile.png',fullPage:true});
+ expect(requests.filter(u=>!u.includes('/portal/login'))).toEqual([]);expect(errors).toEqual([]);
+});
+test('master creates a client invitation, preserves assignments and disables access',async({page})=>{
+ await page.goto('/mvp/api/v2/master/view#access');await expect(page.getByRole('heading',{name:'Доступы клиентов',exact:true})).toBeVisible();await page.getByRole('button',{name:'Добавить клиента',exact:true}).click();
+ await page.locator('#accessForm [name=name]').fill('Тест клиента');await page.locator('#accessForm [name=email]').fill('browser-client@example.test');await page.locator('#accessForm [name=projects]').first().check();await page.getByRole('button',{name:'Создать доступ',exact:true}).click();await expect(page.locator('#accessFormStatus')).toHaveText('Доступ сохранён.');expect(await page.locator('#invitationText').inputValue()).toContain('browser-client@example.test');
+ await page.getByRole('button',{name:'Закрыть',exact:true}).click();await page.reload();const row=page.locator('#accessUsers tr').filter({hasText:'browser-client@example.test'});await expect(row).toContainText('HOUSEVIP');await expect(row).toContainText('Ожидает первого входа');await row.getByRole('button',{name:'Настроить'}).click();await page.locator('#accessForm [name=enabled]').uncheck();await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#accessFormStatus')).toContainText('Доступ отключён');await expect(page.locator('#accessInvitation')).toBeHidden();await page.getByRole('button',{name:'Закрыть',exact:true}).click();await expect(row).toContainText('Доступ отключён');
+});
+test('client viewer gets published weekly reports and an account link without agency editors',async({page})=>{
+ await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.goto('/mvp'+portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyContent')).not.toContainText('Для этого действия войдите');await expect(page.locator('#weeklyForm')).toHaveCount(0);await expect(page.locator('#platformAccountNav')).toHaveAttribute('href','/mvp/api/v2/portal/session?choose=1');await page.locator('#platformCRMNav').click();await expect(page.locator('#platformClientCRM #newLead')).toBeVisible();await expect(page.locator('#platformClientCRM #accessNav')).toBeHidden();
+});
 test('mounted portal renders Golos with the generic asset route unavailable',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const requests=[];page.on('request',r=>requests.push(r.url()));

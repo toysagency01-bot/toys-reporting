@@ -102,7 +102,7 @@ async function loadWeekly(force=false){
   weeklyLoading=true;if(!weeklyLoadedAt)$('weeklyContent').innerHTML=empty('Загружаем отчёт…');
   try{
     const published=await json(`${api}/content?logicalKey=weekly-main`);
-    if(privateMode){const history=await json(`${api}/content/weekly-main/revisions`);let revision=published.publishedRevision;
+    if(privateMode&&window.TOYS_ACCESS_ROLE!=='viewer'){const history=await json(`${api}/content/weekly-main/revisions`);let revision=published.publishedRevision;
       if(history.revisions[0])revision=(await json(`${api}/content/weekly-main/revisions/${history.revisions[0].id}`)).revision;
       state.weekly={published,history,revision};renderWeeklyEditor();
     }else{state.weekly={published};const p=summaryPayload(published.publishedRevision);$('weeklyContent').innerHTML=published.publishedRevision ? `<span class="badge">Опубликовано</span><h2 style="margin-top:16px">${h(p.periodStart || '')} — ${h(p.periodEnd || '')}</h2>${fields.map(([key,label])=>`<div class="report-field"><h3>${label}</h3><p>${h(p[key] || '—')}</p></div>`).join('')}`:empty('Недельный отчёт ещё не опубликован.');}

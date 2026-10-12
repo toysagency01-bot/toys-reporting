@@ -9,6 +9,7 @@ export async function testWorker(){
 }
 export function fixture(){
   const db=new DatabaseSync(':memory:');db.exec(readFileSync(new URL('../recovered/schema.sql',import.meta.url),'utf8'));db.exec(readFileSync(new URL('../migrations/0012_native_crm.sql',import.meta.url),'utf8'));db.exec(readFileSync(new URL('../migrations/0013_crm_messages.sql',import.meta.url),'utf8'));db.exec(readFileSync(new URL('../migrations/0014_google_compact_pages.sql',import.meta.url),'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0015_client_access.sql',import.meta.url),'utf8'));
   db.exec(`INSERT INTO organizations(id,slug,name) VALUES('org_toys_agency','toys-agency','Synthetic test');
 INSERT INTO clients(id,organization_id,slug,name) VALUES('client_housevip','org_toys_agency','housevip','Synthetic test');
 INSERT INTO projects(id,organization_id,slug,name,project_type,status,currency,client_id,capabilities_json,active_preset) VALUES('prj_housevip_cxp7','org_toys_agency','housevip-cxp7','HOUSEVIP','leadgen','active','IDR','client_housevip','["ads","content","period_reports"]','leadgen');
