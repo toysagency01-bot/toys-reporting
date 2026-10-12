@@ -7,6 +7,15 @@ project. Public reports contain aggregates, never contacts or conversations.
 The agency view is `/mvp/api/v2/master/view` (and `/mvp/master/` when the Pages
 routing deployment is active). Connection settings require the agency master role.
 
+The owner requested applying the ready changes to currently published projects
+and deferring Make setup. All three public platform boards are enabled for CRM:
+HOUSEVIP (`housevip-cxp7`), Karlovarska Sul (`karlovarska-sul-k4rm`) and
+PROFKIT Instashop (`profkit-instashop-r4vk`). The published allowlist, data-release
+pointers, dashboard-config pointers and deployed Worker bundle were read back;
+the missing PROFKIT CRM settings were initialized at 2026-10-12T13:57:15Z.
+Existing CRM configuration and CAPI credentials were preserved. Other projects
+were not newly published. Incoming Make scenarios are explicitly deferred.
+
 Implemented: approved lead statuses; optimistic concurrency; idempotent intake;
 first qualification / first sale milestones; currency-separated revenue; durable
 CAPI delivery with hashed contacts, stable event IDs, acknowledgement and retries;
