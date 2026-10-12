@@ -9,7 +9,7 @@ test('switches rank by explicit outcomes; unknown CRM qualifications never fall 
  assert.deepEqual(rankCreatives([p],{from:'2026-09-01',to:'2026-09-07'},'leads'),[]);
 });
 test('Meta events use one named purchase event, never sum overlapping attribution types',()=>{
- const a={id:'1'};enrichMetaOutcomes({campaigns:[{adsets:[{ads:[a]}]}]},[{ad_id:'1',date_start:range.from,actions:[{action_type:'omni_purchase',value:'2'},{action_type:'offsite_conversion.fb_pixel_purchase',value:'2'}],action_values:[{action_type:'omni_purchase',value:'100'}]}]);assert.equal(a.outcomeDaily[0].metrics.purchases,'2');assert.equal(a.outcomeDaily[0].metrics.leads,null);assert.equal(a.outcomeDaily[0].metrics.qualifiedLeads,null);
+ const a={id:'1'};enrichMetaOutcomes({campaigns:[{adsets:[{ads:[a]}]}]},[{ad_id:'1',date_start:range.from,actions:[{action_type:'omni_purchase',value:'2'},{action_type:'offsite_conversion.fb_pixel_purchase',value:'2'}],action_values:[{action_type:'omni_purchase',value:'100'}]}]);assert.equal(a.outcomeDaily[0].metrics.purchases,'2');assert.equal(a.outcomeDaily[0].metrics.leads,'0');assert.equal(a.outcomeDaily[0].metrics.qualifiedLeads,null);
 });
 const config={qualifiedStatuses:['Квалифицирован'],timeZone:'Asia/Tbilisi',completeFrom:'2026-01-01',throughDate:range.to};
 const row=(leadId,changedAt,adId='1')=>({leadId,status:'Квалифицирован',changedAt,metadataJson:JSON.stringify({adAttribution:{version:1,provider:'meta_ads',accountId:'123',adId}})});
@@ -20,4 +20,13 @@ test('CRM first qualification counts unique leads, rejects incomplete coverage a
 test('CRM aggregate is attached to the exact ad and period, without returning lead identifiers',async()=>{
  const p=provider([ad('1',3,1,20)]);const env={CRM_ATTRIBUTION_CONFIG:JSON.stringify({test:config}),TOYS_DB:{prepare:()=>({bind:()=>({all:async()=>({results:[row('private-lead-id','2026-10-02T01:00:00Z')]})})})}};
  const result=await attachCRMQualification({providers:[p]},env,{slug:'test',id:'test'},range);assert.equal(rankCreatives(result.providers,range,'qualifiedLeads')[0].rows[0].score,1);assert.ok(!JSON.stringify(result).includes('private-lead-id'));
+});
+
+test('Meta days without purchases contribute zero instead of discarding the creative',()=>{
+ const a={id:'1'};enrichMetaOutcomes({campaigns:[{adsets:[{ads:[a]}]}]},[
+ {ad_id:'1',date_start:range.from,actions:[{action_type:'omni_purchase',value:'2'}],action_values:[{action_type:'omni_purchase',value:'100'}]},
+ {ad_id:'1',date_start:'2026-10-02',actions:[{action_type:'link_click',value:'5'}]}
+ ]);
+ const entry=ad('1',0,0,0);entry.outcomeDaily=normalizeOutcomes(a.outcomeDaily,range.from,range.to);
+ assert.equal(rankCreatives([provider([entry])],range,'roas')[0].rows[0].score,10);
 });

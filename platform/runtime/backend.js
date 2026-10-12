@@ -1,3 +1,4 @@
+import {createGoogleReceiverAdapter,registerGoogleSnapshot} from '../native/google-receiver.js';
 import {normalizeOutcomes,enrichMetaOutcomes,safePreview} from '../native/outcomes.js';
 var __defProp = Object.defineProperty;
 var __name = (target, value2) => __defProp(target, "name", { value: value2, configurable: true });
@@ -2098,6 +2099,7 @@ function normalizeAdsHierarchy(result, scope) {
     integrationId: scope.integrationId,
     requestedRange: { from: scope.from, to: scope.to },
     observedRange,
+    sourceFetchedAt: result.sourceFetchedAt || null,
     dataThroughDate: result.dataThroughDate ? isoDate(result.dataThroughDate, "dataThroughDate") : observedRange?.to || null,
     missingRanges: normalizeMissingRanges(result.missingRanges, scope.from, scope.to),
     coverage: "complete",
@@ -2223,8 +2225,8 @@ function decorated(payload, { source, freshness, refreshState, errorCode = null,
   return {
     ...payload,
     source,
-    freshness,
-    fetchedAt: payload.fetchedAt || row?.lastGoodAt || null,
+    freshness: payload.sourceFetchedAt && Date.now()-Date.parse(payload.sourceFetchedAt)>20*60000?'stale':freshness,
+    fetchedAt: payload.sourceFetchedAt || payload.fetchedAt || row?.lastGoodAt || null,
     expiresAt: payload.expiresAt || row?.expiresAt || null,
     lastGoodAt: row?.lastGoodAt || payload.fetchedAt || null,
     refresh: {
@@ -2424,7 +2426,7 @@ function createOnDemandAdsService({
       const end = isoDate(to, "to");
       if (end < start) fail2("invalid_date_range", "to must not precede from");
       const inclusiveDays = (Date.parse(`${end}T00:00:00.000Z`) - Date.parse(`${start}T00:00:00.000Z`)) / 864e5 + 1;
-      if (inclusiveDays > 90) fail2("invalid_date_range", "Ads date range must not exceed 90 days");
+      if (inclusiveDays > 366) fail2("invalid_date_range", "Ads date range must not exceed 366 days");
       if (!Array.isArray(metrics) || !metrics.length) fail2("invalid_metrics", "metrics must be a non-empty array");
       const requestedMetrics = [...new Set(metrics.map(text))].sort();
       for (const metric3 of requestedMetrics) if (!METRIC_NAMES.includes(metric3)) fail2("invalid_metrics", `unsupported metric ${metric3}`);
@@ -3007,7 +3009,7 @@ function onDemandAdsService(env) {
     });
     adsService = createOnDemandAdsService({
       db: env.TOYS_DB,
-      providers: metaAdapter ? { meta_ads: metaAdapter } : {},
+      providers: {google_ads:createGoogleReceiverAdapter(env.TOYS_DB),...(metaAdapter?{meta_ads:metaAdapter}:{})},
       cacheTtlMinutes: 20
     });
   }
@@ -7200,7 +7202,7 @@ async function persistPage(db, payload, project, pageHash, now) {
   ).bind(payload.snapshotId, payload.page.offset).first();
   if (replay) {
     if (replay.pageHash !== pageHash) fail9("replay_conflict", "Page replay changed its authenticated payload", 409);
-    return safeAccepted(await readback(db, payload.snapshotId), project);
+    const read=await readback(db,payload.snapshotId);if(read.batch.status==='accepted')await registerGoogleSnapshot(db,read.batch);return safeAccepted(read, project);
   }
   if (batch.status === "accepted") fail9("snapshot_already_complete", "Accepted snapshot cannot receive another page", 409);
   if (Number(batch.nextExpectedOffset) !== payload.page.offset) {
@@ -7259,6 +7261,7 @@ async function persistPage(db, payload, project, pageHash, now) {
         WHERE snapshot_id=? AND status='receiving'`
     ).bind(now, now, payload.snapshotId).run();
     read = await readback(db, payload.snapshotId);
+    await registerGoogleSnapshot(db,read.batch);
   }
   return safeAccepted(read, project);
 }
@@ -8136,4 +8139,4 @@ export {
 };
 
 // Recovered from deployed 0f6a980d; exports for the unified shell, not HTTP endpoints.
-export { authorizeMvp, projectRecord, handleMvpApi };
+export { authorizeMvp, projectRecord, handleMvpApi, onDemandAdsService };

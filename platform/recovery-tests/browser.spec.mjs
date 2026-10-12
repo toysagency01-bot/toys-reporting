@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test';
+import {rankCreatives} from '../native/top-creatives.js';
 const portal='/api/v2/projects/housevip-cxp7/content-project';
 test('mounted portal renders Golos with the generic asset route unavailable',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -66,7 +67,9 @@ for(const slug of ['karlovarska-sul-k4rm','profkit-instashop-r4vk'])test(slug+' 
  await expect(page.locator('header img')).toHaveAttribute('src',/\?ui=assets%2Ftoys-logo.svg/);
  await expect(page.locator('#toysThemeToggle')).toBeVisible();
  await expectGolos(page);
- if(slug.startsWith('karl')){await expect(page.locator('#ecomFunnelCards .card').filter({has:page.locator('.label',{hasText:/^ROAS$/})}).locator('.value')).toHaveText(['—','—']);await expect(page.locator('#ecomTopCards > .ecom-channel > .platform-top-creatives')).toHaveCount(2);}
+ if(slug.startsWith('karl')){await expect(page.locator('#ecomFunnelCards .card').filter({has:page.locator('.label',{hasText:/^ROAS$/})}).locator('.value')).toHaveText(['—','—']);await expect(page.locator('#ecomTopCards > .ecom-channel > .platform-top-creatives')).toHaveCount(2);
+ for(const [channel,provider]of [['Google Ads','google_ads'],['Meta Ads','meta_ads'],['Google Ads','google_ads']]){await page.locator(`#platformSeg [data-platform="${channel}"]`).click();await expect(page.locator('.platform-top-creatives')).toHaveCount(1);await expect(page.locator('.platform-top-creatives')).toHaveAttribute('data-provider',provider);await expect(page.locator('#ecomTopCards > .ecom-channel > .platform-top-creatives')).toHaveCount(1);}
+ await page.locator('#platformSeg [data-platform="__all"]').click();await expect(page.locator('.platform-top-creatives')).toHaveCount(2);}
  await page.screenshot({path:'dist/'+slug+'.png',fullPage:true,animations:'disabled'});
  await page.locator('#uxNav [data-ux-view="campaigns"]').click();await expect(page.locator('#uxCampaigns')).toBeVisible();
  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -78,13 +81,25 @@ test('brand calendar, today, light logo and creative metric switches',async({pag
  await page.getByRole('button',{name:'Сегодня',exact:true}).click();const today=await page.evaluate(()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tbilisi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()));await expect(page.locator('#dateFrom')).toHaveValue(today);await expect(page.locator('#dateTo')).toHaveValue(today);
  await page.locator('#platformCalendar').click();await expect(page.getByRole('dialog',{name:'Выбор периода'})).toBeVisible();await page.locator('[data-date="2026-10-07"]').click();await page.locator('[data-date="2026-10-09"]').click();await page.getByRole('button',{name:'Применить',exact:true}).click();await expect(page.locator('#dateFrom')).toHaveValue('2026-10-07');await expect(page.locator('#dateTo')).toHaveValue('2026-10-09');
  await page.locator('#toysThemeToggle').click();await expect(page.locator('header img[alt="TOYS"]')).toHaveAttribute('src',/toys-black.svg/);expect(await page.locator('#kClicks').evaluate(e=>getComputedStyle(e).fontWeight)).toBe('600');expect(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe('#26ddcc');
- await page.locator('[data-ranking="qualifiedLeads"]').click();await expect(page.locator('[data-ranking="qualifiedLeads"]')).toHaveAttribute('aria-pressed','true');await expect(page.locator('.top-basis')).toContainText('Нет данных');
+ await page.locator('[data-ranking="qualifiedLeads"]').click();await expect(page.locator('[data-ranking="qualifiedLeads"]')).toHaveAttribute('aria-pressed','true');await expect(page.locator('.top-basis')).toContainText(/Нет данных|не подключена/);
  await page.screenshot({path:'dist/light-updates.png',fullPage:true,animations:'disabled'});await page.locator('#platformCalendar').click();await page.screenshot({path:'dist/calendar-updates.png',animations:'disabled'});await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 test('creative cards reorder on metric switch and exclude unsupported qualifications',async({page})=>{
  const observed=value=>({value:String(value),state:'observed'});
- await page.route('**/content-project/ads/hierarchy?*',route=>{const u=new URL(route.request().url());const requestedRange={from:u.searchParams.get('from'),to:u.searchParams.get('to')};const date=requestedRange.from;const metrics={impressions:observed(100),clicks:observed(12),spend:observed(10),conversions:{value:null,state:'unsupported'}};
+ await page.route('**/top-creatives?*',route=>{const u=new URL(route.request().url());const requestedRange={from:u.searchParams.get('from'),to:u.searchParams.get('to')};const date=requestedRange.from;const metrics={impressions:observed(100),clicks:observed(12),spend:observed(10),conversions:{value:null,state:'unsupported'}};
  const ads=[['Лучший по лидам',10,1,20],['Лучший по продажам',1,8,30],['Лучший по ROAS',2,2,100]].map(([name,leads,purchases,purchaseValue],i)=>({level:'ad',providerId:String(i),name,dailyMetrics:[{date,metrics}],outcomeDaily:[{date,metrics:{leads:observed(leads),purchases:observed(purchases),purchaseValue:observed(purchaseValue)}}]}));
- return route.fulfill({json:{ok:true,providers:[{provider:'meta_ads',integrationId:'test',freshness:'fresh',requestedRange,hierarchy:{currency:'IDR',children:[{providerId:'campaign',name:'Кампания',dailyMetrics:[{date,metrics}],children:[{children:ads}]}]}}]}});});
+ const providers=[{provider:'meta_ads',integrationId:'test',freshness:'fresh',requestedRange,hierarchy:{currency:'IDR',children:[{providerId:'campaign',name:'Кампания',dailyMetrics:[{date,metrics}],children:[{children:ads}]}]}}];return route.fulfill({json:{ok:true,rankings:Object.fromEntries(['roas','purchases','leads','qualifiedLeads'].map(b=>[b,rankCreatives(providers,requestedRange,b)]))}});});
  await page.goto(portal);await expect(page.locator('.top-creative')).toHaveCount(3);await expect(page.locator('.top-creative h3').first()).toHaveText('Лучший по лидам');await page.locator('[data-ranking="roas"]').click();await expect(page.locator('.top-creative h3').first()).toHaveText('Лучший по ROAS');await page.locator('[data-ranking="purchases"]').click();await expect(page.locator('.top-creative h3').first()).toHaveText('Лучший по продажам');await page.locator('[data-ranking="qualifiedLeads"]').click();await expect(page.locator('.top-creative')).toHaveCount(0);
+});
+
+test('public short board requests creative rankings without requesting private hierarchy',async({page})=>{
+ await page.setExtraHTTPHeaders({'x-test-public':'true'});const seen=[];page.on('request',r=>seen.push(r.url()));
+ await page.route('**/top-creatives?*',r=>r.fulfill({json:{ok:true,rankings:{leads:[{provider:'meta_ads',rows:[{name:'Публичный креатив',score:4,ctr:2,spend:100,currency:'IDR',freshness:'fresh'}]}]}}}));
+ await page.goto('/mvp/housevip-cxp7/#overview');await expect(page.locator('.top-creative h3')).toHaveText('Публичный креатив');expect(seen.some(u=>u.includes('/top-creatives?'))).toBe(true);expect(seen.some(u=>u.includes('/ads/hierarchy'))).toBe(false);
+});
+test('dashboard shell is visible while data is pending, without an entry loading screen',async({page})=>{
+ let release;const gate=new Promise(resolve=>release=resolve);await page.route('**/dashboard',async route=>{await gate;await route.continue();});
+ await page.goto('/mvp/housevip-cxp7/#overview',{waitUntil:'domcontentloaded'});
+ await expect(page.locator('header')).toBeVisible();await expect(page.locator('#uxNav')).toBeVisible();await expect(page.locator('#uxOverview')).toBeVisible();await expect(page.locator('#mainCards')).toBeVisible();await expect(page.getByText('Загружаю данные…',{exact:true})).not.toBeVisible();
+ await expect(page.locator('body')).toHaveAttribute('data-platform-loading','true');release();await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.locator('#kClicks')).toHaveText('25');
 });

@@ -141,3 +141,47 @@ toys-agency-dashboard --branch main --commit-dirty=true` from `pages-hotfix/` wi
 the configured Cloudflare account. Preserve the frozen fallback deployment.
 The older generic `pages:deploy` command builds a different site and must not be
 used to redeploy this hotfix.
+
+## Creative loading, channel placement and immediate shell
+
+- Channel selection now restricts the ranking blocks to the selected provider;
+  single-channel e-commerce cards do not depend on a suppressed channel title.
+- `/top-creatives` uses the existing dashboard read scope and returns top-three
+  presentation fields only, separately from the protected full hierarchy. Public
+  boards now request it, on period changes and every 20 minutes. The selected
+  full period is supported up to 366 days without silently shortening it.
+- Meta Insights days with no requested business event count as zero, rather than
+  invalidating a creative's entire period. Purchase attribution variants are
+  selected by precedence, never summed. ROAS winners are included in preview
+  metadata requests.
+- Two missing Meta integrations were registered using
+  `scripts/connect-pilot-meta.sql`, guarded by existing imported account/currency/
+  timezone facts. D1 readback confirmed both active. Actual provider delivery is
+  not claimed by that registration or by fixture tests.
+- Google now has an adapter for the existing authenticated Cloud Run receiver.
+  It consumes only accepted complete snapshots, preserves campaign/group/ad
+  grains and original freshness, rejects account/date/currency/timezone gaps,
+  and registers the provider integration after verified ingestion completes.
+  Generic Google conversions are not assumed to mean purchases or leads.
+  **Blocked:** the receiver has zero delivered batches; this environment has no
+  Cloud Run access. Cloud Run sending/scheduling and explicit business-event
+  categories must be completed there before Google ranking can be verified.
+  The previous sender was a candidate release in the supplied chat archive;
+  archived status is evidence only, not proof of its current live state.
+- The original board scripts/styles ship with the HTML document. Startup no
+  longer waits for fonts, dashboard data or tab data before mounting the board.
+  Pending metrics have placeholders inside the board, with no separate loading
+  page. No stored client-side business data is used to fake immediate results.
+
+Validation: 24 API/model/receiver tests and 10 Chromium tests, including an
+anonymous Pages-mounted board, repeated Google/Meta switching and a deliberately
+held dashboard response. Production visual verification remains unavailable under
+this environment's network policy. Existing Pages routing is retained.
+
+Active Worker release (100%, confirmed through Cloudflare API):
+`aae15321-9606-4fd8-803f-7264eb944f50`.
+Bundle SHA256: `e94f24f424d3df30103225472e7c5306a84d1a52d32853ef09718ea75d5bf8fb`.
+Rollback Worker: `fb0823de-32a3-4ce7-88ba-fc3929345911`. Meta registrations
+are independent of code rollback; disable only `native-meta-karlovarska-sul-k4rm`
+and `native-meta-profkit-instashop-r4vk` to undo them. No Google integration has
+been activated without an accepted authenticated provider snapshot.
