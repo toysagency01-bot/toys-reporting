@@ -32,6 +32,27 @@ async function expectGolos(page){
  const {root}=await cdp.send('DOM.getDocument');const {nodeId}=await cdp.send('DOM.querySelector',{nodeId:root.nodeId,selector:'.ux-page-heading h1'});
  const {fonts}=await cdp.send('CSS.getPlatformFontsForNode',{nodeId});expect(fonts.some(f=>f.isCustomFont&&/Golos/i.test(f.familyName))).toBe(true);await cdp.detach();
 }
+test('BSCLINIC keeps lead metrics and resolves material tabs by explicit channel without Google or Sheets',async({page,request})=>{
+ const errors=[],requests=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
+ const data=await(await request.get('/api/v2/projects/housevip-cxp7/dashboard')).json();
+ data.dashboard.project.slug='bs-clinic-a5b4';data.dashboard.project.name='BSCLINIC';
+ for(const row of data.dashboard.facts.rows)for(const m of row.metrics)if(m.currency)m.currency='CZK';
+ const api='**/projects/bs-clinic-a5b4/';
+ await page.route(api+'dashboard',r=>r.fulfill({json:data}));
+ await page.route(api+'weekly-reports',r=>r.fulfill({json:{ok:true,reports:[]}}));
+ await page.route(api+'content/tabs',r=>r.fulfill({json:{ok:true,tabs:[{channel:'meta',sourceTitle:'BSCLINIC - Сводка',label:'Сводка (неделя)',mode:'table'},{channel:'smm',sourceTitle:'09.26',label:'Отчёт 09.26',mode:'table'}]}}));
+ await page.route(api+'content/tabs?*',r=>r.fulfill({json:{status:'ok',table:{cols:[{label:''}],rows:[{c:[{v:'Раздел'}]},{c:[{v:'Материалы выбранного канала'}]}]}}}));
+ await page.goto('/bs-clinic-a5b4/');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expectGolos(page);
+ await expect(page.locator('#mainCards')).toContainText('Лиды');
+ await expect(page.locator('.platform-top-creatives')).toHaveCount(1);
+ await page.locator('#uxNav [data-ux-view="project"]').click();
+ await page.getByRole('button',{name:'Meta',exact:true}).click();await expect(page.getByRole('button',{name:'Сводка (неделя)',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Сводка (неделя)',exact:true}).click();await expect(page.locator('#genericSection')).toContainText('Материалы выбранного канала');
+ await page.getByRole('button',{name:'SMM',exact:true}).click();await expect(page.getByRole('button',{name:'Отчёт 09.26',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Google',exact:true})).toHaveCount(0);
+ await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ expect(requests.some(u=>/docs.google|sheets.googleapis/.test(u))).toBe(false);expect(errors).toEqual([]);
+});
 test('dashboard and durable weekly workflow',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');

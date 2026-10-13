@@ -1,0 +1,37 @@
+{
+  "housevip-cxp7": {
+    "title": "HOUSEVIP",
+    "channels": [
+      "smm",
+      "meta"
+    ]
+  },
+  "profkit-instashop-r4vk": {
+    "title": "PROFKIT",
+    "channels": [
+      "smm",
+      "meta",
+      "google"
+    ]
+  },
+  "karlovarska-sul-k4rm": {
+    "title": "Karlovarska Sul",
+    "channels": [
+      "smm",
+      "meta",
+      "google"
+    ]
+  },
+  "bs-clinic-a5b4": {
+    "title": "BSCLINIC",
+    "channels": [
+      "smm",
+      "meta"
+    ],
+    "conversionLabel": "Лиды",
+    "conversionShortLabel": "Лиды",
+    "explicitTabs": true,
+    "periodTimezone": "Europe/Prague",
+    "defaultLastDays": 7
+  }
+}

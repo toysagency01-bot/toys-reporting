@@ -1,3 +1,4 @@
+import projectRegistry from '../projects.json' with {type:'json'};
 import {readAdsSnapshot} from '../imports/ads-store.js';
 import {scheduledAds} from '../imports/scheduled-ads.js';
 import {clientGrant,staffIdentity,masterIdentity} from '../portal/access.js';
@@ -2412,7 +2413,7 @@ function createOnDemandAdsService({
     if (!scope.accountId || !scope.timezone) {
       return unavailable(scope, "missing", !scope.accountId ? "account_scope_missing" : "account_timezone_missing");
     }
-    if (storedOnly && ["housevip-cxp7","profkit-instashop-r4vk","karlovarska-sul-k4rm"].includes(scope.projectSlug)) return await readAdsSnapshot(db,scope,from,to,instant(now(),"now").getTime()) || unavailable(scope,"missing","direct_import_pending");
+    if (storedOnly && Object.hasOwn(projectRegistry,scope.projectSlug)) return await readAdsSnapshot(db,scope,from,to,instant(now(),"now").getTime()) || unavailable(scope,"missing","direct_import_pending");
     const adapter = adapterFunction(providers[scope.provider]);
     if (!adapter) return unavailable(scope, "unsupported", "provider_adapter_unavailable");
     const key = cacheKey(scope, from, to);
@@ -2715,9 +2716,10 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
   const secret = text2(appSecret);
   if (!token || !secret) return null;
   const proof = createHmac("sha256", secret).update(token).digest("hex");
-  return async ({ project, integration, request }) => {
-    const deadline=AbortSignal.timeout(25000);
-    const insightRetry={...retry,signal:AbortSignal.any([deadline,AbortSignal.timeout(18000)])};
+  const adapter=async ({ project, integration, request }) => {
+    const chunkDays=integration?.config?.insightChunkDays;
+    if(chunkDays!=null&&(!Number.isInteger(chunkDays)||chunkDays<1||chunkDays>30))fail3('invalid_integration_config');
+    const deadline=AbortSignal.timeout(chunkDays?90000:25000);
     const expectedAccountId = accountId(integration?.accountId);
     const from = isoDate2(request?.from);
     const to = isoDate2(request?.to);
@@ -2734,6 +2736,13 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       limit: "500"
     });
     const rows = [];
+    const windows=[];
+    const shiftDate=(date,days)=>new Date(Date.parse(date+'T12:00:00Z')+days*86400000).toISOString().slice(0,10);
+    if(chunkDays)for(let start=from;start<=to;start=shiftDate(start,chunkDays))windows.push({since:start,until:[shiftDate(start,chunkDays-1),to].sort()[0]});
+    else windows.push({since:from,until:to});
+    for(const window of windows){
+    params.set('time_range',JSON.stringify(window));
+    const insightRetry={...retry,signal:AbortSignal.any([deadline,AbortSignal.timeout(chunkDays?25000:18000)])};
     const seenCursors = /* @__PURE__ */ new Set();
     let cursor = null;
     for (let pageNumber = 1; pageNumber <= 100; pageNumber += 1) {
@@ -2761,7 +2770,10 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       seenCursors.add(cursor);
       if (pageNumber === 100) fail3("pagination_limit");
     }
-    const eventKeys=project?.slug==='housevip-cxp7'?['lead']:project?.slug==='profkit-instashop-r4vk'?['onsite_conversion.messaging_conversation_started_7d','messaging_conversation_started_7d','onsite_conversion.messaging_first_reply']:project?.slug==='karlovarska-sul-k4rm'?['omni_purchase','purchase','offsite_conversion.fb_pixel_purchase']:null;
+    }
+    const configuredEvents=integration?.config?.resultActionTypes;
+    if(configuredEvents&&(!Array.isArray(configuredEvents)||!configuredEvents.length||configuredEvents.some(k=>typeof k!=='string'||! /^[a-z0-9_.]+$/.test(k))))fail3('invalid_conversion_mapping');
+    const eventKeys=configuredEvents|| (project?.slug==='housevip-cxp7'?['lead']:project?.slug==='profkit-instashop-r4vk'?['onsite_conversion.messaging_conversation_started_7d','messaging_conversation_started_7d','onsite_conversion.messaging_first_reply']:project?.slug==='karlovarska-sul-k4rm'?['omni_purchase','purchase','offsite_conversion.fb_pixel_purchase']:null);
     if(eventKeys)for(const row of rows)row.toysResult=eventKeys.map(key=>row.actions?.find(a=>a.action_type===key)?.value).find(v=>v!=null)??'0';
     const normalized = hierarchy(rows, expectedAccountId);
     const creativeData = enrichMetaOutcomes(normalized, rows);
@@ -2785,6 +2797,19 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       dataThroughDate: normalized.accountDaily.at(-1)?.date || null
     };
   };
+  adapter.accountMetadata=async integration=>{
+    const expected=accountId(integration.externalAccountId);
+    const config=JSON.parse(integration.configJson||'{}');
+    const version=text2(config.apiVersion)||DEFAULT_API_VERSION;
+    if(!/^v\d+\.\d+$/.test(version))fail3('invalid_integration_config');
+    const result=await page(fetchImpl,`https://graph.facebook.com/${version}/act_${expected}`,new URLSearchParams({fields:'account_id,currency,timezone_name',appsecret_proof:proof}),token,{maxAttempts:1,signal:AbortSignal.timeout(10000)});
+    if(String(result.account_id)!==expected)fail3('account_scope_mismatch');
+    if(result.currency!==config.expectedCurrency)fail3('currency_scope_mismatch');
+    try{new Intl.DateTimeFormat('en',{timeZone:result.timezone_name}).format();}catch{fail3('account_timezone_invalid');}
+    if(!result.timezone_name)fail3('account_timezone_invalid');
+    return {accountTimezone:result.timezone_name,expectedCurrency:result.currency};
+  };
+  return adapter;
 }
 __name(createMetaAdsHierarchyAdapter, "createMetaAdsHierarchyAdapter");
 var META_ADS_HIERARCHY_INTERNALS = Object.freeze({ hierarchy, missingRanges });
@@ -6026,7 +6051,7 @@ async function importRealCommerceProject(db, project, { now = /* @__PURE__ */ __
   }
   await run4(db, `INSERT INTO clients (id,organization_id,slug,name,status) VALUES (?,?,?,?,'active') ON CONFLICT(organization_id,slug) DO UPDATE SET name=excluded.name`, project.clientId, ORGANIZATION_ID2, project.clientSlug, project.clientName);
   const configId = `cfg_${slug(project.slug)}_${project.sourceHash.slice(0, 20)}`;
-  const config = project.preset === "instashop" ? { defaultView: "instashop", screens: ["instashop"], currencyPolicy: { conversion: "daily_nbu_usd_to_uah", spendUahMetric: "ads.spend_uah", rawSpendUsdMetric: "ads.raw_spend_usd", additive: false }, salesGrain: "project_daily", sourceState: "active_release", contentNavigation: [] } : { defaultView: "metrics", screens: ["ecommerce"], currencyPolicy: "native_separate", viewsAreAlternative: true, sourceState: "active_release", contentNavigation: ["smm", "meta", "google"] };
+  const config = project.preset === "leadgen" ? {defaultView:"metrics",panels:["spend","impressions","clicks","ctr","reportedConversions","cpa"],currencyPolicy:"native",contentNavigation:project.channels.map(([key])=>key)} : project.preset === "instashop" ? { defaultView: "instashop", screens: ["instashop"], currencyPolicy: { conversion: "daily_nbu_usd_to_uah", spendUahMetric: "ads.spend_uah", rawSpendUsdMetric: "ads.raw_spend_usd", additive: false }, salesGrain: "project_daily", sourceState: "active_release", contentNavigation: [] } : { defaultView: "metrics", screens: ["ecommerce"], currencyPolicy: "native_separate", viewsAreAlternative: true, sourceState: "active_release", contentNavigation: ["smm", "meta", "google"] };
   const publish = [
     statement2(db, `INSERT OR IGNORE INTO project_data_releases (id,organization_id,project_id,revision,status,manifest_json,source_hash,created_at)
       SELECT ?,?,?,COALESCE(MAX(revision),0)+1,'sealed',?,?,? FROM project_data_releases WHERE organization_id=? AND project_id=?`, project.releaseId, ORGANIZATION_ID2, project.id, JSON.stringify(project.manifest), project.sourceHash, at, ORGANIZATION_ID2, project.id),

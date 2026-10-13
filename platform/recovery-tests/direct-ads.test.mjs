@@ -15,6 +15,27 @@ const dir=mkdtempSync(join(tmpdir(),'direct-ads-'));
 await build({stdin:{contents:readFileSync('runtime/backend.js','utf8')+'\nexport {normalizeAdsHierarchy,integrationScope,parseProfkit,PROFIT_BOOK,METRIC_NAMES};',resolveDir:resolve('runtime')},outfile:join(dir,'runtime.mjs'),bundle:true,format:'esm',platform:'node',plugins:[{name:'cf',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'cf',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export class WorkerEntrypoint {}'}));}}]});
 const rt=await import(pathToFileURL(join(dir,'runtime.mjs')));rmSync(dir,{force:true,recursive:true});
 const worker=await testWorker();
+test('only registered draft onboarding imports run, with verified account timezone before the first request',async()=>{
+ const {env,db}=setup();try{
+  env.DIRECT_ADS_IMPORT_ENABLED='true';
+  for(const [id,slug]of [['bs','bs-clinic-a5b4'],['later','taycher-not-approved']]){
+   db.prepare("INSERT INTO projects(id,organization_id,slug,name,project_type,status,currency,timezone) VALUES(?,'org_toys_agency',?,'Synthetic','leadgen','draft','CZK','Asia/Tbilisi')").run(id,slug);
+   db.prepare("INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES(?,?,'meta_ads','123','active',?)").run(id,id,JSON.stringify({onboardingImport:true,verifyAccountMetadata:true,expectedCurrency:'CZK'}));
+  }
+  let metadataCalls=0,imports=0,time=Date.parse('2026-10-13T06:00:00Z');
+  const adapter=async({integration})=>{imports++;assert.equal(integration.timezone,'Europe/Prague');return {provider:'meta_ads',accountId:'123',timezone:integration.timezone,currency:'CZK',coverage:'complete',dailyMetrics:[],campaigns:[]};};
+  adapter.accountMetadata=async row=>{metadataCalls++;assert.equal(row.slug,'bs-clinic-a5b4');return {accountTimezone:'Europe/Prague',expectedCurrency:'CZK'};};
+  const deps={now:()=>time,makeScope:rt.integrationScope,normalize:rt.normalizeAdsHierarchy,metrics:rt.METRIC_NAMES,metaAdapter:adapter};
+  assert.equal((await scheduledAds(env,deps))[0].status,'success');
+  time+=20*60000;assert.equal((await scheduledAds(env,deps))[0].status,'success');
+  assert.equal(metadataCalls,1);assert.equal(imports,2);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM ads_import_status WHERE project_id='later'").get().n,0);
+  db.prepare("UPDATE integrations SET config_json=? WHERE id='bs'").run(JSON.stringify({onboardingImport:true,verifyAccountMetadata:true,expectedCurrency:'CZK'}));
+  time+=20*60000;adapter.accountMetadata=async()=>{throw Object.assign(Error('Mismatch'),{code:'account_scope_mismatch'});};
+  assert.equal((await scheduledAds(env,deps))[0].error,'account_scope_mismatch');assert.equal(imports,2);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM ads_daily_snapshots WHERE project_id='bs'").get().n,30);
+ }finally{db.close();}
+});
 const setup=()=>{const f=fixture();f.db.exec(readFileSync('migrations/0017_direct_ads.sql','utf8'));return f;};
 const scope={organizationId:'org_toys_agency',projectId:'prj_housevip_cxp7',projectSlug:'housevip-cxp7',integrationId:'direct-meta',provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',metrics:rt.METRIC_NAMES};
 test('Google account totals preserve exact currency and fractional conversions',()=>{

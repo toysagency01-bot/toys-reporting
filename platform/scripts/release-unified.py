@@ -40,7 +40,17 @@ if __name__=='__main__':
             if option in sys.argv:
                 bindings=[b for b in bindings if b['name']!=binding_name]
                 bindings.append({'name':binding_name,'type':'plain_text','text':'true'})
-        metadata={'main_module':'unified-worker.js','compatibility_date':settings['compatibility_date'],'compatibility_flags':settings['compatibility_flags'],'bindings':bindings,'keep_bindings':['secret_text'],'keep_assets':True,'assets':{'config':{'run_worker_first':['/login','/login/','/master','/master/','/api/*','/housevip-cxp7','/housevip-cxp7/*','/profkit-instashop-r4vk','/profkit-instashop-r4vk/*','/karlovarska-sul-k4rm','/karlovarska-sul-k4rm/*']}},'annotations':{'workers/message':'Direct advertising import '+hashlib.sha256(pathlib.Path('dist/unified-worker.js').read_bytes()).hexdigest()[:16]}}
+        registry=json.loads(pathlib.Path('projects.json').read_text())
+        if '--publish-project' in sys.argv:
+            project=sys.argv[sys.argv.index('--publish-project')+1]
+            assert project in registry
+            for b in bindings:
+                if b['name'] in ['MVP_VIEW_PROJECTS','MVP_EDITOR_PROJECTS','MVP_PUBLIC_VIEW_PROJECTS','MVP_PUBLIC_PROJECT_MATERIALS']:
+                    values=[v.strip() for v in b['text'].split(',') if v.strip()]
+                    if project not in values: values.append(project)
+                    b['text']=','.join(values)
+        routes=['/login','/login/','/master','/master/','/api/*']+[route for slug in registry for route in ['/'+slug,'/'+slug+'/*']]
+        metadata={'main_module':'unified-worker.js','compatibility_date':settings['compatibility_date'],'compatibility_flags':settings['compatibility_flags'],'bindings':bindings,'keep_bindings':['secret_text'],'keep_assets':True,'assets':{'config':{'run_worker_first':routes}},'annotations':{'workers/message':'Direct advertising import '+hashlib.sha256(pathlib.Path('dist/unified-worker.js').read_bytes()).hexdigest()[:16]}}
         boundary='toys-'+uuid.uuid4().hex
         parts=[]
         for name,filename,kind,body in [('metadata',None,'application/json',json.dumps(metadata).encode()),('unified-worker.js','unified-worker.js','application/javascript+module',pathlib.Path('dist/unified-worker.js').read_bytes())]:

@@ -1,3 +1,4 @@
+import projectRegistry from '../projects.json' with {type:'json'};
 import {mountCalendar} from './calendar.js';
 import {nextRefreshAt} from '../imports/refresh-policy.js';
 import {memoryCache} from '../master/cache.js';
@@ -19,7 +20,8 @@ const asset=path=>assetBase?`${assetBase}${encodeURIComponent(path)}`:`${api}/co
 const privateMode=window.TOYS_MVP_PROJECT_PORTAL===true;
 const materialCache=memoryCache({ttl:20*60*1000,maxEntries:30});
 const shop=slug==='profkit-instashop-r4vk';
-const title=({'housevip-cxp7':'HOUSEVIP','profkit-instashop-r4vk':'PROFKIT','karlovarska-sul-k4rm':'Karlovarska Sul'})[slug];
+const projectConfig=projectRegistry[slug];
+const title=projectConfig.title;
 const $=id=>document.getElementById(id);
 let creativeRankings=null,creativeState="loading",creativeSequence=0;
 let crmStats=null,clientNavigation;
@@ -144,9 +146,9 @@ async function boot(){
 
  // Font availability must never prevent the dashboard and data from opening.
 
- const channels=slug==='housevip-cxp7'?[{key:'smm',label:'SMM'},{key:'meta',label:'Meta'}]:[{key:'smm',label:'SMM'},{key:'meta',label:'Meta'},{key:'google',label:'Google'}];
+ const channels=projectConfig.channels.map(key=>({key,label:{smm:'SMM',meta:'Meta',google:'Google'}[key]}));
  document.title=`TOYS × ${title} — Дашборд результатов`;const icon=document.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=window.TOYS_FAVICON||asset('assets/favicon.svg');document.head.append(icon);
- window.DASH_CONFIG={...(slug==='housevip-cxp7'?{spendFx:{from:'IDR',to:'EUR'}}:{}),title,locked:true,showDrafts:false,sheetId:'platform',projectSheetId:'platform',projectApiKey:'platform',projectChannels:channels,weeklyProjectKey:slug,weeklyFormUrl:'#platform-weekly',conversionLabel:'Конверсии',conversionShortLabel:'Конв.'};
+ window.DASH_CONFIG={...(slug==='housevip-cxp7'?{spendFx:{from:'IDR',to:'EUR'}}:{}),title,locked:true,showDrafts:false,sheetId:'platform',projectSheetId:'platform',projectApiKey:'platform',projectChannels:channels,weeklyProjectKey:slug,weeklyFormUrl:'#platform-weekly',conversionLabel:projectConfig.conversionLabel||'Конверсии',conversionShortLabel:projectConfig.conversionShortLabel||'Конв.',platformExplicitTabs:projectConfig.explicitTabs===true};
  window.INSTASHOP_CONFIG={title,sheetId:'platform',weeklyFormUrl:'#platform-weekly'};
  snapshotPromise=json(api+'/dashboard').then(d=>dashboard=d.dashboard);tabsPromise=json(api+'/content/tabs').then(d=>d.tabs||[]);
 
@@ -160,7 +162,8 @@ async function boot(){
  ready=true;mountTools();maskUnavailable();
  clientNavigation=mountClientNavigation({slug,api,prefix,asset,initialCRM,onChange:async()=>{try{const requested=range(),d=await json(`${api}/crm/summary?from=${requested.from}&to=${requested.to}`);if(JSON.stringify(range())===JSON.stringify(requested)){crmStats=d;renderCRM();}}catch{}}});
  const from=$(shop?'from':'dateFrom'),to=$(shop?'to':'dateTo');
- calendar=mountCalendar({from,to,apply:(start,end)=>{document.querySelectorAll('#periodSeg button').forEach(b=>b.classList.remove('active'));sequence++;ads=null;window.TOYS_NATIVE.setPeriod(start,end);queueRefresh();}});
+ calendar=mountCalendar({from,to,timeZone:projectConfig.periodTimezone,apply:(start,end)=>{document.querySelectorAll('#periodSeg button').forEach(b=>b.classList.remove('active'));sequence++;ads=null;window.TOYS_NATIVE.setPeriod(start,end);queueRefresh();}});
+ if(projectConfig.defaultLastDays){const end=calendar.today(),start=new Date(Date.parse(end+'T12:00:00Z')-(projectConfig.defaultLastDays-1)*86400000).toISOString().slice(0,10);from.value=start;to.value=end;window.TOYS_NATIVE.setPeriod(start,end);calendar.sync();}
  const logo=document.querySelector('header img[alt="TOYS"]');const theme=()=>{if(logo)logo.src=asset(document.documentElement.dataset.theme==='light'?'assets/toys-black.svg':'assets/toys-logo.svg');};theme();new MutationObserver(theme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
  delete document.body.dataset.platformLoading;document.body.dataset.platformReady='true';renderCreatives();
  await Promise.all([refresh(),refreshCreatives()]);refreshTimer=setInterval(autoRefresh,60000);

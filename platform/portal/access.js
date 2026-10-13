@@ -1,5 +1,6 @@
+import projectRegistry from '../projects.json' with {type:'json'};
 // Access proves email ownership; D1 decides which client projects that identity may use.
-export const platformSlugs=['housevip-cxp7','karlovarska-sul-k4rm','profkit-instashop-r4vk'];
+export const platformSlugs=Object.keys(projectRegistry);
 export const emailSet=value=>new Set(String(value||'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean));
 export function staffIdentity(email,env){return emailSet(env.MVP_ALLOWED_EMAILS).has(email);}
 export function masterIdentity(email,env){return staffIdentity(email,env)&&emailSet(env.MVP_MASTER_EMAILS).has(email);}

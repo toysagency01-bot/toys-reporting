@@ -1,6 +1,7 @@
+import projectRegistry from '../projects.json' with {type:'json'};
 // Preserve the frozen, previously deployed Pages site for unrelated static routes.
 const LEGACY_ORIGIN='https://3c1b0ab9.toys-agency-dashboard.pages.dev';
-const projects=new Set(['housevip-cxp7','profkit-instashop-r4vk','karlovarska-sul-k4rm']);
+const projects=new Set(Object.keys(projectRegistry));
 export default {
  async fetch(request,env){
   const incoming=new URL(request.url);const target=new URL(request.url);const headers=new Headers(request.headers);headers.set('x-toys-public-host',incoming.host);

@@ -1,3 +1,4 @@
+import projectRegistry from '../projects.json' with {type:'json'};
 import {refreshUsdUah} from '../imports/fx.js';
 import {isReportRefreshSlot} from '../imports/refresh-policy.js';
 import {messageWebhook} from '../crm/messages.js';
@@ -20,7 +21,7 @@ import {rankCreatives} from '../native/top-creatives.js';
 export {AdsReadOnlyPreflight,activeProject,databaseHealth,handleApi,internalAuthorized,listProjects,projectLeadStatuses,publicDashboard,publicExchangeRate,publicLeads,publicTab,sameOriginWrite,scheduledHousevipSync,scheduledPilotSyncs,scheduledRealCommerceSync,validDate} from '../runtime/backend.js';
 import nativeAssets from '../dist/native-assets.json';
 import nativeBoot from '../dist/native-boot.txt';
-const projects = new Set(['housevip-cxp7','profkit-instashop-r4vk','karlovarska-sul-k4rm']);
+const projects = new Set(Object.keys(projectRegistry));
 function bundledShell(slug){
  const shop=slug==='profkit-instashop-r4vk',base=slug==='housevip-cxp7'?'housevip-cxp7':'core';
  const paths=shop?['core/instashop-model.js','core/instashop.js','core/ux-v2-instashop.js','core/theme.js']:[`${base}/core.js`,`${base}/ux-v2.js`,'core/theme.js'];
