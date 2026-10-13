@@ -1,3 +1,4 @@
+import {reconcileMetaAccount} from '../imports/meta-reconciliation.js';
 import projectRegistry from '../projects.json' with {type:'json'};
 import {readAdsSnapshot} from '../imports/ads-store.js';
 import {scheduledAds} from '../imports/scheduled-ads.js';
@@ -2775,6 +2776,18 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
     if(configuredEvents&&(!Array.isArray(configuredEvents)||!configuredEvents.length||configuredEvents.some(k=>typeof k!=='string'||! /^[a-z0-9_.]+$/.test(k))))fail3('invalid_conversion_mapping');
     const eventKeys=configuredEvents|| (project?.slug==='housevip-cxp7'?['lead']:project?.slug==='profkit-instashop-r4vk'?['onsite_conversion.messaging_conversation_started_7d','messaging_conversation_started_7d','onsite_conversion.messaging_first_reply']:project?.slug==='karlovarska-sul-k4rm'?['omni_purchase','purchase','offsite_conversion.fb_pixel_purchase']:null);
     if(eventKeys)for(const row of rows)row.toysResult=eventKeys.map(key=>row.actions?.find(a=>a.action_type===key)?.value).find(v=>v!=null)??'0';
+    let accountReconciliation;
+    if(integration?.config?.reconcileAccountTotals===true){
+      const today=new Intl.DateTimeFormat('en-CA',{timeZone:integration.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+      const completedTo=[to,shiftDate(today,-1)].sort()[0];
+      if(completedTo>=from){
+        const auditSignal=AbortSignal.any([deadline,AbortSignal.timeout(18000)]);
+        try{accountReconciliation=await reconcileMetaAccount({adRows:rows,eventKeys,
+          scope:{accountId:expectedAccountId,currency:integration.currency,timezone:integration.timezone,from,to:completedTo,apiVersion},
+          fetchPage:values=>page(fetchImpl,endpoint,new URLSearchParams({...values,appsecret_proof:proof}),token,{maxAttempts:1,signal:auditSignal})});}
+        catch(error){accountReconciliation={schemaVersion:'meta-account-reconciliation/1',status:'error',checkedAt:new Date().toISOString(),errorCode:/^[a-z_]+$/.test(error.code||'')?error.code:'account_audit_failed',scope:{from,to:completedTo,timezone:integration.timezone}};}
+      }
+    }
     const normalized = hierarchy(rows, expectedAccountId);
     const creativeData = enrichMetaOutcomes(normalized, rows);
     const previewDeadline=AbortSignal.any([deadline,AbortSignal.timeout(6000)]);
@@ -2791,6 +2804,7 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       currency: normalized.accountCurrency || integration.currency,
       coverage: "complete",
       unsupportedMetrics: eventKeys?["conversionValue"]:["conversions", "conversionValue"],
+      ...(accountReconciliation?{accountReconciliation}:{}),
       dailyMetrics: normalized.accountDaily,
       campaigns: normalized.campaigns,
       missingRanges: missingRanges(from, to, normalized.observedDates),

@@ -38,6 +38,18 @@ test('only registered draft onboarding imports run, with verified account timezo
 });
 const setup=()=>{const f=fixture();f.db.exec(readFileSync('migrations/0017_direct_ads.sql','utf8'));return f;};
 const scope={organizationId:'org_toys_agency',projectId:'prj_housevip_cxp7',projectSlug:'housevip-cxp7',integrationId:'direct-meta',provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',metrics:rt.METRIC_NAMES};
+test('independent reconciliation mismatch is recorded without silently replacing valid provider data',async()=>{
+ const {env,db}=setup();try{
+  env.DIRECT_ADS_IMPORT_ENABLED='true';
+  db.exec(`INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES('direct-meta','prj_housevip_cxp7','meta_ads','123','active','{"timezone":"UTC","currency":"IDR"}')`);
+  const audit={schemaVersion:'meta-account-reconciliation/1',status:'mismatch',comparedDays:29,matchedDays:28};
+  const result=await scheduledAds(env,{now:()=>Date.parse('2026-10-13T12:00:00Z'),makeScope:rt.integrationScope,normalize:rt.normalizeAdsHierarchy,metrics:rt.METRIC_NAMES,metaAdapter:async()=>({provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',coverage:'complete',dailyMetrics:[],campaigns:[],accountReconciliation:audit})});
+  assert.equal(result[0].status,'success');
+  const log=db.prepare("SELECT status,details_json FROM sync_runs WHERE job_type='meta-account-reconciliation'").get();
+  assert.equal(log.status,'warning');assert.deepEqual(JSON.parse(log.details_json),audit);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ads_daily_snapshots').get().n,30);
+ }finally{db.close();}
+});
 test('Google account totals preserve exact currency and fractional conversions',()=>{
  assert.equal(addDecimal('21.23','8.404938'),'29.634938');assert.equal(addDecimal('0.1','0.2'),'0.3');assert.equal(addDecimal('9007199254740993','1'),'9007199254740994');
 });

@@ -60,8 +60,8 @@ The board reads D1; opening it does not initiate a Meta or Sheets report query.
 
 ## Deployment and recovery
 
-- Worker: `8a6c8327-7c7c-4bb9-9701-04bebc94b4a5` at 100%.
-- Live Worker SHA-256 matched the tested local bundle:
+- Migration Worker: `8a6c8327-7c7c-4bb9-9701-04bebc94b4a5`.
+- Migration Worker SHA-256 matched the tested local bundle:
   `03d421a9958e76c6cc862500b203cc64348347098d8f0b9f9cf14a6727b9db6f`.
 - Pages gateway: `c19b88b4-475a-4d54-b6b4-515f62137377`, production success,
   including the reports.toys-agency.com domain.
@@ -75,3 +75,52 @@ are resumable, reject another existing release, and preserve other projects.
 Run `node scripts/build-pages-hotfix.mjs` before deploying the Pages gateway;
 it now bundles the shared project registry. Do not use the old static Pages
 build command, which would replace unrelated site assets.
+
+## Independent Meta reconciliation — 13:16 UTC
+
+The migration checks above did not independently compare imported ad rows to
+Meta's account report. That gap is now covered by an optional account-level
+reconciliation, enabled only for `int_bsclinic_meta` with
+`reconcileAccountTotals: true`. Other integrations and their attribution
+settings are unchanged.
+
+The live import requested a separate `level=account`, daily Meta Insights
+report for 14 September–12 October 2026, Europe/Prague, using the same API
+defaults and `lead` action as the ad import. All 29 completed dates matched
+individually with exact decimal arithmetic, including zero-activity dates.
+Independent SELECT-only readback then confirmed the same values in D1's
+normalized daily snapshots, timestamp `2026-10-13T13:16:02.296Z`.
+
+| Metric | Independent account report | Imported ads / D1 | Difference |
+| --- | ---: | ---: | ---: |
+| Spend, CZK | 87576.42 | 87576.42 | 0 |
+| Impressions | 478125 | 478125 | 0 |
+| Clicks | 13128 | 13128 | 0 |
+| Leads (`lead`) | 585 | 585 | 0 |
+
+The 13 October snapshot contains 1349.87 CZK, 6451 impressions, 199 clicks
+and 16 leads as of the import. Today is excluded from the completed-day
+reconciliation because the account changes between requests.
+
+This verifies API account totals against imported details and stored data.
+It does **not** verify a user's unobserved Ads Manager column or attribution
+selection, nor the pre-14-September historical source against Meta. API
+attribution and action-report-time defaults remain explicit in the audit;
+`adsManagerSelectionVerified` is false. No blanket 100% Ads Manager agreement
+is claimed.
+
+Subsequent BSCLINIC imports persist an independent audit in `sync_runs`
+(`meta-account-reconciliation`). Differences or audit errors record a warning;
+they do not replace advertising data or falsely fail an already committed
+snapshot. Audit fetching has an 18-second cap within the existing overall
+import deadline. Ordinary imports without the opt-in flag make no extra
+account-report request.
+
+- 13 focused tests passed: reconciliation, direct imports and Worker runtime.
+- Active Worker: `8d00c8ee-ae9d-44c4-89c5-8089498c79d7` at 100%.
+- Live Worker bytes match the tested bundle, SHA-256:
+  `05495b0413252f12e08f64268ea6a78baba4c0866619aa42dd8695ad46426861`.
+- Worker rollback: `8a6c8327-7c7c-4bb9-9701-04bebc94b4a5`.
+- Full private evidence: `prepared/account-reconciliation.json`,
+  `prepared/account-reconciliation-d1.json` and
+  `prepared/audit-worker-verification.json` in the artifact directory above.
