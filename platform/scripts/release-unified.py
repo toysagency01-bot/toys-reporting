@@ -4,7 +4,7 @@
 Usage: python scripts/release-unified.py upload
        python scripts/release-unified.py deploy VERSION EXPECTED_CURRENT_VERSION
 """
-import json, os, pathlib, sys, urllib.request, urllib.error, uuid, hashlib
+import json, os, pathlib, sys, urllib.request, urllib.error, uuid, hashlib, re
 ACCOUNT='6e1e68500c0dc88e70dde2da4117c79d'
 SCRIPT='toys-agency-platform-staging'
 BASE=f'https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/workers/scripts/{SCRIPT}'
@@ -36,6 +36,13 @@ if __name__=='__main__':
         if not any(b['name']=='MVP_MASTER_EMAILS' for b in bindings):
             owners=next(b['text'] for b in bindings if b['name']=='MVP_ALLOWED_EMAILS')
             bindings.append({'name':'MVP_MASTER_EMAILS','type':'plain_text','text':owners.lower()})
+        if '--add-owner-email' in sys.argv:
+            email=sys.argv[sys.argv.index('--add-owner-email')+1].strip().lower()
+            assert len(email)<=254 and re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email), 'Invalid owner email'
+            for name in ['MVP_ALLOWED_EMAILS','MVP_MASTER_EMAILS']:
+                binding=next(b for b in bindings if b['name']==name)
+                owners=[value.strip().lower() for value in binding['text'].split(',') if value.strip()]
+                binding['text']=','.join(dict.fromkeys([*owners,email]))
         for option,binding_name in [('--direct-import','DIRECT_ADS_IMPORT_ENABLED'),('--direct-read','DIRECT_ADS_READ_ENABLED'),('--password-auth','PASSWORD_AUTH_ENABLED')]:
             if option in sys.argv:
                 bindings=[b for b in bindings if b['name']!=binding_name]
