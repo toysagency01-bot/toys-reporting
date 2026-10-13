@@ -19,3 +19,9 @@
 .kanban-navigation input:hover::-webkit-slider-thumb{background:var(--accent)}
 .kanban-navigation input:hover::-moz-range-thumb{background:var(--accent)}
 @media(min-width:901px){body:has(#crm:not([hidden])){max-width:none}.master-main:has(#crm:not([hidden])){padding-left:20px;padding-right:20px}}
+
+.lead-card-wrap{position:relative;flex:none;min-width:0}.lead-card-wrap.can-delete .lead-card strong{padding-right:28px}
+.lead-delete{position:absolute;top:10px;right:9px;display:grid;place-items:center;width:28px;height:28px;padding:5px;border:0;border-radius:6px;background:var(--panel);color:var(--muted);cursor:pointer}
+.lead-delete svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.lead-delete:hover,.lead-delete:focus-visible{color:#de6674;background:var(--panel-2)}
+.danger{border:1px solid #de6674;border-radius:9px;padding:10px 15px;background:transparent;color:#de6674;font-size:13px;cursor:pointer}.danger:hover{background:rgba(222,102,116,.1)}
+#deleteConfirmation{max-width:460px}#deleteConfirmation h2{margin-bottom:18px}#deleteContact{font-size:15px;overflow-wrap:anywhere}#deleteLeadForm [role=status]{color:#de6674;font-size:13px;margin-top:14px}

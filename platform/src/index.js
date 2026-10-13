@@ -167,7 +167,7 @@ async function publicLeads(env, slug) {
             COALESCE(json_extract(l.metadata_json, '$.isTest'), 0) AS isTest,
             COALESCE((SELECT body FROM lead_comments c WHERE c.lead_id = l.id
                        ORDER BY c.updated_at DESC, c.created_at DESC LIMIT 1), '') AS comment
-       FROM leads l WHERE l.project_id = ? AND COALESCE(json_extract(l.metadata_json, '$.isTest'), 0) = 0
+       FROM leads l WHERE l.project_id = ? AND l.deleted_at IS NULL AND COALESCE(json_extract(l.metadata_json, '$.isTest'), 0) = 0
        ORDER BY l.created_at DESC, l.id`,
   ).bind(project.id).all();
   return { title: project.name, statuses: projectLeadStatuses(project), leads: result.results || [] };
@@ -183,7 +183,7 @@ async function updateLead(request, env, slug, leadId, id) {
   const comment = String(body.comment || '').trim();
   if (!projectLeadStatuses(project).includes(status) || comment.length > 3000) return json({ ok: false, error: 'invalid_input', requestId: id }, 400);
   const lead = await env.TOYS_DB.prepare(
-    'SELECT current_status AS currentStatus FROM leads WHERE id = ? AND project_id = ?',
+    'SELECT current_status AS currentStatus FROM leads WHERE id = ? AND project_id = ? AND deleted_at IS NULL',
   ).bind(leadId, project.id).first();
   if (!lead) return json({ ok: false, error: 'not_found', requestId: id }, 404);
   const now = new Date().toISOString();

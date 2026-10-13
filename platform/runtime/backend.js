@@ -7561,7 +7561,7 @@ async function publicLeads(env, slug2) {
             COALESCE(json_extract(l.metadata_json, '$.isTest'), 0) AS isTest,
             COALESCE((SELECT body FROM lead_comments c WHERE c.lead_id = l.id
                        ORDER BY c.updated_at DESC, c.created_at DESC LIMIT 1), '') AS comment
-       FROM leads l WHERE l.project_id = ? AND COALESCE(json_extract(l.metadata_json, '$.isTest'), 0) = 0
+       FROM leads l WHERE l.project_id = ? AND l.deleted_at IS NULL AND COALESCE(json_extract(l.metadata_json, '$.isTest'), 0) = 0
        ORDER BY l.created_at DESC, l.id`
   ).bind(project.id).all();
   return { title: project.name, statuses: projectLeadStatuses(project), leads: result.results || [] };

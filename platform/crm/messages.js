@@ -33,6 +33,7 @@ export async function messageWebhook(request,env){
  if(!secret||!safeEq(request.headers.get('x-hub-signature-256')||'','sha256='+await signature(secret,raw)))fail('invalid_signature',401);destinations.set(key,channel);}
  for(const m of messages){if(!/^\d{1,40}$/.test(m.contactId)||typeof m.id!=='string'||m.id.length>250)fail('invalid_message');const c=destinations.get(m.provider+':'+m.channelId),p={id:c.project_id,slug:c.slug,timezone:c.timezone};await enable(env,p);
  const lead=await ingest(env,p,{name:m.name,phone:m.phone,externalContactId:m.contactId,sourceAdId:m.referral.ad_id||m.referral.source_id||''},m.provider,m.channelId+':'+m.contactId);
+ if(lead.deletedAt)continue;
  const date=Number.isFinite(m.timestamp)&&m.timestamp>0?new Date(m.timestamp).toISOString():new Date().toISOString();
  await env.TOYS_DB.prepare('INSERT INTO crm_messages(id,project_id,lead_id,provider,channel_id,provider_message_id,text,message_type,occurred_at,referral_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider,channel_id,provider_message_id) DO NOTHING').bind('msg_'+await hash([m.provider,m.channelId,m.id].join(':')),p.id,lead.id,m.provider,m.channelId,m.id,String(m.text).slice(0,10000),String(m.type).slice(0,40),date,JSON.stringify({adId:m.referral.ad_id||null,sourceId:m.referral.source_id||null,sourceType:m.referral.source_type||null,ctwaClid:m.referral.ctwa_clid||null}),new Date().toISOString()).run();
  }

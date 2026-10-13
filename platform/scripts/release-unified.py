@@ -4,7 +4,7 @@
 Usage: python scripts/release-unified.py upload
        python scripts/release-unified.py deploy VERSION EXPECTED_CURRENT_VERSION
 """
-import json, os, pathlib, sys, urllib.request, urllib.error, uuid, hashlib, re
+import json, os, pathlib, sys, urllib.request, urllib.error, uuid, hashlib, re, time
 ACCOUNT='6e1e68500c0dc88e70dde2da4117c79d'
 SCRIPT='toys-agency-platform-staging'
 BASE=f'https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/workers/scripts/{SCRIPT}'
@@ -72,6 +72,13 @@ if __name__=='__main__':
         api('/versions/'+version)
         result=api('/deployments','POST',{'strategy':'percentage','versions':[{'version_id':version,'percentage':100}],'annotations':{'workers/message':'Unified project dashboard'}})
         pathlib.Path('dist/deployment.json').write_text(json.dumps(result,indent=2))
-        assert current()==[{'version_id':version,'percentage':100}]
-        print(json.dumps({'active_versions':current(),'rollback_version':expected}))
+        # Deployment readback may briefly return the previous version after a successful POST.
+        target=[{'version_id':version,'percentage':100}]
+        for attempt in range(6):
+            active=current()
+            if active==target:break
+            if active!=[{'version_id':expected,'percentage':100}]:raise SystemExit('A different deployment became active. Reconcile before continuing.')
+            if attempt<5:time.sleep(1)
+        else:raise SystemExit('Deployment accepted but not yet confirmed. Read active deployments before retrying any write.')
+        print(json.dumps({'active_versions':active,'rollback_version':expected}))
     else:raise SystemExit(__doc__)
