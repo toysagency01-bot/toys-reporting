@@ -2818,7 +2818,8 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
     if(!/^v\d+\.\d+$/.test(version))fail3('invalid_integration_config');
     const result=await page(fetchImpl,`https://graph.facebook.com/${version}/act_${expected}`,new URLSearchParams({fields:'account_id,currency,timezone_name',appsecret_proof:proof}),token,{maxAttempts:1,signal:AbortSignal.timeout(10000)});
     if(String(result.account_id)!==expected)fail3('account_scope_mismatch');
-    if(result.currency!==config.expectedCurrency)fail3('currency_scope_mismatch');
+    if(!/^[A-Z]{3}$/.test(result.currency||''))fail3('account_currency_invalid');
+    if(config.expectedCurrency?result.currency!==config.expectedCurrency:config.allowCurrencyDiscovery!==true)fail3('currency_scope_mismatch');
     try{new Intl.DateTimeFormat('en',{timeZone:result.timezone_name}).format();}catch{fail3('account_timezone_invalid');}
     if(!result.timezone_name)fail3('account_timezone_invalid');
     return {accountTimezone:result.timezone_name,expectedCurrency:result.currency};
