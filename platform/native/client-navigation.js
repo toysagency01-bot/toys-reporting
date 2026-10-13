@@ -14,7 +14,7 @@ export function mountClientNavigation({slug,api,prefix,asset,onChange,initialCRM
  let app,loading,active=false,homeHash=location.hash||'#overview',homeScroll=0,crmScroll=0;
  const host=document.createElement('section');host.id='platformClientCRM';host.hidden=true;
  const root=host.attachShadow({mode:'open'});document.body.append(host);
- const style=document.createElement('style');style.textContent=`body.platform-show-crm>:not(#platformClientNav):not(#platformClientCRM):not(script):not(style):not(link){display:none!important}#platformClientCRM[hidden]{display:none!important}`;document.head.append(style);
+ const style=document.createElement('style');style.textContent=`body.platform-show-crm>:not(#platformClientNav):not(#platformClientCRM):not(script):not(style):not(link){display:none!important}#platformClientCRM[hidden]{display:none!important}html body.platform-show-crm{max-width:none;width:100%;padding-right:0}#platformClientCRM{min-width:0;width:100%}@media(min-width:901px){html body.platform-show-crm{padding-top:0;padding-bottom:20px}}`;document.head.append(style);
  const frameStyle=`<style>${coreStyle}\n${toolsStyle}\n${crmStyle}\n:host{display:block;font-family:'Golos Text',sans-serif;color:var(--text)}.master-sidebar{display:none}.master-main{margin:0;width:100%;padding:32px 16px;box-sizing:border-box}.platform-calendar{font-family:'Golos Text',sans-serif}.crm-state{margin:32px 16px;padding:28px;border:1px solid var(--line);border-radius:14px;background:var(--panel);font-size:14px;line-height:1.6}.crm-state .actions{margin-top:18px}</style>`;
  async function load(){
   if(app){app.resume();return;}

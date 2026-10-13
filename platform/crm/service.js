@@ -49,8 +49,8 @@ export async function updateLead(env,p,id,body,actor,key){
  // A compare-and-swap claim gates every subsequent statement inside one D1 transaction.
  const changes=[
  db.prepare('INSERT INTO crm_lead_state(lead_id,version,updated_at) VALUES(?,0,?) ON CONFLICT(lead_id) DO NOTHING').bind(id,n),
- db.prepare('UPDATE crm_lead_state SET version=version+1,claim_token=?,updated_at=?,owner_label=? WHERE lead_id=? AND version=?').bind(event,n,text(body.owner,120),id,body.version),
- db.prepare('INSERT INTO lead_status_events(id,project_id,lead_id,from_status,to_status,changed_at,note) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(event,p.id,id,lead.current_status,desired,n,JSON.stringify({actor,note:text(body.note,2000)}),id,event),
+ db.prepare('UPDATE crm_lead_state SET version=version+1,claim_token=?,updated_at=?,owner_label=?,sale_value=COALESCE(?,sale_value),sale_currency=COALESCE(?,sale_currency) WHERE lead_id=? AND version=?').bind(event,n,text(body.owner,120),value,currency,id,body.version),
+ db.prepare('INSERT INTO lead_status_events(id,project_id,lead_id,from_status,to_status,changed_at,note) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(event,p.id,id,lead.current_status,desired,n,JSON.stringify({actor,note:text(body.note,2000),...(value?{sale:{value,currency}}:{})}),id,event),
  db.prepare('UPDATE leads SET current_status=?,status_updated_at=?,updated_at=? WHERE id=? AND project_id=? AND EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(desired,n,n,id,p.id,id,event)
  ];
  if(kind){const milestone='crm_'+await hash(id+':'+kind);changes.push(
@@ -74,16 +74,26 @@ export async function summary(env,p,from,to,provider=null){
 export async function listLeads(env,p,url){
  const limit=50,offset=Math.max(0,Math.min(100000,Number(url.searchParams.get('offset'))||0)),status=url.searchParams.get('status'),q=text(url.searchParams.get('q'),100);
  const where=['l.project_id=?'];const args=[p.id];if(status){where.push('l.current_status=?');args.push(status);}if(q){where.push("(l.name LIKE ? ESCAPE '\\' OR l.phone LIKE ? ESCAPE '\\' OR l.email LIKE ? ESCAPE '\\')");const escaped=q.replace(/[\\%_]/g,'\\$&');args.push(...Array(3).fill('%'+escaped+'%'));}
+ const from=url.searchParams.get('from'),to=url.searchParams.get('to');
+ if(from||to){
+  const valid=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'')&&Number.isFinite(Date.parse(d+'T00:00:00Z'))&&new Date(d+'T00:00:00Z').toISOString().slice(0,10)===d;
+  if(!valid(from)||!valid(to)||from>to)fail('invalid_range');
+  // CRM dates are received dates in the user's Tbilisi timezone (UTC+4).
+  // julianday handles both historical offset timestamps and ISO Z timestamps.
+  where.push('julianday(l.created_at)>=julianday(?) AND julianday(l.created_at)<julianday(?)+1');
+  args.push(from+'T00:00:00+04:00',to+'T00:00:00+04:00');
+ }
  if(url.searchParams.get('view')==='board'){
   const perColumn=25;
-  const [counts,result]=await Promise.all([
+  const [counts,result,revenue]=await Promise.all([
    env.TOYS_DB.prepare(`SELECT l.current_status AS status,COUNT(*) AS total FROM leads l WHERE ${where.join(' AND ')} GROUP BY l.current_status`).bind(...args).all(),
-   env.TOYS_DB.prepare(`WITH ranked AS (SELECT l.*,ROW_NUMBER() OVER(PARTITION BY l.current_status ORDER BY l.created_at DESC,l.id) AS position FROM leads l WHERE ${where.join(' AND ')}) SELECT l.id,l.name,l.phone,l.email,l.created_at AS createdAt,l.source_provider AS source,l.current_status AS status,l.metadata_json AS metadataJson,COALESCE(s.version,0) AS version,s.owner_label AS owner FROM ranked l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE l.position<=? ORDER BY l.created_at DESC,l.id`).bind(...args,perColumn).all()
+   env.TOYS_DB.prepare(`WITH ranked AS (SELECT l.*,ROW_NUMBER() OVER(PARTITION BY l.current_status ORDER BY julianday(l.created_at) DESC,l.id) AS position FROM leads l WHERE ${where.join(' AND ')}) SELECT l.id,l.name,l.phone,l.email,l.created_at AS createdAt,l.source_provider AS source,l.current_status AS status,l.metadata_json AS metadataJson,COALESCE(s.version,0) AS version,s.owner_label AS owner,s.sale_value AS saleValue,s.sale_currency AS saleCurrency FROM ranked l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE l.position<=? ORDER BY julianday(l.created_at) DESC,l.id`).bind(...args,perColumn).all(),
+   env.TOYS_DB.prepare(`SELECT s.sale_currency AS currency,SUM(ROUND(CAST(s.sale_value AS REAL)*100))/100.0 AS value FROM leads l JOIN crm_lead_state s ON s.lead_id=l.id WHERE ${where.join(' AND ')} AND l.current_status='Продажа' AND s.sale_value IS NOT NULL AND s.sale_currency IS NOT NULL GROUP BY s.sale_currency ORDER BY s.sale_currency`).bind(...args).all()
   ]);
   const leads=result.results.map(({metadataJson,...r})=>({...r,metadata:parse(metadataJson)}));
   const columns=STATUSES.filter(s=>!status||s===status).map(s=>{const total=counts.results.find(c=>c.status===s)?.total||0,rows=leads.filter(l=>l.status===s);return {status:s,total,leads:rows,hasMore:total>rows.length};});
-  return {ok:true,statuses:STATUSES,columns,total:columns.reduce((n,c)=>n+c.total,0)};
+  return {ok:true,statuses:STATUSES,columns,total:columns.reduce((n,c)=>n+c.total,0),range:{from,to,timeZone:'Asia/Tbilisi',dateBasis:'received_at'},summary:{qualified:counts.results.find(c=>c.status==='Квалифицирован')?.total||0,sales:counts.results.find(c=>c.status==='Продажа')?.total||0,revenue:revenue.results}};
  }
- const result=await env.TOYS_DB.prepare(`SELECT l.id,l.name,l.phone,l.email,l.created_at AS createdAt,l.source_provider AS source,l.current_status AS status,l.metadata_json AS metadataJson,COALESCE(s.version,0) AS version,s.owner_label AS owner,(SELECT state FROM crm_delivery d WHERE d.lead_id=l.id AND kind='capi' ORDER BY created_at DESC LIMIT 1) AS capiState FROM leads l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE ${where.join(' AND ')} ORDER BY l.created_at DESC,l.id LIMIT ? OFFSET ?`).bind(...args,limit+1,offset).all();
+ const result=await env.TOYS_DB.prepare(`SELECT l.id,l.name,l.phone,l.email,l.created_at AS createdAt,l.source_provider AS source,l.current_status AS status,l.metadata_json AS metadataJson,COALESCE(s.version,0) AS version,s.owner_label AS owner,s.sale_value AS saleValue,s.sale_currency AS saleCurrency,(SELECT state FROM crm_delivery d WHERE d.lead_id=l.id AND kind='capi' ORDER BY created_at DESC LIMIT 1) AS capiState FROM leads l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE ${where.join(' AND ')} ORDER BY julianday(l.created_at) DESC,l.id LIMIT ? OFFSET ?`).bind(...args,limit+1,offset).all();
  const rows=result.results||[];return {ok:true,statuses:STATUSES,hasMore:rows.length>limit,offset,leads:rows.slice(0,limit).map(({metadataJson,...r})=>({...r,metadata:parse(metadataJson)}))};
 }
