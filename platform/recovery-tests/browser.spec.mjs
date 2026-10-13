@@ -194,6 +194,19 @@ test('client keeps Home and CRM mounted, caches leads and preserves period and f
  await page.locator('#platformCRMNav').click();await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 
+test('HOUSEVIP Leads button and old lead hashes open CRM without falling back to the project plan',async({page})=>{
+ const documents=[];page.on('request',r=>{if(r.isNavigationRequest())documents.push(r.url());});
+ await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.goto('/housevip-cxp7/#overview');
+ await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
+ await expect(page.locator('[data-ux-view="leads"]')).toBeVisible();await page.locator('[data-ux-view="leads"]').click();
+ await expect(page.locator('#platformClientCRM')).toBeVisible();await expect(page.locator('#heading')).toHaveText('CRM');
+ await expect(page).toHaveURL(/\/content-crm$/);expect(documents).toHaveLength(1);
+ for(const hash of ['#leads','#meta/'+encodeURIComponent('ЛИДЫ')]){
+  await page.goto('/housevip-cxp7/'+hash);await expect(page.locator('#platformClientCRM')).toBeVisible();
+  await expect(page).toHaveURL(/\/content-crm$/);await expect(page.locator('#heading')).toHaveText('CRM');
+ }
+});
+
 test('direct client CRM link opens the unified screen, writes invalidate lead cache and update the board',async({page})=>{
  await page.goto('/api/v2/projects/housevip-cxp7/content-crm');await expect(page.locator('#heading')).toHaveText('CRM');await expect(page.locator('#leadsTable')).not.toBeEmpty();
  await page.locator('#newLead').click();await page.locator('[name="name"]').fill('Cache invalidation lead');await page.locator('[name="email"]').fill('cache@example.test');await page.getByRole('button',{name:'Добавить',exact:true}).click();

@@ -4,6 +4,11 @@ import crmStyle from '../master/styles.css';
 import toolsStyle from './tools.css';
 import coreStyle from '../dist/native-crm-style.mjs';
 
+export function isClientCRMRoute(path,hash){
+ let route;try{route=decodeURIComponent(hash.replace(/^#/,''));}catch{return path.endsWith('/content-crm');}
+ return path.endsWith('/content-crm')||['crm','leads','meta/лиды','meta/лиды(meta)','meta/лиды (meta)'].includes(route.toLowerCase());
+}
+
 export function mountClientNavigation({slug,api,prefix,asset,onChange,initialCRM=false}){
  const nav=document.getElementById('platformClientNav');
  let app,loading,active=false,homeHash=location.hash||'#overview',homeScroll=0,crmScroll=0;
@@ -37,10 +42,11 @@ export function mountClientNavigation({slug,api,prefix,asset,onChange,initialCRM
  }
  document.addEventListener('click',e=>{
   if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
-  const link=e.target.closest('#platformHomeNav,#platformCRMNav,#platformCRMLink');if(!link)return;
-  e.preventDefault();const crm=link.id==='platformCRMNav'||link.id==='platformCRMLink';if(crm!==active)show(crm);
- });
+  const link=e.target.closest('#platformHomeNav,#platformCRMNav,#platformCRMLink,[data-ux-view="leads"]');if(!link)return;
+  e.preventDefault();e.stopImmediatePropagation();const crm=link.id!=='platformHomeNav';if(crm!==active)show(crm);
+ },true);
  window.addEventListener('popstate',()=>show(location.pathname.endsWith('/content-crm'),{historyMode:'none'}));
+ window.addEventListener('hashchange',()=>{if(isClientCRMRoute(location.pathname,location.hash)&&!active)show(true,{historyMode:'replace'});});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&active)app?.resume();});
  if(initialCRM)show(true,{historyMode:'replace'});
  return {get active(){return active;}};

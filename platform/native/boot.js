@@ -2,7 +2,7 @@ import projectRegistry from '../projects.json' with {type:'json'};
 import {mountCalendar} from './calendar.js';
 import {nextRefreshAt} from '../imports/refresh-policy.js';
 import {memoryCache} from '../master/cache.js';
-import {mountClientNavigation} from './client-navigation.js';
+import {mountClientNavigation,isClientCRMRoute} from './client-navigation.js';
 import {scheduleRender,updateChart,observeScrollFades} from './rendering.js';
 import {renderTopCreatives} from './top-creatives.js';
 import {sourceTable,weeklyTable} from './data.js';
@@ -10,7 +10,7 @@ import {tools} from '../dist/native-tools.mjs';
 import {advertisingModel,snapshotRows,campaignGroups,nodeTotals,aggregate,escapeHtml as h,validRange,valueOf} from '../unified/model.js';
 const slug=window.TOYS_UNIFIED_PROJECT;
 const entryHash=location.hash;
-const initialCRM=location.pathname.endsWith('/content-crm')||entryHash==='#crm';
+const initialCRM=isClientCRMRoute(location.pathname,entryHash);
 const prefix='';
 const api=`${prefix}/api/v2/projects/${slug}`;
 // Use the same authenticated, forwarded route as the document. The Pages
@@ -137,11 +137,12 @@ function mountTools(){
  const syncCreatives=()=>{const selected=channels?.querySelector('.active');const meta=(selected?.dataset.legacyView||selected?.dataset.channel)==='meta';creative.hidden=!meta;if(meta)toolkit.loadCreatives();};
  document.addEventListener('click',e=>{if(e.target.closest('#uxProjectChannels button,[data-ux-view="project"]'))queueMicrotask(syncCreatives);});
  toolkit=tools({api,range,notify:notice,privateMode});syncCreatives();if(shop&&entryHash==='#meta'){$('uxNav')?.querySelector('[data-ux-view="project"]')?.click();syncCreatives();}
- if(!privateMode||window.TOYS_ACCESS_ROLE==='viewer'){document.querySelectorAll('#uxWeeklyAdd,#openWeekly,[data-ux-view="leads"]').forEach(n=>n.hidden=true);}
+ if(!privateMode||window.TOYS_ACCESS_ROLE==='viewer'){document.querySelectorAll('#uxWeeklyAdd,#openWeekly').forEach(n=>n.hidden=true);}
  document.addEventListener('click',e=>{if(e.target.closest('#uxWeeklyAdd,#openWeekly')){e.preventDefault();e.stopImmediatePropagation();$('uxNav')?.querySelector('[data-ux-view="weekly"]')?.click();toolkit.loadWeekly();$('weeklyContent')?.scrollIntoView({block:'start'});}if(e.target.closest('[data-ux-view="weekly"]')){toolkit.loadWeekly();toolkit.loadWeeklyArchive();}},true);
  if(location.hash==='#weekly'||location.pathname.endsWith('/content-editor')){$('uxNav')?.querySelector('[data-ux-view="weekly"]')?.click();toolkit.loadWeekly();toolkit.loadWeeklyArchive();}
 }
 async function boot(){
+ if(initialCRM)history.replaceState(null,'',location.pathname+location.search+'#overview');
  const legacy=new URLSearchParams(location.hash.slice(1));if(legacy.has('section')){const names={overview:'overview',campaigns:'campaigns',funnel:'funnel',weekly:'weekly',materials:'project',project:'project'};const route=legacy.get('view')==='campaigns'?'campaigns':names[legacy.get('section')]||'overview';history.replaceState(null,'',location.pathname+location.search+'#'+route);}
 
  // Font availability must never prevent the dashboard and data from opening.
