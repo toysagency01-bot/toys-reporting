@@ -36,7 +36,7 @@ if __name__=='__main__':
         if not any(b['name']=='MVP_MASTER_EMAILS' for b in bindings):
             owners=next(b['text'] for b in bindings if b['name']=='MVP_ALLOWED_EMAILS')
             bindings.append({'name':'MVP_MASTER_EMAILS','type':'plain_text','text':owners.lower()})
-        for option,binding_name in [('--direct-import','DIRECT_ADS_IMPORT_ENABLED'),('--direct-read','DIRECT_ADS_READ_ENABLED')]:
+        for option,binding_name in [('--direct-import','DIRECT_ADS_IMPORT_ENABLED'),('--direct-read','DIRECT_ADS_READ_ENABLED'),('--password-auth','PASSWORD_AUTH_ENABLED')]:
             if option in sys.argv:
                 bindings=[b for b in bindings if b['name']!=binding_name]
                 bindings.append({'name':binding_name,'type':'plain_text','text':'true'})

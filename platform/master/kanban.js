@@ -1,0 +1,23 @@
+import {escapeHtml as h} from '../unified/model.js';
+export const sourceLabel=source=>({meta_lead_ads:'Meta Lead Ads',website:'Сайт',manual:'Вручную',legacy_meta_sheet:'Meta · история',instagram:'Instagram Direct',whatsapp:'WhatsApp Business'})[source]||source;
+const stages=['Новый','В работе','Квалифицирован','Продажа','Не подходит','Потерян'];
+const date=s=>s?new Date(s).toLocaleDateString('ru-RU',{day:'numeric',month:'short',timeZone:'Asia/Tbilisi'}):'';
+export function mountKanban({root,onOpen,onMove,onMore,canEdit=true}){
+ const board=root.getElementById('leadsBoard');let dragging=null;
+ const clear=()=>board.querySelectorAll('.drop-target,.dragging').forEach(el=>el.classList.remove('drop-target','dragging'));
+ board.addEventListener('dragstart',e=>{const card=e.target.closest('[data-card]');if(!card||!canEdit)return;dragging=card.dataset.card;e.dataTransfer.setData('text/plain',dragging);e.dataTransfer.effectAllowed='move';card.classList.add('dragging');});
+ board.addEventListener('dragend',()=>{dragging=null;clear();});
+ board.addEventListener('dragover',e=>{const column=e.target.closest('[data-stage]');if(!column||!dragging)return;e.preventDefault();e.dataTransfer.dropEffect='move';board.querySelectorAll('.drop-target').forEach(el=>el.classList.remove('drop-target'));column.classList.add('drop-target');});
+ board.addEventListener('dragleave',e=>{const column=e.target.closest('[data-stage]');if(column&&!column.contains(e.relatedTarget))column.classList.remove('drop-target');});
+ board.addEventListener('drop',e=>{const column=e.target.closest('[data-stage]');if(!column||!dragging)return;e.preventDefault();const id=dragging;dragging=null;clear();onMove(id,column.dataset.stage);});
+ board.addEventListener('click',e=>{const card=e.target.closest('[data-card]');if(card)onOpen(card.dataset.card);const more=e.target.closest('[data-more]');if(more){more.disabled=true;onMore(more.dataset.more).finally(()=>{if(more.isConnected)more.disabled=false;});}});
+ return {
+  render(columns){
+   const scroll=board.scrollLeft;
+   board.innerHTML=columns.map(c=>`<section class="kanban-column stage-${stages.indexOf(c.status)}" data-stage="${h(c.status)}" aria-label="${h(c.status)}"><div class="stage-heading"><h3>${h(c.status)}</h3><span class="stage-count">${c.total}</span></div><div class="stage-cards">${c.leads.map(l=>`<button type="button" class="lead-card" data-card="${h(l.id)}" aria-label="${h(l.name||'Без имени')}" draggable="${canEdit}"><span class="lead-card-top"><span class="lead-source">${h(sourceLabel(l.source))}</span><time datetime="${h(l.createdAt)}">${h(date(l.createdAt))}</time></span><strong>${h(l.name||'Без имени')}</strong><span class="lead-contact">${h(l.phone||l.email||'Контакт не указан')}</span>${l.phone&&l.email?`<span class="lead-contact">${h(l.email)}</span>`:''}${l.metadata?.budget?`<span class="lead-budget">Бюджет · ${h(l.metadata.budget)}</span>`:''}<span class="lead-card-bottom"><span>${h(l.metadata?.contactMethod||'Открыть карточку')}</span>${l.owner?`<span class="lead-owner" title="${h(l.owner)}">${h(l.owner)}</span>`:''}</span></button>`).join('')||'<div class="stage-empty">Нет лидов на этом этапе</div>'}</div>${c.hasMore?`<button class="load-more" data-more="${h(c.status)}">Показать ещё · ${c.total-c.leads.length}</button>`:''}</section>`).join('');
+   board.scrollLeft=scroll;
+  },
+  pending(id,value){const card=[...board.querySelectorAll('[data-card]')].find(c=>c.dataset.card===id);if(card){card.disabled=value;card.draggable=canEdit&&!value;card.classList.toggle('saving',value);}},
+  clear(){board.replaceChildren();}
+ };
+}

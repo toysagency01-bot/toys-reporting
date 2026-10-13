@@ -1,3 +1,4 @@
+import {passwordIdentity} from '../portal/password-auth.js';
 import {reconcileMetaAccount} from '../imports/meta-reconciliation.js';
 import projectRegistry from '../projects.json' with {type:'json'};
 import {readAdsSnapshot} from '../imports/ads-store.js';
@@ -2892,6 +2893,8 @@ const verifiedAccessRequests = new WeakMap();
 export async function accessIdentity(request, env) {
   if (verifiedAccessRequests.get(request)?.env===env) return verifiedAccessRequests.get(request).verify;
   const verify = (async () => {
+    const native=await passwordIdentity(request,env);if(native)return native;
+    if(env.PASSWORD_AUTH_ENABLED==='true')return {ok:false,status:401,error:'authentication_required'};
     const audience=String(env.CF_ACCESS_AUD||''),issuer=String(env.CF_ACCESS_ISSUER||'').replace(/\/$/,'');
     if(!audience||!issuer)return {ok:false,status:403,error:'access_auth_not_configured'};
     let issuerUrl;try{issuerUrl=new URL(issuer);}catch{return {ok:false,status:401,error:'invalid_access_issuer'};}

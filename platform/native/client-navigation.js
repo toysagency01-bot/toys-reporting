@@ -15,18 +15,22 @@ export function mountClientNavigation({slug,api,prefix,asset,onChange,initialCRM
  const host=document.createElement('section');host.id='platformClientCRM';host.hidden=true;
  const root=host.attachShadow({mode:'open'});document.body.append(host);
  const style=document.createElement('style');style.textContent=`body.platform-show-crm>:not(#platformClientNav):not(#platformClientCRM):not(script):not(style):not(link){display:none!important}#platformClientCRM[hidden]{display:none!important}`;document.head.append(style);
+ const frameStyle=`<style>${coreStyle}\n${toolsStyle}\n${crmStyle}\n:host{display:block;font-family:'Golos Text',sans-serif;color:var(--text)}.master-sidebar{display:none}.master-main{margin:0;width:100%;padding:32px 16px;box-sizing:border-box}.platform-calendar{font-family:'Golos Text',sans-serif}.crm-state{margin:32px 16px;padding:28px;border:1px solid var(--line);border-radius:14px;background:var(--panel);font-size:14px;line-height:1.6}.crm-state .actions{margin-top:18px}</style>`;
  async function load(){
   if(app){app.resume();return;}
   if(loading)return loading;
-  root.innerHTML='<p role="status">Открываем CRM…</p>';
+  root.innerHTML=frameStyle+'<div class="crm-state" role="status">Открываем CRM…</div>';
   loading=(async()=>{
    const response=await fetch(api+'/content-crm?format=json',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000)});
-   if(response.status===401||response.status===403){if(active)location.assign(api+'/content-crm');return;}
+   if(response.status===401||response.status===403||!response.headers.get('content-type')?.includes('application/json')){
+    root.innerHTML=frameStyle+'<div class="crm-state"><strong>Войдите, чтобы открыть CRM</strong><p>Контакты и сделки доступны только участникам проекта.</p><div class="actions"><a class="primary" href="/login">Войти в TOYS</a><a class="secondary" href="/api/v2/portal/session?choose=1">Мой аккаунт</a></div></div>';return;
+   }
    const data=await response.json();if(!response.ok||!data.ok)throw new Error('CRM недоступна');
-   root.innerHTML=`<style>${coreStyle}\n${toolsStyle}\n${crmStyle}\n:host{display:block;font-family:'Golos Text',sans-serif;color:var(--text)}.master-sidebar{display:none}.master-main{margin:0;width:100%;padding:32px 16px;box-sizing:border-box}.platform-calendar{font-family:'Golos Text',sans-serif}</style>`+markup.match(/<body>([\s\S]*)<\/body>/)[1];
+   root.innerHTML=frameStyle+markup.match(/<body>([\s\S]*)<\/body>/)[1];
    app=mountMaster({root,client:data.context,embedded:true,isVisible:()=>active,onChange,asset});
-  })().catch(()=>{
-   root.innerHTML='<p role="alert">Не удалось открыть CRM. <button type="button">Повторить</button></p>';
+  })().catch(error=>{
+   console.error('CRM initialization failed:',error.name);
+   root.innerHTML=frameStyle+'<div class="crm-state" role="alert">Не удалось загрузить CRM. Проверьте соединение и повторите попытку.<div class="actions"><button class="primary" type="button">Повторить</button></div></div>';
    root.querySelector('button').onclick=load;
   }).finally(()=>{loading=null;});
   return loading;

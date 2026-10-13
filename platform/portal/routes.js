@@ -1,3 +1,4 @@
+import {passwordRoute,createInvitation,assertOrigin} from './password-auth.js';
 import {accessIdentity,authorizeMvp} from '../runtime/backend.js';
 import {masterAuth} from '../master/api.js';
 import {clientProjects,platformSlugs,staffIdentity,masterIdentity} from './access.js';
@@ -14,9 +15,11 @@ export async function portalRoute(request,env,assets){
  const url=new URL(request.url),path=url.pathname;
  if(!path.startsWith('/api/v2/portal/')&&!['/login','/login/'].includes(path))return null;
  const prefix='';
+ const passwordResponse=await passwordRoute(request,env);if(passwordResponse)return passwordResponse;
  if(request.method!=='GET')return reply({ok:false,error:'method_not_allowed'},405);
+ if(path==='/api/v2/portal/activate')return portalPage({assets,prefix,activate:true});
  if(path==='/api/v2/portal/login'||path===loginPath||path==='/login/')return portalPage({assets,prefix});
- if(path==='/api/v2/portal/logout')return new Response(null,{status:302,headers:{location:'/cdn-cgi/access/logout','cache-control':'no-store','clear-site-data':'"cache", "storage"'}});
+ if(path==='/api/v2/portal/logout')return new Response(null,{status:302,headers:{location:'/login','cache-control':'no-store','clear-site-data':'"cache", "storage"'}});
  if(path!=='/api/v2/portal/session')return reply({ok:false,error:'not_found'},404);
  let identity=await accessIdentity(request,env);
  if(['local','test'].includes(env.ENVIRONMENT)){const local=await authorizeMvp(request,env,'__master','editor');if(local.ok)identity={ok:true,email:'owner@example.test',subject:local.subject,localMaster:true};}
@@ -28,10 +31,12 @@ export async function portalRoute(request,env,assets){
  return portalPage({assets,prefix,projects,email:identity.email,master});
 }
 export async function accessManagement(request,env){
- const url=new URL(request.url);if(url.pathname!=='/api/v2/master/access')return null;
+ const url=new URL(request.url);if(!['/api/v2/master/access','/api/v2/master/access/invite'].includes(url.pathname))return null;
  const auth=await masterAuth(request,env);if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  try{
  const db=env.TOYS_DB;
+ if(url.pathname.endsWith('/invite')){if(request.method!=='POST')fail('method_not_allowed',405);assertOrigin(request);const body=await readJSON(request);const user=await db.prepare("SELECT u.id FROM users u WHERE u.id=? AND EXISTS(SELECT 1 FROM project_memberships m JOIN projects p ON p.id=m.project_id WHERE m.user_id=u.id AND p.organization_id='org_toys_agency' AND m.role IN ('client_owner','client_manager'))").bind(String(body.userId||'')).first();if(!user)fail('not_found',404);return reply(await createInvitation(env,user.id,auth.subject));}
+
  if(!await accessSchemaReady(env))return request.method==='GET'?reply({ok:true,ready:false,retryAt:SETUP_RETRY_AT,users:[],projects:[],loginUrl:'https://reports.toys-agency.com'+loginPath}):reply({ok:false,error:'client_access_preparing',retryAt:SETUP_RETRY_AT},503);
  if(request.method==='GET'){
   const users=(await db.prepare(`SELECT u.id,u.email,u.display_name AS name,u.status,u.access_version AS version,u.created_at AS createdAt,u.last_login_at AS lastLoginAt FROM users u WHERE EXISTS(SELECT 1 FROM project_memberships m JOIN projects p ON p.id=m.project_id WHERE m.user_id=u.id AND p.organization_id='org_toys_agency' AND m.role IN ('client_owner','client_manager')) ORDER BY u.created_at DESC`).all()).results;
@@ -63,6 +68,7 @@ export async function accessManagement(request,env){
  const changes=[db.prepare(`INSERT INTO users(id,email,display_name,status) VALUES(?,?,?,?) ON CONFLICT(email) DO NOTHING`).bind(id,email,name,status),db.prepare(`UPDATE users SET display_name=?,status=?,access_version=access_version+1,access_claim=? WHERE id=? AND access_version=?`).bind(name,status,claim,id,body.version),db.prepare(`DELETE FROM project_memberships WHERE user_id=? AND role IN ('client_owner','client_manager') AND ${condition}`).bind(id,id,claim)];
  for(const p of assigned)changes.push(db.prepare(`INSERT INTO project_memberships(project_id,user_id,role) SELECT ?,?,'client_manager' WHERE ${condition}`).bind(p.id,id,id,claim));
  changes.push(db.prepare(`INSERT INTO audit_log(action,entity_type,entity_id,after_json,request_id) SELECT 'client_access_updated','user',?,?,? WHERE ${condition}`).bind(id,JSON.stringify({actor:auth.subject,email,status,projects:slugs}),key,id,claim),db.prepare(`INSERT INTO portal_access_writes(request_key,request_hash,response_json) SELECT ?,?,? WHERE ${condition}`).bind(key,requestHash,JSON.stringify(result),id,claim));
+ if(!body.enabled)changes.push(db.prepare(`DELETE FROM portal_sessions WHERE user_id=? AND ${condition}`).bind(id,id,claim),db.prepare(`DELETE FROM portal_invitations WHERE user_id=? AND ${condition}`).bind(id,id,claim));
  const results=await db.batch(changes);if(!results[1].meta?.changes)fail('version_conflict',409);
  return reply(result);
  }catch(e){return reply({ok:false,error:e.code||'access_unavailable'},e.status||500);}

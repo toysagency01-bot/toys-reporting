@@ -55,7 +55,7 @@ test('real signed Access identities see assigned projects only; revocation appli
 });
 test('entry screen is public, self-contained and does not expose account data; API failures stay JSON',async()=>{
  const {env,db}=fixture();try{
-  const r=await worker.fetch(request('/api/v2/portal/login',{role:null}),env),body=await r.text();assert.equal(r.status,200);assert.match(body,/all-in экосистеме/);assert.match(body,/Войти по email/);assert.doesNotMatch(body,/<script|fonts.googleapis|type="password"/);assert.equal(r.headers.get('cache-control'),'no-store');assert.match(r.headers.get('content-security-policy'),/frame-ancestors 'none'/);
+  const r=await worker.fetch(request('/api/v2/portal/login',{role:null}),env),body=await r.text();assert.equal(r.status,200);assert.match(body,/all-in экосистеме/);assert.match(body,/autocomplete="current-password"/);assert.doesNotMatch(body,/fonts.googleapis/);assert.equal(r.headers.get('cache-control'),'no-store');assert.match(r.headers.get('content-security-policy'),/frame-ancestors 'none'/);
   const nav=request('/api/v2/projects/housevip-cxp7/content-project',{role:null});nav.headers.set('accept','text/html');assert.equal((await worker.fetch(nav,env)).headers.get('location'),'/login');
   assert.equal((await worker.fetch(request('/api/v2/projects/housevip-cxp7/content-crm?format=json',{role:null}),env)).status,401);
  }finally{db.close();}

@@ -1,13 +1,41 @@
 import {test,expect} from '@playwright/test';
 import {rankCreatives} from '../native/top-creatives.js';
 const portal='/api/v2/projects/housevip-cxp7/content-project';
+
+test('native password invitation opens CRM, signs out and signs back in',async({page})=>{
+ await page.goto('/master/#access');await page.locator('#newClient').click();
+ await page.locator('#accessForm [name=email]').fill('password-browser@example.test');await page.locator('#accessForm [name=projects]').first().check();
+ await page.getByRole('button',{name:'Создать доступ',exact:true}).click();
+ await expect(page.locator('#invitationText')).toHaveValue(/activate#token=/);
+ const text=await page.locator('#invitationText').inputValue(),link=text.match(/https:\/\/[^\s]+\/activate#token=[a-f0-9]+/)[0];
+ await page.setExtraHTTPHeaders({'x-test-public':'true'});
+ await page.goto(link.replace('https://reports.toys-agency.com','http://127.0.0.1:4173'));
+ await page.locator('[name=password]').fill('Test browser long password 123');await page.locator('[name=confirm]').fill('Test browser long password 123');
+ await page.getByRole('button',{name:'Сохранить пароль и войти'}).click();await expect(page).toHaveURL(/\/housevip-cxp7\/(?:#overview)?$/);
+ await page.locator('#platformCRMNav').click();await expect(page.locator('#platformClientCRM #newLead')).toBeVisible();
+ await page.goto('/api/v2/portal/session?choose=1');await page.getByRole('link',{name:'Выйти из аккаунта'}).click();await expect(page).toHaveURL(/\/login$/);
+ await page.locator('[name=email]').fill('password-browser@example.test');await page.locator('[name=password]').fill('Test browser long password 123');await page.getByRole('button',{name:'Войти',exact:true}).click();await expect(page).toHaveURL(/\/housevip-cxp7\/(?:#overview)?$/);
+});
+
+test('kanban moves persist, sales need an amount, search and mobile stay usable',async({page})=>{
+ await page.goto('/api/v2/projects/housevip-cxp7/content-crm');await page.locator('#newLead').click();
+ await page.locator('[name=name]').fill('Kanban test contact');await page.locator('[name=email]').fill('kanban@example.test');await page.getByRole('button',{name:'Добавить',exact:true}).click();
+ const card=page.getByRole('button',{name:'Kanban test contact',exact:true}),column=status=>page.locator(`.kanban-column[data-stage="${status}"]`);
+ await expect(column('Новый')).toContainText('Kanban test contact');await card.dragTo(column('В работе').locator('.stage-heading'));await expect(column('В работе')).toContainText('Kanban test contact');
+ await page.reload();await expect(column('В работе')).toContainText('Kanban test contact');await card.dragTo(column('Продажа').locator('.stage-heading'));await expect(page.locator('#editor')).toBeVisible();await expect(page.locator('[name=status]')).toHaveValue('Продажа');
+ await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#leadForm [role=status]')).toContainText('сумму');await expect(column('Продажа')).not.toContainText('Kanban test contact');
+ await page.locator('[name=value]').fill('225');await page.locator('[name=currency]').fill('USD');await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(column('Продажа')).toContainText('Kanban test contact');
+ await page.locator('#search').fill('kanban@example.test');await expect(page.locator('#leadCount')).toHaveText('1');await expect(page.locator('.lead-card')).toHaveCount(1);
+ await page.screenshot({path:'dist/crm-kanban-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.locator('#leadsBoard').evaluate(el=>el.scrollLeft=el.scrollWidth);await expect(card).toBeVisible();await card.click();await expect(page.locator('#leadForm')).toBeVisible();
+});
 test('TOYS login is self-contained, branded and usable on mobile',async({page})=>{
  const requests=[],errors=[];page.on('request',r=>requests.push(r.url()));page.on('pageerror',e=>errors.push(e.message));
  await page.setViewportSize({width:1440,height:960});await page.goto('/login');await page.evaluate(()=>document.fonts.ready);
  await expect(page.getByRole('heading',{level:1})).toHaveText('Платформа для клиентов TOYS.');await expect(page.locator('.brand-description')).toHaveText('Наслаждайтесь менеджментом маркетинговых процессов нового поколения в all-in экосистеме');
- await expect(page.getByRole('link',{name:'Войти по email'})).toHaveAttribute('href','/api/v2/portal/session');
+ await expect(page.getByRole('button',{name:'Войти',exact:true})).toHaveAttribute('type','submit');
  expect(await page.evaluate(()=>document.fonts.check('600 40px "Golos Text"','Платформа'))).toBe(true);
- await page.screenshot({path:'dist/login-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.getByRole('link',{name:'Войти по email'}).scrollIntoViewIfNeeded();await expect(page.getByRole('link',{name:'Войти по email'})).toBeVisible();await page.screenshot({path:'dist/login-mobile.png',fullPage:true});
+ await page.screenshot({path:'dist/login-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.getByRole('button',{name:'Войти',exact:true}).scrollIntoViewIfNeeded();await expect(page.getByRole('button',{name:'Войти',exact:true})).toBeVisible();await page.screenshot({path:'dist/login-mobile.png',fullPage:true});
  expect(requests.filter(u=>!u.endsWith('/login'))).toEqual([]);expect(errors).toEqual([]);
 });
 test('master creates a client invitation, preserves assignments and disables access',async({page})=>{
@@ -168,8 +196,8 @@ test('master keeps Home and CRM separate; create, qualify and sell a lead persis
  await expect(page.locator('.master-sidebar')).toBeVisible();await expect(page.locator('#home')).toBeVisible();await expect(page.locator('#crm')).toBeHidden();
  await page.locator('[data-view="crm"]').click();await expect(page.locator('#crm')).toBeVisible();await expect(page.locator('#home')).toBeHidden();
  await page.locator('#newLead').click();await page.locator('[name="name"]').fill('Synthetic CRM Browser');await page.locator('[name="email"]').fill('crm-browser@example.test');await page.getByRole('button',{name:'Добавить',exact:true}).click();
- await expect(page.locator('#leadsTable')).toContainText('Synthetic CRM Browser');await page.getByRole('button',{name:'Synthetic CRM Browser',exact:true}).click();await page.locator('[name="status"]').selectOption('Квалифицирован');await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#crmSummary')).toContainText('1');
- await page.reload();await expect(page.locator('#leadsTable')).toContainText('Квалифицирован');await page.getByRole('button',{name:'Synthetic CRM Browser',exact:true}).click();await page.locator('[name="status"]').selectOption('Продажа');await page.locator('[name="value"]').fill('150');await page.locator('[name="currency"]').fill('EUR');await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#crmSummary')).toContainText('150 EUR');
+ await expect(page.locator('#leadsBoard')).toContainText('Synthetic CRM Browser');await page.getByRole('button',{name:'Synthetic CRM Browser',exact:true}).click();await page.locator('[name="status"]').selectOption('Квалифицирован');await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#crmSummary')).toContainText('1');
+ await page.reload();await expect(page.locator('#leadsBoard')).toContainText('Квалифицирован');await page.getByRole('button',{name:'Synthetic CRM Browser',exact:true}).click();await page.locator('[name="status"]').selectOption('Продажа');await page.locator('[name="value"]').fill('150');await page.locator('[name="currency"]').fill('EUR');await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#crmSummary')).toContainText('150 EUR');
  await page.screenshot({path:'dist/master-crm.png',fullPage:true,animations:'disabled'});await page.locator('#theme').click();await expect(page.locator('#brandLogo')).toHaveAttribute('src',/toys-black/);expect(errors).toEqual([]);
 });
 
@@ -179,14 +207,14 @@ test('client keeps Home and CRM mounted, caches leads and preserves period and f
  const marker=await page.evaluate(()=>window.navigationTestMarker=crypto.randomUUID());const period=await page.locator('body > :not(#platformClientCRM) #dateFrom').inputValue();
  await page.locator('#platformCRMNav').click();await expect(page.locator('#heading')).toHaveText('CRM');
  await expect(page.locator('#projectSelect')).toBeHidden();await expect(page.locator('#connections')).toBeHidden();
- await expect(page.locator('#leadsTable')).not.toBeEmpty();expect(calls.some(p=>p.includes('/master'))).toBe(false);
- await page.locator('#statusFilter').selectOption('Квалифицирован');await expect(page.locator('#leadsTable')).not.toBeEmpty();
+ await expect(page.locator('#leadsBoard')).not.toBeEmpty();expect(calls.some(p=>p.includes('/master'))).toBe(false);
+ await page.locator('#statusFilter').selectOption('Квалифицирован');await expect(page.locator('#leadsBoard')).not.toBeEmpty();
  // Wait for the new filter request, then ensure a quick round trip uses memory.
  await expect.poll(()=>calls.filter(p=>p.endsWith('/crm')).length).toBe(2);await page.waitForTimeout(100);
  const requests=calls.length;
  await page.getByRole('link',{name:'Главная',exact:true}).click();await expect(page).toHaveURL(/\/housevip-cxp7\/(?:#overview)?$/);
  await expect(page.locator('body > :not(#platformClientCRM) #dateFrom')).toHaveValue(period);
- await page.locator('#platformCRMNav').click();await expect(page.locator('#statusFilter')).toHaveValue('Квалифицирован');await expect(page.locator('#leadsTable')).not.toBeEmpty();
+ await page.locator('#platformCRMNav').click();await expect(page.locator('#statusFilter')).toHaveValue('Квалифицирован');await expect(page.locator('#leadsBoard')).not.toBeEmpty();
  expect(await page.evaluate(()=>window.navigationTestMarker)).toBe(marker);expect(documents).toHaveLength(1);expect(urls.slice(requests)).toEqual([]);
  await page.goBack();await expect(page.locator('#platformClientCRM')).toBeHidden();await page.goForward();await expect(page.locator('#platformClientCRM')).toBeVisible();expect(documents).toHaveLength(1);
  await page.screenshot({path:'dist/client-crm-cached.png',fullPage:true,animations:'disabled'});
@@ -208,10 +236,10 @@ test('HOUSEVIP Leads button and old lead hashes open CRM without falling back to
 });
 
 test('direct client CRM link opens the unified screen, writes invalidate lead cache and update the board',async({page})=>{
- await page.goto('/api/v2/projects/housevip-cxp7/content-crm');await expect(page.locator('#heading')).toHaveText('CRM');await expect(page.locator('#leadsTable')).not.toBeEmpty();
+ await page.goto('/api/v2/projects/housevip-cxp7/content-crm');await expect(page.locator('#heading')).toHaveText('CRM');await expect(page.locator('#leadsBoard')).not.toBeEmpty();
  await page.locator('#newLead').click();await page.locator('[name="name"]').fill('Cache invalidation lead');await page.locator('[name="email"]').fill('cache@example.test');await page.getByRole('button',{name:'Добавить',exact:true}).click();
- await expect(page.locator('#leadsTable')).toContainText('Cache invalidation lead');await page.getByRole('button',{name:'Cache invalidation lead',exact:true}).click();await page.locator('[name="status"]').selectOption('Квалифицирован');await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#leadsTable')).toContainText('Квалифицирован');
- await page.getByRole('link',{name:'Главная',exact:true}).click();await expect(page.locator('#platformCRMStats')).toContainText('Квал-лиды CRM');await page.locator('#platformCRMNav').click();await expect(page.locator('#leadsTable')).toContainText('Cache invalidation lead');
+ await expect(page.locator('#leadsBoard')).toContainText('Cache invalidation lead');await page.getByRole('button',{name:'Cache invalidation lead',exact:true}).click();await page.locator('[name="status"]').selectOption('Квалифицирован');await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#leadsBoard')).toContainText('Квалифицирован');
+ await page.getByRole('link',{name:'Главная',exact:true}).click();await expect(page.locator('#platformCRMStats')).toContainText('Квал-лиды CRM');await page.locator('#platformCRMNav').click();await expect(page.locator('#leadsBoard')).toContainText('Cache invalidation lead');
 });
 
 test('agency connection settings explain Make intake and do not require the direct Meta webhook',async({page})=>{

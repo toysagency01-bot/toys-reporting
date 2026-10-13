@@ -74,6 +74,16 @@ export async function summary(env,p,from,to,provider=null){
 export async function listLeads(env,p,url){
  const limit=50,offset=Math.max(0,Math.min(100000,Number(url.searchParams.get('offset'))||0)),status=url.searchParams.get('status'),q=text(url.searchParams.get('q'),100);
  const where=['l.project_id=?'];const args=[p.id];if(status){where.push('l.current_status=?');args.push(status);}if(q){where.push("(l.name LIKE ? ESCAPE '\\' OR l.phone LIKE ? ESCAPE '\\' OR l.email LIKE ? ESCAPE '\\')");const escaped=q.replace(/[\\%_]/g,'\\$&');args.push(...Array(3).fill('%'+escaped+'%'));}
+ if(url.searchParams.get('view')==='board'){
+  const perColumn=25;
+  const [counts,result]=await Promise.all([
+   env.TOYS_DB.prepare(`SELECT l.current_status AS status,COUNT(*) AS total FROM leads l WHERE ${where.join(' AND ')} GROUP BY l.current_status`).bind(...args).all(),
+   env.TOYS_DB.prepare(`WITH ranked AS (SELECT l.*,ROW_NUMBER() OVER(PARTITION BY l.current_status ORDER BY l.created_at DESC,l.id) AS position FROM leads l WHERE ${where.join(' AND ')}) SELECT l.id,l.name,l.phone,l.email,l.created_at AS createdAt,l.source_provider AS source,l.current_status AS status,l.metadata_json AS metadataJson,COALESCE(s.version,0) AS version,s.owner_label AS owner FROM ranked l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE l.position<=? ORDER BY l.created_at DESC,l.id`).bind(...args,perColumn).all()
+  ]);
+  const leads=result.results.map(({metadataJson,...r})=>({...r,metadata:parse(metadataJson)}));
+  const columns=STATUSES.filter(s=>!status||s===status).map(s=>{const total=counts.results.find(c=>c.status===s)?.total||0,rows=leads.filter(l=>l.status===s);return {status:s,total,leads:rows,hasMore:total>rows.length};});
+  return {ok:true,statuses:STATUSES,columns,total:columns.reduce((n,c)=>n+c.total,0)};
+ }
  const result=await env.TOYS_DB.prepare(`SELECT l.id,l.name,l.phone,l.email,l.created_at AS createdAt,l.source_provider AS source,l.current_status AS status,l.metadata_json AS metadataJson,COALESCE(s.version,0) AS version,s.owner_label AS owner,(SELECT state FROM crm_delivery d WHERE d.lead_id=l.id AND kind='capi' ORDER BY created_at DESC LIMIT 1) AS capiState FROM leads l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE ${where.join(' AND ')} ORDER BY l.created_at DESC,l.id LIMIT ? OFFSET ?`).bind(...args,limit+1,offset).all();
  const rows=result.results||[];return {ok:true,statuses:STATUSES,hasMore:rows.length>limit,offset,leads:rows.slice(0,limit).map(({metadataJson,...r})=>({...r,metadata:parse(metadataJson)}))};
 }

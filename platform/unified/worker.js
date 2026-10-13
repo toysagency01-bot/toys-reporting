@@ -1,3 +1,4 @@
+import {cleanAuthRecords} from '../portal/password-auth.js';
 import projectRegistry from '../projects.json' with {type:'json'};
 import {refreshUsdUah} from '../imports/fx.js';
 import {isReportRefreshSlot} from '../imports/refresh-policy.js';
@@ -132,6 +133,7 @@ export default {
   },
   async scheduled(event,env,ctx){
     const at=event.scheduledTime??Date.now();
+    if(new Date(at).getUTCMinutes()===0)ctx.waitUntil(cleanAuthRecords(env).catch(()=>console.error('Auth cleanup deferred')));
     ctx.waitUntil(prepareAccessSchema(env).catch(()=>console.error('Client access schema preparation deferred')));
     ctx.waitUntil(drain(env));
     ctx.waitUntil(runDirectAdsImports(env,at));
