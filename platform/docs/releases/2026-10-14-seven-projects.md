@@ -113,7 +113,33 @@ Worker SHA-256: `26585fac54f7ff6745908f5da62850308c48c6f85e1d6563fe5d29fb5b728f2
 Cloudflare deployment readback and downloaded module bytes match the tested
 bundle. Existing bindings, secrets, authentication settings and assets are
 preserved; only the seven project IDs were added to the four publication scope
-lists. The existing Pages gateway already routes all seven slugs.
+lists.
+
+The initial Worker-only rollout missed the Pages gateway deployment. The
+gateway's deployed registry contained the original four projects, so the seven
+new short URLs fell through to the frozen legacy site and returned `not_found`.
+Source-level routing tests and direct Worker checks did not cover that layer.
+
+Corrective Pages deployment: `31d70bf8-a60f-49cc-97d6-5fa75778e850`, successful at
+07:09:26 UTC on October 14. Cloudflare confirms it is the canonical production
+deployment for `reports.toys-agency.com`; both service bindings are unchanged.
+Previous Pages deployment: `c19b88b4-475a-4d54-b6b4-515f62137377`.
+The deployed gateway was rebuilt with all eleven registry entries. Its bundled
+routes were exercised through the current Worker and read-only production D1:
+all seven new board/dashboard/material routes returned 200; anonymous CRM reads
+returned 401. No database or advertising import settings changed in this fix.
+An AM Klinika browser check against the same bundled gateway and captured data
+rendered the dashboard and opened CRM with contact cards, without JavaScript
+errors. Gateway verification evidence is in `/workspace/toys-routing-20261014`,
+outside Git.
+
+`unified:build` now builds the Pages gateway too. The compiled-bundle regression
+test rejects stale output and verifies every registered short, index and legacy
+project route, including query assets. For future project publication, both
+layers must be deployed: publish the Worker, then run
+`CLOUDFLARE_ACCOUNT_ID=6e1e68500c0dc88e70dde2da4117c79d npm run pages:gateway:deploy`
+from `platform`. This command rebuilds and tests the gateway before deployment.
+Do not use the old `pages:deploy` static-site command for this gateway.
 
 The managed environment allows Cloudflare API but not the public report host.
 Browser checks therefore used the tested bundle and captured production data

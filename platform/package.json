@@ -16,6 +16,8 @@
     "deploy": "wrangler deploy",
     "pages:build": "node scripts/build-pages.mjs",
     "pages:deploy": "npm run pages:build && wrangler pages deploy dist --project-name toys-agency-dashboard --branch main --force",
+    "pages:gateway:build": "node scripts/build-pages-hotfix.mjs",
+    "pages:gateway:deploy": "npm run pages:gateway:build && node --test recovery-tests/pages-route.test.mjs recovery-tests/pages-bundle.test.mjs && cd pages-hotfix && wrangler pages deploy --project-name toys-agency-dashboard --branch main --commit-dirty=true",
     "unified:build": "node scripts/build-unified.mjs",
     "unified:test": "node --test recovery-tests/*.test.mjs",
     "unified:browser": "playwright test --config recovery-tests/playwright.config.mjs"
