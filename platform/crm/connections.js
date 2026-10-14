@@ -1,5 +1,5 @@
 import {authorizeMvp} from '../runtime/backend.js';
-import {crypt,hash,reply,readJSON,project,enable} from './service.js';
+import {crypt,hash,parse,reply,readJSON,project,enable} from './service.js';
 import {graph,drain} from './delivery.js';
 import {connectDirectMeta} from './direct-meta.js';
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
@@ -16,7 +16,8 @@ export async function connections(request,env,ctx){
  const accounts=(await env.TOYS_DB.prepare("SELECT a.pixels_json FROM crm_agent_accounts a JOIN integrations i ON i.external_account_id=a.account_id WHERE i.project_id=? AND i.provider='meta_ads'").bind(p.id).all()).results||[];
  const queue=(await env.TOYS_DB.prepare('SELECT kind,state,last_error AS error,COUNT(*) AS count FROM crm_delivery WHERE project_id=? GROUP BY kind,state,last_error').bind(p.id).all()).results||[];
  const lastLead=await env.TOYS_DB.prepare("SELECT MAX(sent_at) AS deliveredAt FROM crm_delivery WHERE project_id=? AND kind='meta_lead' AND state='sent'").bind(p.id).first();
- return reply({ok:true,directMeta:{appSecretConfigured:!!env.META_APP_SECRET,verifyConfigured:!!env.CRM_VERIFY_TOKEN,lastDeliveredAt:lastLead?.deliveredAt||null},agentAvailable:!!agent,datasets:accounts.flatMap(a=>JSON.parse(a.pixels_json)),enabled:Boolean(cfg),timezone:cfg?.timezone||p.timezone,datasetId:cfg?.dataset_id,capiEnabled:!!cfg?.capi_enabled,websiteConfigured:!!cfg?.website_key_hash,websiteEndpoint:base+p.slug+'/website',metaLeadEndpoint:base+p.slug+'/meta-lead',metaEndpoint:'https://reports.toys-agency.com/api/crm/meta',verifyToken:env.CRM_VERIFY_TOKEN||null,pages,queue});
+ const draft=parse(p.settingsJson).directMetaSetup||{},suggestedPageId=/^\d{1,30}$/.test(draft.pageId||'')?String(draft.pageId):null,suggestedAppId=/^\d{5,30}$/.test(draft.appId||'')?String(draft.appId):null;
+ return reply({ok:true,directMeta:{appSecretConfigured:!!env.META_APP_SECRET,verifyConfigured:!!env.CRM_VERIFY_TOKEN,lastDeliveredAt:lastLead?.deliveredAt||null,suggestedPageId,suggestedAppId},agentAvailable:!!agent,datasets:accounts.flatMap(a=>JSON.parse(a.pixels_json)),enabled:Boolean(cfg),timezone:cfg?.timezone||p.timezone,datasetId:cfg?.dataset_id,capiEnabled:!!cfg?.capi_enabled,websiteConfigured:!!cfg?.website_key_hash,websiteEndpoint:base+p.slug+'/website',metaLeadEndpoint:base+p.slug+'/meta-lead',metaEndpoint:'https://reports.toys-agency.com/api/crm/meta',verifyToken:env.CRM_VERIFY_TOKEN||null,pages,queue});
  }
  const origin=request.headers.get('origin');if(origin&&origin!==url.origin&&origin!=='https://reports.toys-agency.com')fail('origin_forbidden',403);
  if(request.method!=='POST'||!request.headers.get('x-idempotency-key'))fail('invalid_request');await enable(env,p);const body=await readJSON(request);

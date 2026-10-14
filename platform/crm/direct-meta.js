@@ -13,16 +13,29 @@ async function meta(env,path,token,{query={},body=null}={}){
 // This operates only on a page explicitly selected by a project administrator.
 // An existing callback belonging to another integration is never replaced.
 export async function connectDirectMeta(env,p,body){
+ if(body.action&&!['check','connect'].includes(body.action))fail('invalid_action');
  const pageId=String(body.pageId||'');if(!/^\d{1,30}$/.test(pageId))fail('page_id_required');
  const page=await env.TOYS_DB.prepare('SELECT * FROM crm_pages WHERE page_id=?').bind(pageId).first();
- if(!page)fail('page_not_discovered',404);if(page.project_id&&page.project_id!==p.id)fail('page_already_linked',409);
- if(!page.token_cipher)fail('page_token_missing');if(!env.CRM_VERIFY_TOKEN)fail('verification_not_configured');
- const appId=String(body.appId||page.app_id||'');if(!/^\d{5,30}$/.test(appId))fail('app_id_required');
+ if(page?.project_id&&page.project_id!==p.id)fail('page_already_linked',409);
+ if(!env.CRM_VERIFY_TOKEN)fail('verification_not_configured');
+ const appId=String(body.appId||page?.app_id||'');if(!/^\d{5,30}$/.test(appId))fail('app_id_required');
  const supplied=String(body.appSecret||'').trim();if(supplied&&!/^[a-fA-F0-9]{32}$/.test(supplied))fail('invalid_app_secret');
- const secret=supplied||(page.app_secret_cipher?await crypt(env,page.app_secret_cipher,true):env.META_APP_SECRET);
+ const secret=supplied||(page?.app_secret_cipher?await crypt(env,page.app_secret_cipher,true):env.META_APP_SECRET);
  if(!secret)fail('app_secret_required');
- const token=await crypt(env,page.token_cipher,true),appToken=appId+'|'+secret;
+ const appToken=appId+'|'+secret;
  const app=await meta(env,appId,appToken,{query:{fields:'id,name'}});if(String(app.id)!==appId)fail('app_identity_mismatch');
+ let token=page?.token_cipher?await crypt(env,page.token_cipher,true):null;
+ if(!token){
+  // A known Page ID can be resolved directly even when discovery is stale.
+  // This is scoped to the selected page; nothing is persisted during a check.
+  const agent=await env.TOYS_DB.prepare("SELECT token_cipher FROM crm_agent_credentials WHERE id='toys-media-buyer'").first();
+  const agentToken=agent?.token_cipher?await crypt(env,agent.token_cipher,true):env.META_ADS_ACCESS_TOKEN;
+  if(!agentToken)fail('meta_token_missing',503);
+  const candidate=await meta(env,pageId,agentToken,{query:{fields:'id,name,access_token'}});
+  if(String(candidate.id)!==pageId)fail('page_identity_mismatch');
+  if(typeof candidate.access_token!=='string'||!candidate.access_token)fail('page_token_missing');
+  token=candidate.access_token;
+ }
  const debug=await meta(env,'debug_token',appToken,{query:{input_token:token}});
  if(!debug.data?.is_valid||String(debug.data.app_id)!==appId)fail('page_token_app_mismatch');
  const identity=await meta(env,'me',token,{query:{fields:'id,name'}});if(String(identity.id)!==pageId)fail('page_identity_mismatch');
@@ -42,7 +55,7 @@ export async function connectDirectMeta(env,p,body){
  if(callback?.callback_url!==META_CALLBACK||callback.active===false||!fields(callback).includes('leadgen'))fail('callback_not_confirmed',502);
  // Store the verified signing secret before enabling deliveries on the page.
  const n=new Date().toISOString();
- const linked=await env.TOYS_DB.prepare('UPDATE crm_pages SET project_id=?,app_id=?,app_secret_cipher=?,updated_at=? WHERE page_id=? AND (project_id IS NULL OR project_id=?)').bind(p.id,appId,await crypt(env,secret),n,pageId,p.id).run();
+ const linked=await env.TOYS_DB.prepare('INSERT INTO crm_pages(page_id,name,project_id,token_cipher,app_id,app_secret_cipher,discovered_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(page_id) DO UPDATE SET name=excluded.name,project_id=excluded.project_id,token_cipher=excluded.token_cipher,app_id=excluded.app_id,app_secret_cipher=excluded.app_secret_cipher,updated_at=excluded.updated_at WHERE crm_pages.project_id IS NULL OR crm_pages.project_id=excluded.project_id').bind(pageId,identity.name||pageId,p.id,await crypt(env,token),appId,await crypt(env,secret),n,n).run();
  if(!linked.meta?.changes)fail('page_already_linked',409);
  if(!fields(current).includes('leadgen')){
   const result=await meta(env,pageId+'/subscribed_apps',token,{body:{subscribed_fields:[...new Set([...fields(current),'leadgen'])].join(',')}});if(!result.success)fail('subscription_not_confirmed',502);

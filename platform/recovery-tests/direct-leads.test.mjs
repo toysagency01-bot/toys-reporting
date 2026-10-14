@@ -90,3 +90,54 @@ test('direct Meta setup is master-only and does not expose app credentials',asyn
   env.MVP_EDITOR_PROJECTS+=',__master';graphSetup(env);const response=await worker.fetch(request(url,{method:'POST',body:{pageId,appId}}),env),body=await response.text();assert.equal(response.status,200);assert.ok(!body.includes(env.META_APP_SECRET));assert.ok(!body.includes('synthetic-page-token'));
  }finally{db.close();}
 });
+test('an undiscovered Page ID is resolved through the agent, checked without writes, then persisted only on connect',async()=>{
+ const {env,db}=await setup();try{
+  db.prepare('DELETE FROM crm_pages').run();
+  db.prepare('INSERT INTO crm_agent_credentials VALUES(?,?,?)').run('toys-media-buyer',await crypt(env,'synthetic-agent-token'),new Date().toISOString());
+  const state=graphSetup(env),fetch=env.CRM_FETCH;
+  env.CRM_FETCH=async(url,options)=>{
+   const u=new URL(url);if(u.pathname==='/v26.0/'+pageId){assert.equal(options.headers.authorization,'Bearer synthetic-agent-token');assert.equal(u.searchParams.get('fields'),'id,name,access_token');return Response.json({id:pageId,name:'Synthetic page',access_token:'synthetic-resolved-page-token'});}
+   if(u.pathname==='/v26.0/debug_token')assert.equal(u.searchParams.get('input_token'),'synthetic-resolved-page-token');
+   return fetch(url,options);
+  };
+  const check=await connectDirectMeta(env,p,{pageId,appId,action:'check'});assert.equal(check.leadReadAccess,true);assert.equal(db.prepare('SELECT COUNT(*) n FROM crm_pages').get().n,0);assert.equal(state.writes.length,0);
+  const connected=await connectDirectMeta(env,p,{pageId,appId,action:'connect'}),page=db.prepare('SELECT * FROM crm_pages').get();
+  assert.equal(connected.state,'awaiting_lead');assert.equal(page.project_id,p.id);assert.equal(page.subscribed,1);assert.equal(await crypt(env,page.token_cipher,true),'synthetic-resolved-page-token');assert.ok(!JSON.stringify(connected).includes('token'));assert.equal(db.prepare('SELECT COUNT(*) n FROM leads').get().n,0);
+ }finally{db.close();}
+});
+test('targeted page lookup rejects missing tokens, incorrect identities and incorrect issuing apps before persisting or subscribing',async()=>{
+ for(const [candidate,options,code]of [
+  [{id:pageId},{},'page_token_missing'],
+  [{id:'999',access_token:'synthetic-token'},{},'page_identity_mismatch'],
+  [{id:pageId,access_token:'synthetic-token'},{tokenAppId:'999'},'page_token_app_mismatch'],
+  [{id:pageId,access_token:'synthetic-token'},{leadAccess:false},'meta_200']
+ ]){
+  const {env,db}=await setup();try{
+   db.prepare('DELETE FROM crm_pages').run();env.META_ADS_ACCESS_TOKEN='synthetic-agent-fallback';const state=graphSetup(env,options),fetch=env.CRM_FETCH;
+   env.CRM_FETCH=(url,opts)=>new URL(url).pathname==='/v26.0/'+pageId?Promise.resolve(Response.json(candidate)):fetch(url,opts);
+   await assert.rejects(connectDirectMeta(env,p,{pageId,appId}),{code});assert.equal(state.writes.length,0);assert.equal(db.prepare('SELECT COUNT(*) n FROM crm_pages').get().n,0);
+  }finally{db.close();}
+ }
+});
+test('targeted page lookup does not replace a concurrent assignment to another project',async()=>{
+ const {env,db}=await setup();try{
+  db.prepare('DELETE FROM crm_pages').run();env.META_ADS_ACCESS_TOKEN='synthetic-agent-fallback';
+  const other='prj_other';db.prepare("INSERT INTO projects(id,organization_id,slug,name,project_type,status,currency) VALUES(?,'org_toys_agency','other','Other','leadgen','active','EUR')").run(other);
+  const state=graphSetup(env,{callback:{object:'page',callback_url:META_CALLBACK,active:true,fields:['leadgen']}}),fetch=env.CRM_FETCH;
+  env.CRM_FETCH=async(url,opts)=>{
+   if(new URL(url).pathname==='/v26.0/'+pageId){
+    db.prepare('INSERT INTO crm_pages(page_id,name,project_id,discovered_at,updated_at) VALUES(?,?,?,?,?)').run(pageId,'Other project page',other,'2026-10-14','2026-10-14');
+    return Response.json({id:pageId,access_token:'synthetic-token'});
+   }return fetch(url,opts);
+  };
+  await assert.rejects(connectDirectMeta(env,p,{pageId,appId}),{code:'page_already_linked'});assert.equal(db.prepare('SELECT project_id FROM crm_pages').get().project_id,other);assert.equal(state.writes.length,0);
+ }finally{db.close();}
+});
+test('saved setup identifiers are master-only suggestions and do not imply a subscription or lead delivery',async()=>{
+ const {env,db}=await setup(),worker=await testWorker();try{
+  db.prepare('UPDATE projects SET settings_json=json_set(settings_json,\'$.directMetaSetup\',json(?)) WHERE id=?').run(JSON.stringify({pageId,appId}),p.id);
+  env.MVP_EDITOR_PROJECTS+=',__master';const url='/api/v2/projects/'+p.slug+'/crm/connections';
+  const response=await worker.fetch(request(url),env),data=await response.json();assert.equal(response.status,200);assert.equal(data.directMeta.suggestedPageId,pageId);assert.equal(data.directMeta.suggestedAppId,appId);assert.equal(data.directMeta.lastDeliveredAt,null);assert.equal(data.pages[0].subscribed,0);
+  assert.equal((await worker.fetch(request(url,{role:'viewer'}),env)).status,403);
+ }finally{db.close();}
+});

@@ -7,8 +7,12 @@ Website forms continue to use the project's authenticated website endpoint.
 ## Setup
 
 1. Select the correct client project and Facebook page. Discovery uses the
-   existing TOYS Media-Buyer access. If the page is absent, grant the agent access
-   in Meta Business Settings and refresh the discovered list.
+   existing TOYS Media-Buyer access. If the page is absent from the saved list,
+   enter its Page ID: the server requests that exact page through the agent,
+   validates its returned identity, token issuer and lead-read permission.
+   No page or token is persisted during **Проверить доступ**. A successful
+   **Подключить напрямую** stores the verified page token encrypted. If Meta
+   refuses access, assign the page to the agent and check Leads Access.
 2. Enter the **App ID** from Meta for Developers → App settings → Basic.
    The existing encrypted/runtime App Secret is used; a replacement can be
    entered in the password field and is encrypted on the server.
@@ -54,17 +58,21 @@ connecting inbound leads. No historical conversion events are manufactured.
 ## State before activation, 2026-10-14
 
 - HOUSEVIP: page `1342968218898825` (House VIP) is mapped; page token exists;
-  subscription is disabled and App ID is not recorded.
-- AMKLINIKA: no page is mapped or identifiable in the saved discovery list.
+  subscription is disabled. The owner supplied App ID `1933678520679141`.
+- AMKLINIKA: the owner identified page `1069830429555541`; it is absent from
+  the saved discovery list and remains unverified/unmapped.
   Its 63 historical contacts include 26 Meta leads and 37 website leads.
 - The Worker already has CRM encryption, verification and Meta App Secret
   bindings. This confirms presence, not the correctness of the app credentials.
 - No direct Meta delivery has yet been confirmed for either project.
 
-App ID and AMKLINIKA's page identity are required to finish activation. The
-current Codex executor permits Cloudflare API access but not Graph API or the
-reporting host, so live Meta setup can be performed by the owner through the
-master cabinet. Deployment of this UI is not evidence of live lead delivery.
+The owner-supplied App ID and page IDs are prefilled from each project's
+`settings_json.directMetaSetup`. These are draft identifiers, not verification
+of access or activation. They do not enable subscriptions or modify advertising
+imports. The current Codex executor permits Cloudflare API access but not Graph
+API or the reporting host, so live Meta setup must be initiated by the owner
+through the master cabinet. Deployment of this UI is not evidence of live lead
+delivery.
 
 ## Checks and references
 
