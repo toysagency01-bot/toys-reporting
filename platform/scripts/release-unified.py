@@ -48,8 +48,9 @@ if __name__=='__main__':
                 bindings=[b for b in bindings if b['name']!=binding_name]
                 bindings.append({'name':binding_name,'type':'plain_text','text':'true'})
         registry=json.loads(pathlib.Path('projects.json').read_text())
-        if '--publish-project' in sys.argv:
-            project=sys.argv[sys.argv.index('--publish-project')+1]
+        for index, option in enumerate(sys.argv):
+            if option != '--publish-project': continue
+            project=sys.argv[index+1]
             assert project in registry
             for b in bindings:
                 if b['name'] in ['MVP_VIEW_PROJECTS','MVP_EDITOR_PROJECTS','MVP_PUBLIC_VIEW_PROJECTS','MVP_PUBLIC_PROJECT_MATERIALS']:

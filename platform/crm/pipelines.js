@@ -10,6 +10,14 @@ export const PIPELINES={
   stage('Просмотр назначен','#64b7e6','qualified'),stage('Просмотр проведён','#859fe4','qualified'),
   stage('Переговоры','#b39bd5','qualified'),stage('Бронь / задаток','#d7b86b','qualified'),
   stage('Сделка','#79c981','sale'),stage('Отказ','#d28b91'),stage('Отложен','#b5a182'),stage('Неактуален','#96939e')
+ ]},
+ automotive:{key:'automotive',label:'Автосервис',aliases:{'Продажа':'Завершён','Работа завершена':'Завершён','Не подходит':'Неактуален','Нецелевой':'Неактуален','Потерян':'Неактуален'},stages:[
+  stage('Новый','#8b949f'),stage('Не удалось связаться','#d4a45b'),stage('Связались','#6ca4eb'),
+  stage('Квалифицирован','#1dd3c5','qualified'),stage('Диагностика назначена','#64b7e6','qualified'),
+  stage('Автомобиль принят','#859fe4','qualified'),stage('Смета отправлена','#b39bd5','qualified'),
+  stage('Согласовано','#43c4bc','qualified'),stage('В работе','#6ca4eb','qualified'),
+  stage('Готов к выдаче','#d7b86b','qualified'),stage('Завершён','#79c981','sale'),
+  stage('Отложен','#b5a182'),stage('Неактуален','#96939e')
  ]}
 };
 // Read older stage labels consistently without rewriting user changes or conversion history.

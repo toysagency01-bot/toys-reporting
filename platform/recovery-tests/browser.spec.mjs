@@ -56,6 +56,7 @@ test('dense kanban shows contacts, filters received dates and reaches final stag
 
 test('kanban counters update for current statuses and sale edits and persist separate master date ranges',async({page})=>{
  await page.goto('/master/#crm');await page.locator('#newLead').click();await page.locator('[name=name]').fill('Current metrics contact');await page.locator('[name=phone]').fill('+995555019999');await page.getByRole('button',{name:'Добавить',exact:true}).click();
+ await expect(page.locator('#editor')).not.toBeVisible();
  await page.locator('#search').fill('Current metrics contact');await expect(page.locator('#leadCount')).toHaveText('1');
  const card=page.getByRole('button',{name:'Current metrics contact',exact:true}),metric=label=>page.locator('#crmSummary .card').filter({has:page.locator('.label',{hasText:label})}).locator('.value');
  const save=()=>page.getByRole('button',{name:'Сохранить',exact:true}).click();
@@ -101,6 +102,9 @@ test('BSCLINIC keeps lead metrics and resolves material tabs by explicit channel
  const errors=[],requests=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>requests.push(r.url()));
  const data=await(await request.get('/api/v2/projects/housevip-cxp7/dashboard')).json();
  data.dashboard.project.slug='bs-clinic-a5b4';data.dashboard.project.name='BSCLINIC';
+ // This project starts on the latest seven days, independently of the fixed
+ // HOUSEVIP historical fixture used by the remaining scenarios.
+ for(const row of data.dashboard.facts.rows)row.date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Prague',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  for(const row of data.dashboard.facts.rows)for(const m of row.metrics)if(m.currency)m.currency='CZK';
  const api='**/projects/bs-clinic-a5b4/';
  await page.route(api+'dashboard',r=>r.fulfill({json:data}));

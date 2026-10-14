@@ -1,3 +1,4 @@
+import {leadgenDashboard} from '../native/leadgen-dashboard.js';
 import {passwordIdentity} from '../portal/password-auth.js';
 import {reconcileMetaAccount} from '../imports/meta-reconciliation.js';
 import projectRegistry from '../projects.json' with {type:'json'};
@@ -3578,6 +3579,7 @@ async function dashboard(request, env, slug2) {
   const release = await releaseRecord(env, project);
   if (!release) return response3({ ok: false, error: "no_published_release" }, 409);
   const manifest = JSON.parse(release.manifestJson || "{}");
+  if (manifest.leadgenChannels === true) return leadgenDashboard(env,project,release,manifest,url,auth,{generationRecord,factRows,aggregateMetric,derivedMetric,effectiveFreshness,response:response3});
   const capabilities = JSON.parse(project.capabilitiesJson || "[]");
   const syntheticCommerce = manifest.synthetic === true && capabilities.includes("synthetic_demo");
   const realCommerce = manifest.synthetic !== true && (["ecommerce", "instashop"].includes(project.projectType) || ["ecommerce", "instashop"].includes(project.preset) || capabilities.some((item) => ["ecommerce", "instashop"].includes(item)));
@@ -6054,7 +6056,7 @@ async function importRealCommerceProject(db, project, { now = /* @__PURE__ */ __
   if (!db?.prepare || !db?.batch) fail5("database_unavailable", "D1-compatible database is required");
   const atValue = now();
   const at = (atValue instanceof Date ? atValue : new Date(atValue)).toISOString();
-  const registry = await first4(db, `SELECT id,organization_id AS organizationId,status FROM projects WHERE id=?`, project.id);
+  const registry = await first4(db, `SELECT id,organization_id AS organizationId,status,settings_json AS settingsJson FROM projects WHERE id=?`, project.id);
   if (!registry || registry.organizationId !== ORGANIZATION_ID2) fail5("project_unavailable", `${project.slug}: project registry row is unavailable`);
   await preflightExtras(db, project);
   const initial = await first4(db, `SELECT p.release_id AS releaseId,p.pointer_revision AS pointerRevision,r.source_hash AS sourceHash FROM project_data_release_pointers p JOIN project_data_releases r ON r.id=p.release_id WHERE p.organization_id=? AND p.project_id=?`, ORGANIZATION_ID2, project.id);
@@ -6119,7 +6121,7 @@ async function importRealCommerceProject(db, project, { now = /* @__PURE__ */ __
       project.timezone,
       JSON.stringify(project.capabilities),
       project.preset,
-      JSON.stringify({ dataBackend: "d1", projectBackend: "d1", weeklyBackend: "d1", legacyRuntimeUntouched: true, privateSnapshotImporter: SCHEMA_VERSION }),
+      JSON.stringify({ ...safeJson(registry.settingsJson), ...project.settings, dataBackend: "d1", projectBackend: "d1", weeklyBackend: "d1", legacyRuntimeUntouched: true, privateSnapshotImporter: SCHEMA_VERSION }),
       at,
       ORGANIZATION_ID2,
       project.id,

@@ -157,10 +157,11 @@ async function boot(){
  else{await load(slug==='housevip-cxp7'?'housevip-cxp7/core.js':'core/core.js');$('weeklyPanel')?.classList.remove('hidden');css(slug==='housevip-cxp7'?'housevip-cxp7/ux-v2.css':'core/ux-v2.css');await load(slug==='housevip-cxp7'?'housevip-cxp7/ux-v2.js':'core/ux-v2.js');}
  await load('core/theme.js');await css('platform-tools.css');
  await snapshotPromise;allRows=snapshotRows(dashboard);await tabsPromise;
- await new Promise((resolve,reject)=>{const start=Date.now();const poll=()=>{if($('content')&&!$('content').classList.contains('hidden'))resolve();else if(Date.now()-start>15000)reject(new Error('Данные не загрузились'));else setTimeout(poll,50);};poll();});
+ await new Promise((resolve,reject)=>{const start=Date.now();const poll=()=>{if(['content','emptyState'].some(id=>$(id)&&!$(id).classList.contains('hidden')))resolve();else if(Date.now()-start>15000)reject(new Error('Данные не загрузились'));else setTimeout(poll,50);};poll();});
  const controls=$('controls')||document.querySelector('.controls');
  const n=document.createElement('div');n.id='platformNotice';n.className='platform-notice';n.setAttribute('role','status');controls.after(n);notice(dashboard.coverage?.warning||'Опубликованные данные проекта.');
  ready=true;mountTools();maskUnavailable();
+ if(!allRows.length&&$('updated'))$('updated').textContent='Нет рекламной активности в загруженном периоде';
  clientNavigation=mountClientNavigation({slug,api,prefix,asset,initialCRM,onChange:async()=>{try{const requested=range(),d=await json(`${api}/crm/summary?from=${requested.from}&to=${requested.to}`);if(JSON.stringify(range())===JSON.stringify(requested)){crmStats=d;renderCRM();}}catch{}}});
  const from=$(shop?'from':'dateFrom'),to=$(shop?'to':'dateTo');
  calendar=mountCalendar({from,to,timeZone:projectConfig.periodTimezone,apply:(start,end)=>{document.querySelectorAll('#periodSeg button').forEach(b=>b.classList.remove('active'));sequence++;ads=null;window.TOYS_NATIVE.setPeriod(start,end);queueRefresh();}});

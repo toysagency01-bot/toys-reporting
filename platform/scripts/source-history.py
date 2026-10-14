@@ -210,18 +210,18 @@ def check_header(item, stored):
         raise ValueError('Conflicting archive header: ' + item['id'])
 
 
-def transfer(db, bundle, apply=False):
-    if bundle.get('version') != 1 or bundle.get('scope') != 'business_source_history_only':
+def transfer(db, bundle, apply=False, *, scope='business_source_history_only', books=None, validator=assert_business_scope):
+    if bundle.get('version') != 1 or bundle.get('scope') != scope:
         raise ValueError('Unsupported archive bundle')
     seen = set()
     for item in bundle['snapshots']:
-        if BOOKS.get(item['workbook_id']) != item['project_id']:
+        if (BOOKS if books is None else books).get(item['workbook_id']) != item['project_id']:
             raise ValueError('Archive project scope mismatch')
         key = (item['workbook_id'], item['sheet_id'])
         if key in seen:
             raise ValueError('Duplicate sheet in archive bundle')
         seen.add(key)
-        assert_business_scope(item, validate_pages(item, item['pages']))
+        validator(item, validate_pages(item, item['pages']))
     if apply:
         db.schema()
     counts = {'verified': 0, 'inserted_snapshots': 0, 'inserted_pages': 0}

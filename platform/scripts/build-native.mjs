@@ -12,6 +12,9 @@ for(const path of ['core/core.js','housevip-cxp7/core.js','core/instashop.js']){
  source=replaceOnce(source,isShop?'function gviz(sheet, ok, fail){':'function gvizFrom(spreadsheetId, sheetName, ok, fail, raw){',isShop?'function gviz(sheet, ok, fail){\n window.TOYS_PLATFORM.table(sheet).then(ok,fail);return;':'function gvizFrom(spreadsheetId, sheetName, ok, fail, raw){\n window.TOYS_PLATFORM.table(sheetName,raw).then(ok,fail);return;');
  if(path==='housevip-cxp7/core.js')source=source.replace('async function leadSheetValues(sheetName,columns){',"async function leadSheetValues(sheetName,columns){throw new Error('Доступ к персональным лидам на платформе ещё не подключён.');");
  if(!isShop)source=replaceFunction(source,'discoverChannelTabs',`function discoverChannelTabs(done){window.TOYS_PLATFORM.tabs().then(tabs=>{CHANNELS.forEach(ch=>{ch.tabs=C.platformExplicitTabs?tabs.filter(t=>t.channel===ch.key).map(t=>({tab:t.sourceTitle,label:t.label,raw:true,mode:t.mode,...(t.mode==='plan'?{kind:'plan'}:{})})):buildChannelTabs(tabs.map(t=>t.sourceTitle),ch.label);});done();}).catch(done);}`);
+ // A newly connected account may legitimately have no campaign rows. Keep its
+ // project/CRM navigation available so an empty period cannot block bootstrap.
+ if(!isShop)source=replaceOnce(source,"if(!rows.length){ show('emptyState'); return; }","if(!rows.length){ show(C.platformExplicitTabs && !DATA.length ? 'content' : 'emptyState'); return; }");
  source=source.replaceAll("'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'","window.TOYS_PLATFORM.asset('vendor/chart.umd.js')");
  source=source.replaceAll("const AGENCY_LOGO_URL = '../assets/toys-logo.svg';","const AGENCY_LOGO_URL = window.TOYS_PLATFORM.asset('assets/toys-logo.svg');");
  if(isShop)source=source.replace('src="../assets/toys-logo.svg"','src="${window.TOYS_PLATFORM.asset(\'assets/toys-logo.svg\')}"');

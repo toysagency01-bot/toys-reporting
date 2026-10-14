@@ -39,12 +39,14 @@
   "taycher-5pxk": {
     "title": "Taycher",
     "channels": [
+      "smm",
       "meta"
     ],
     "conversionLabel": "Лиды",
     "conversionShortLabel": "Лиды",
     "explicitTabs": true,
-    "defaultLastDays": 7
+    "defaultLastDays": 7,
+    "periodTimezone": "Europe/Prague"
   },
   "europisol-tckt": {
     "title": "Europisol",
@@ -54,7 +56,8 @@
     "conversionLabel": "Лиды",
     "conversionShortLabel": "Лиды",
     "explicitTabs": true,
-    "defaultLastDays": 7
+    "defaultLastDays": 7,
+    "periodTimezone": "Europe/Madrid"
   },
   "monorey-acdk": {
     "title": "Monorey",
@@ -64,7 +67,8 @@
     "conversionLabel": "Лиды",
     "conversionShortLabel": "Лиды",
     "explicitTabs": true,
-    "defaultLastDays": 7
+    "defaultLastDays": 7,
+    "periodTimezone": "America/Los_Angeles"
   },
   "murmur-up8m": {
     "title": "MurMur",
@@ -74,7 +78,8 @@
     "conversionLabel": "Лиды",
     "conversionShortLabel": "Лиды",
     "explicitTabs": true,
-    "defaultLastDays": 7
+    "defaultLastDays": 7,
+    "periodTimezone": "Europe/Prague"
   },
   "visa-agency-qa3b": {
     "title": "VISA Agency",
@@ -84,7 +89,8 @@
     "conversionLabel": "Лиды",
     "conversionShortLabel": "Лиды",
     "explicitTabs": true,
-    "defaultLastDays": 7
+    "defaultLastDays": 7,
+    "periodTimezone": "Europe/Warsaw"
   },
   "wedoprofi-p8x4": {
     "title": "Wedoprofi",
@@ -94,7 +100,8 @@
     "conversionLabel": "Лиды",
     "conversionShortLabel": "Лиды",
     "explicitTabs": true,
-    "defaultLastDays": 7
+    "defaultLastDays": 7,
+    "periodTimezone": "Europe/London"
   },
   "amklinika-k8m2": {
     "title": "AM Klinika",
@@ -105,6 +112,7 @@
     "conversionLabel": "Лиды",
     "conversionShortLabel": "Лиды",
     "explicitTabs": true,
-    "defaultLastDays": 7
+    "defaultLastDays": 7,
+    "periodTimezone": "Europe/Prague"
   }
 }

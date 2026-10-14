@@ -1,5 +1,5 @@
 import {escapeHtml as h} from '../unified/model.js';
-export const sourceLabel=source=>({meta_lead_ads:'Meta Lead Ads',website:'Сайт',manual:'Вручную',legacy_meta_sheet:'Meta',instagram:'Instagram Direct',whatsapp:'WhatsApp Business'})[source]||source;
+export const sourceLabel=source=>({meta_lead_ads:'Meta Lead Ads',website:'Сайт',manual:'Вручную',legacy_meta_sheet:'Meta',legacy_project_sheet:'Перенесённый лид',instagram:'Instagram Direct',whatsapp:'WhatsApp Business'})[source]||source;
 const date=s=>s?new Date(s).toLocaleDateString('ru-RU',{day:'numeric',month:'short',timeZone:'Asia/Tbilisi'}):'';
 export function mountKanban({root,onOpen,onMove,onMore,onDelete,canEdit=true}){
  const board=root.getElementById('leadsBoard');let dragging=null;
