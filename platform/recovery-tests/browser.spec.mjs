@@ -535,3 +535,12 @@ test('CRM writes invalidate saved statistics before returning home and reloading
  await page.reload();await expect(page.locator('#kClicks')).toHaveText('88');expect(stats.calls).toBe(2);
  await page.reload();await expect(page.locator('#kClicks')).toHaveText('88');expect(stats.calls).toBe(2);
 });
+test('master direct Meta setup validates before connecting and displays conflicts without claiming delivery',async({page})=>{
+ await page.route('**/api/v2/master',async route=>{const response=await route.fetch(),data=await response.json();data.pages=[{id:'123456',name:'Synthetic Meta page',projectId:'prj_housevip_cxp7'}];await route.fulfill({json:data});});
+ const requests=[];let fail=false;
+ await page.route('**/crm/connections/direct-meta',async route=>{const body=route.request().postDataJSON();requests.push(body);expect(body.pageId).toBe('123456');expect(body.appId).toBe('654321');await route.fulfill({status:fail?409:200,json:fail?{ok:false,error:'app_callback_conflict'}:{ok:true,leadReadAccess:true,callbackReady:body.action==='connect',pageReady:body.action==='connect',state:'awaiting_lead'}});});
+ await page.goto('/master/#crm');await page.locator('#connections').click();await expect(page.locator('#directMetaConnection')).toContainText('Доставка реального лида пока не подтверждена');expect(requests).toHaveLength(0);
+ await page.locator('#directMetaForm [name=pageId]').selectOption('123456');await page.locator('#directMetaForm [name=appId]').fill('654321');await page.getByRole('button',{name:'Проверить доступ',exact:true}).click();await expect(page.locator('#directMetaStatus')).toContainText('Доступ к лидам подтверждён');expect(requests[0].action).toBe('check');
+ fail=true;await page.getByRole('button',{name:'Подключить напрямую',exact:true}).click();await expect(page.locator('#directMetaStatus')).toContainText('уже настроен другой адрес');await expect(page.locator('#directMetaStatus')).not.toContainText('подтвердила подключение');
+ fail=false;await page.getByRole('button',{name:'Подключить напрямую',exact:true}).click();await expect(page.locator('#directMetaStatus')).toContainText('Ожидаем первую заявку');expect(requests).toHaveLength(3);
+});

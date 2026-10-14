@@ -26,9 +26,26 @@ export async function ingest(env,p,data,provider,sourceId){
  if(a){const known=await env.TOYS_DB.prepare("SELECT id FROM integrations WHERE project_id=? AND provider=? AND external_account_id=? AND status='active'").bind(p.id,a.provider,a.accountId).first();if(!known)a=null;}
  const created=provider==='meta_lead_ads'&&data.createdAt&&Number.isFinite(Date.parse(data.createdAt))?new Date(data.createdAt).toISOString():n;
  const metadata={crm:true,sourceAdId:text(data.sourceAdId,100),adAttribution:a,formId:text(data.formId,100),pageId:text(data.pageId,100),leadgenId:provider==='meta_lead_ads'?sourceId:null,utm:{source:text(data.utm?.source,200),medium:text(data.utm?.medium,200),campaign:text(data.utm?.campaign,200),content:text(data.utm?.content,200)},fbp:text(data.fbp,200),fbc:text(data.fbc,500),eventSourceUrl:text(data.eventSourceUrl,1500),description:text(data.description,2000)};
+ if(Array.isArray(data.formAnswers))metadata.formAnswers=data.formAnswers.slice(0,50).map(f=>({name:text(f.name,200),values:(Array.isArray(f.values)?f.values:[]).slice(0,10).map(v=>text(v,1000))}));
+ if(data.budget)metadata.budget=text(data.budget,500);if(data.contactMethod)metadata.contactMethod=text(data.contactMethod,200);
+ if(provider==='meta_lead_ads'&&/^\d{1,30}$/.test(sourceId)){
+  // Match only an exact Meta identity carried by a historical import. Never
+  // merge contacts by phone/name or resurrect a deleted historical card.
+  const legacy=(await env.TOYS_DB.prepare("SELECT id,current_status AS status,deleted_at AS deletedAt FROM leads WHERE project_id=? AND source_provider IN ('legacy_meta_sheet','legacy_project_sheet') AND (external_lead_id=? OR json_extract(metadata_json,'$.leadgenId')=?) LIMIT 2").bind(p.id,sourceId,sourceId).all()).results||[];
+  if(legacy.length>1)fail('ambiguous_lead_identity',409);
+  if(legacy.length===1){
+   const lead=legacy[0];if(lead.deletedAt)return lead;
+   const enrichment={leadgenId:sourceId,...(metadata.pageId?{pageId:metadata.pageId}:{}),...(metadata.formId?{formId:metadata.formId}:{}),...(a?{adAttribution:a,sourceAdId:a.adId}:{}),...(metadata.formAnswers?{formAnswers:metadata.formAnswers}:{})};
+   await env.TOYS_DB.batch([
+    env.TOYS_DB.prepare('UPDATE leads SET metadata_json=json_patch(metadata_json,?),updated_at=? WHERE id=? AND project_id=? AND deleted_at IS NULL').bind(JSON.stringify(enrichment),n,lead.id,p.id),
+    env.TOYS_DB.prepare('INSERT INTO crm_lead_state(lead_id,updated_at) VALUES(?,?) ON CONFLICT(lead_id) DO NOTHING').bind(lead.id,n)
+   ]);return lead;
+  }
+ }
  // Immutable source identity deduplicates provider retries, without merging unrelated contacts.
+ const enrichment=provider==='meta_lead_ads'?{...(a?{adAttribution:a,sourceAdId:a.adId}:{}),...(metadata.pageId?{pageId:metadata.pageId}:{}),...(metadata.formId?{formId:metadata.formId}:{}),...(metadata.formAnswers?{formAnswers:metadata.formAnswers}:{})}:{};
  await env.TOYS_DB.batch([
- env.TOYS_DB.prepare(`INSERT INTO leads(id,project_id,source_provider,external_lead_id,campaign_external_id,created_at,name,phone,email,current_status,metadata_json,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'Новый',?,?) ON CONFLICT(project_id,source_provider,external_lead_id) DO NOTHING`).bind(id,p.id,provider,sourceId,a?.campaignId||null,created,name,phone,email,JSON.stringify(metadata),n),
+ env.TOYS_DB.prepare(`INSERT INTO leads(id,project_id,source_provider,external_lead_id,campaign_external_id,created_at,name,phone,email,current_status,metadata_json,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'Новый',?,?) ON CONFLICT(project_id,source_provider,external_lead_id) DO UPDATE SET metadata_json=json_patch(leads.metadata_json,?),campaign_external_id=COALESCE(excluded.campaign_external_id,leads.campaign_external_id) WHERE leads.deleted_at IS NULL AND ?!='{}'`).bind(id,p.id,provider,sourceId,a?.campaignId||null,created,name,phone,email,JSON.stringify(metadata),n,JSON.stringify(enrichment),JSON.stringify(enrichment)),
  env.TOYS_DB.prepare("INSERT INTO crm_lead_state(lead_id,updated_at) SELECT id,? FROM leads WHERE project_id=? AND source_provider=? AND external_lead_id=? ON CONFLICT(lead_id) DO NOTHING").bind(n,p.id,provider,sourceId)
  ]);
  return env.TOYS_DB.prepare('SELECT id,current_status AS status,deleted_at AS deletedAt FROM leads WHERE project_id=? AND source_provider=? AND external_lead_id=?').bind(p.id,provider,sourceId).first();

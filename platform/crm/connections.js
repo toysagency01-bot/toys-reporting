@@ -1,6 +1,7 @@
 import {authorizeMvp} from '../runtime/backend.js';
 import {crypt,hash,reply,readJSON,project,enable} from './service.js';
 import {graph,drain} from './delivery.js';
+import {connectDirectMeta} from './direct-meta.js';
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
 const base='https://reports.toys-agency.com/api/crm/ingest/';
 export async function connections(request,env,ctx){
@@ -10,14 +11,16 @@ export async function connections(request,env,ctx){
  const p=await project(env,m[1]);if(!p)fail('not_found',404);const path=m[2]||'';
  if(request.method==='GET'){
  const cfg=await env.TOYS_DB.prepare('SELECT enabled_at,timezone,dataset_id,capi_enabled,website_key_hash FROM crm_projects WHERE project_id=?').bind(p.id).first();
- const pages=(await env.TOYS_DB.prepare('SELECT page_id AS id,name,subscribed FROM crm_pages WHERE project_id=?').bind(p.id).all()).results||[];
+ const pages=(await env.TOYS_DB.prepare('SELECT page_id AS id,name,app_id AS appId,subscribed FROM crm_pages WHERE project_id=?').bind(p.id).all()).results||[];
  const agent=await env.TOYS_DB.prepare("SELECT id FROM crm_agent_credentials WHERE id='toys-media-buyer'").first();
  const accounts=(await env.TOYS_DB.prepare("SELECT a.pixels_json FROM crm_agent_accounts a JOIN integrations i ON i.external_account_id=a.account_id WHERE i.project_id=? AND i.provider='meta_ads'").bind(p.id).all()).results||[];
  const queue=(await env.TOYS_DB.prepare('SELECT kind,state,last_error AS error,COUNT(*) AS count FROM crm_delivery WHERE project_id=? GROUP BY kind,state,last_error').bind(p.id).all()).results||[];
- return reply({ok:true,agentAvailable:!!agent,datasets:accounts.flatMap(a=>JSON.parse(a.pixels_json)),enabled:Boolean(cfg),timezone:cfg?.timezone||p.timezone,datasetId:cfg?.dataset_id,capiEnabled:!!cfg?.capi_enabled,websiteConfigured:!!cfg?.website_key_hash,websiteEndpoint:base+p.slug+'/website',metaLeadEndpoint:base+p.slug+'/meta-lead',metaEndpoint:'https://reports.toys-agency.com/api/crm/meta',verifyToken:env.CRM_VERIFY_TOKEN||null,pages,queue});
+ const lastLead=await env.TOYS_DB.prepare("SELECT MAX(sent_at) AS deliveredAt FROM crm_delivery WHERE project_id=? AND kind='meta_lead' AND state='sent'").bind(p.id).first();
+ return reply({ok:true,directMeta:{appSecretConfigured:!!env.META_APP_SECRET,verifyConfigured:!!env.CRM_VERIFY_TOKEN,lastDeliveredAt:lastLead?.deliveredAt||null},agentAvailable:!!agent,datasets:accounts.flatMap(a=>JSON.parse(a.pixels_json)),enabled:Boolean(cfg),timezone:cfg?.timezone||p.timezone,datasetId:cfg?.dataset_id,capiEnabled:!!cfg?.capi_enabled,websiteConfigured:!!cfg?.website_key_hash,websiteEndpoint:base+p.slug+'/website',metaLeadEndpoint:base+p.slug+'/meta-lead',metaEndpoint:'https://reports.toys-agency.com/api/crm/meta',verifyToken:env.CRM_VERIFY_TOKEN||null,pages,queue});
  }
  const origin=request.headers.get('origin');if(origin&&origin!==url.origin&&origin!=='https://reports.toys-agency.com')fail('origin_forbidden',403);
  if(request.method!=='POST'||!request.headers.get('x-idempotency-key'))fail('invalid_request');await enable(env,p);const body=await readJSON(request);
+ if(path==='direct-meta'){const result=await connectDirectMeta(env,p,body);if(body.action!=='check')ctx?.waitUntil(drain(env));return reply(result);}
  if(path==='channel'){
  if(!['instagram','whatsapp'].includes(body.provider)||!/^\d+$/.test(body.id||''))fail('invalid_channel');
  const channel=await env.TOYS_DB.prepare('SELECT project_id FROM crm_channels WHERE provider=? AND external_id=?').bind(body.provider,body.id).first();if(!channel)fail('channel_not_discovered',404);if(channel.project_id&&channel.project_id!==p.id)fail('channel_already_linked',409);
