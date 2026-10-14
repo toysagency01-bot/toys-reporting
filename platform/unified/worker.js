@@ -1,4 +1,5 @@
 import {cleanAuthRecords} from '../portal/password-auth.js';
+import {dashboardCacheScope} from '../portal/cache-scope.js';
 import projectRegistry from '../projects.json' with {type:'json'};
 import {refreshUsdUah} from '../imports/fx.js';
 import {isReportRefreshSlot} from '../imports/refresh-policy.js';
@@ -30,7 +31,7 @@ function bundledShell(slug){
  const paths=shop?['core/instashop-model.js','core/instashop.js','core/ux-v2-instashop.js','core/theme.js']:[`${base}/core.js`,`${base}/ux-v2.js`,'core/theme.js'];
  return `window.TOYS_BUNDLED_SCRIPTS={${paths.map(p=>JSON.stringify(p)+':function(){'+nativeAssets[p].body+'\n}').join(',')}};window.TOYS_BUNDLED_STYLES=${JSON.stringify(Object.fromEntries([`${base}/ux-v2.css`,'platform-tools.css'].map(p=>[p,nativeAssets[p].body])))};`;
 }
-const html = (slug,privateMode=true,assetBase=null,role=null) => new Response(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title><style>${nativeAssets['platform-fonts.css'].body}</style><style>#loading{display:none!important}body[data-platform-loading] #content{display:block!important}body[data-platform-loading] .value{color:transparent!important;background:var(--panel-2);border-radius:8px;min-height:28px}body[data-platform-loading] #controls,body[data-platform-loading] .controls{pointer-events:none;opacity:.6}</style></head><body data-platform-loading="true"><script>window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_FAVICON=${JSON.stringify('data:image/svg+xml,'+encodeURIComponent(nativeAssets['assets/favicon.svg'].body))};window.TOYS_MVP_PROJECT_PORTAL=${privateMode};window.TOYS_ACCESS_ROLE=${JSON.stringify(role)};window.TOYS_UI_ASSET_BASE=${JSON.stringify(assetBase)};${(bundledShell(slug)+nativeBoot).replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
+const html = (slug,privateMode=true,assetBase=null,role=null,cacheScope=null) => new Response(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title><style>${nativeAssets['platform-fonts.css'].body}</style><style>#loading{display:none!important}body[data-platform-loading] #content{display:block!important}body[data-platform-loading] .value{color:transparent!important;background:var(--panel-2);border-radius:8px;min-height:28px}body[data-platform-loading] #controls,body[data-platform-loading] .controls{pointer-events:none;opacity:.6}</style></head><body data-platform-loading="true"><script>window.TOYS_CACHE_SCOPE=${JSON.stringify(cacheScope)};window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_FAVICON=${JSON.stringify('data:image/svg+xml,'+encodeURIComponent(nativeAssets['assets/favicon.svg'].body))};window.TOYS_MVP_PROJECT_PORTAL=${privateMode};window.TOYS_ACCESS_ROLE=${JSON.stringify(role)};window.TOYS_UI_ASSET_BASE=${JSON.stringify(assetBase)};${(bundledShell(slug)+nativeBoot).replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
 
 export default {
   async fetch(request, env, ctx) {
@@ -44,9 +45,9 @@ export default {
       if(clientCRM&&!project)return new Response('Not found',{status:404});
       const context=project?{project:{id:project.id,slug:project.slug,name:project.name,currency:project.currency},canEdit:true}:null;
       if(clientCRM&&url.searchParams.get('format')==='json')return Response.json({ok:true,context},{headers:{'cache-control':'no-store'}});
-      if(clientCRM&&projects.has(clientCRM[1]))return html(clientCRM[1],true,null,auth.role);
+      if(clientCRM&&projects.has(clientCRM[1]))return html(clientCRM[1],true,null,auth.role,dashboardCacheScope(request,auth));
       const coreStyle=nativeAssets['core/core.js'].body.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';
-      const doc=masterDocument.replace('</head>',`<style>${nativeAssets['platform-fonts.css'].body}${coreStyle}${nativeAssets['platform-tools.css'].body}${masterStyle}</style></head>`).replace('</body>',`<script>window.TOYS_CLIENT_CRM=${JSON.stringify(context).replace(/</g,'\\u003c')};${masterClient.replace(/<\/script/gi,'<\\/script')}</script></body>`);
+      const doc=masterDocument.replace('</head>',`<style>${nativeAssets['platform-fonts.css'].body}${coreStyle}${nativeAssets['platform-tools.css'].body}${masterStyle}</style></head>`).replace('</body>',`<script>window.TOYS_CACHE_SCOPE=${JSON.stringify(dashboardCacheScope(request,auth))};window.TOYS_CLIENT_CRM=${JSON.stringify(context).replace(/</g,'\\u003c')};${masterClient.replace(/<\/script/gi,'<\\/script')}</script></body>`);
       return new Response(doc,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'same-origin'}});
     }
     const bridged=await agentBridge(request,env);if(bridged)return bridged;
@@ -101,7 +102,7 @@ export default {
       const resource=url.searchParams.get('ui');
       if(resource!==null){const a=nativeAssets[resource];if(!Object.hasOwn(nativeAssets,resource))return new Response('Not found',{status:404});return new Response(a.body,{headers:{'content-type':a.type,'cache-control':'no-store','x-content-type-options':'nosniff'}});}
       const member=await authorizeMvp(request,env,slug,'viewer');
-      return html(slug,member.ok,'?ui=',member.role);
+      return html(slug,member.ok,'?ui=',member.role,dashboardCacheScope(request,member.ok?member:publicAuth));
     }
     const portal=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/content-(project|editor)$/);
     if(portal && projects.has(portal[1]) && request.method==='GET') {
@@ -113,7 +114,7 @@ export default {
         const asset=nativeAssets[resource];
         return new Response(asset.body,{headers:{'content-type':asset.type,'cache-control':'no-store','x-content-type-options':'nosniff'}});
       }
-      return html(portal[1],true,null,auth.role);
+      return html(portal[1],true,null,auth.role,dashboardCacheScope(request,auth));
     }
     const response=await backend.fetch(request,env,ctx);
     if(request.method==='GET' && response.ok && /^\/api\/v2\/projects\/[^/]+\/content-project\/ads\/hierarchy$/.test(url.pathname)) {

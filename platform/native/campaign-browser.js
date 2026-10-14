@@ -1,5 +1,5 @@
 import {escapeHtml as h,validRange} from '../unified/model.js';
-import {memoryCache} from '../master/cache.js';
+import {responseCache} from './response-cache.js';
 import {openCreative} from './creative-viewer.js';
 import styles from './campaign-browser.css';
 
@@ -18,7 +18,7 @@ export function mountCampaignBrowser({slug,context}){
  host.style.setProperty('--campaign-columns',columns.length);
  host.innerHTML=`<div class="campaign-toolbar"><nav class="campaign-breadcrumbs" aria-label="Уровни рекламной кампании"></nav><div class="campaign-filters"><label class="campaign-search"><span class="sr-only">Поиск кампаний, групп и объявлений</span><input type="search" placeholder="Кампания, группа или объявление" maxlength="120"></label><label><span class="sr-only">Сортировка</span><select aria-label="Сортировка кампаний"><option value="spend">По расходу</option><option value="impressions">По показам</option><option value="conversions">По результатам</option><option value="name">По названию</option></select></label></div></div><p class="campaign-source-note"></p><div class="campaign-level-summary"></div><div class="campaign-list" aria-live="polite"></div><p class="campaign-method">Показатели каждого уровня считаются отдельно. Суммы — в валюте рекламного кабинета. «Результаты» — конверсии источника; они не всегда означают продажи.</p>`;
  const list=host.querySelector('.campaign-list'),crumbs=host.querySelector('.campaign-breadcrumbs'),note=host.querySelector('.campaign-source-note'),summary=host.querySelector('.campaign-level-summary');
- const cache=memoryCache({ttl:20*60000,maxEntries:80}),pages=new Map(),nodes=new Map(),expanded=new Set(),loading=new Set(),errors=new Map();
+ const cache=responseCache({prefix:`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser`}),pages=new Map(),nodes=new Map(),expanded=new Set(),loading=new Set(),errors=new Map();
  const mobile=matchMedia('(max-width:760px)');
  let scope='',current,query='',sort='spend',path=[],generation=0,controller=new AbortController(),searchTimer,retryTimer,retries=0;
  const visible=()=>section.classList.contains('active')&&!document.body.classList.contains('platform-show-crm');
@@ -32,7 +32,8 @@ export function mountCampaignBrowser({slug,context}){
   const seq=generation;loading.add(parent);errors.delete(parent);render();
   try{
    const address=url(parent,offset),signal=controller.signal;
-   const data=await cache.get(address,async()=>{const response=await fetch(address,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.any([signal,AbortSignal.timeout(30000)])});const d=await response.json();if(!response.ok||!d.ok)throw new Error(response.status===401||response.status===403?'access_denied':'unavailable');return d;});
+   const saved=await cache.load(address);if(seq!==generation)return;if(saved&&!saved.fresh&&!more){for(const row of saved.value.rows)nodes.set(row.key,row);pages.set(parent,saved.value);render();}
+   const data=await cache.get(address,async()=>{const response=await fetch(address,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.any([signal,AbortSignal.timeout(30000)])});const d=await response.json();if(!response.ok||!d.ok)throw Object.assign(new Error(response.status===401||response.status===403?'access_denied':'unavailable'),{status:response.status});return d;});
    if(seq!==generation)return;
    for(const row of data.rows)nodes.set(row.key,row);
    pages.set(parent,{...data,rows:more?[...pages.get(parent).rows,...data.rows]:data.rows});

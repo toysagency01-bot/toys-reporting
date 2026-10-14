@@ -1,4 +1,5 @@
 import {escapeHtml as h} from '../unified/model.js';
+import {responseCache} from '../native/response-cache.js';
 
 const labels={critical:'Срочно',attention:'Обратить внимание',healthy:'Стабильно',insufficient:'Мало данных'};
 const confidence={high:'высокая',medium:'средняя',low:'низкая'};
@@ -35,6 +36,7 @@ function projectCard(report,filterProvider){
  <a class="secondary" href="/${encodeURIComponent(report.project.slug)}/#campaigns">Открыть проект →</a></div></details></article>`;
 }
 export function mountDailyReview({host,json,isVisible=()=>true}){
+ const savedReviews=responseCache({prefix:'/api/v2/master/daily-review',ttl:120000});
  const section=document.createElement('section');section.id='dailyReview';section.className='daily-review';section.setAttribute('aria-label','Утренний обзор проектов');host.prepend(section);
  section.innerHTML=`<div class="review-heading"><div><span class="review-eyebrow">TOYS Media-Buyer</span><h2>Утренний обзор</h2><p class="note">Каждый день в 09:30 · Тбилиси</p></div><label class="review-history">История обзоров<select aria-label="Дата утреннего обзора"><option value="">Последний обзор</option></select></label></div><p class="review-status" role="status">Загружаем сохранённый обзор…</p><div class="review-filters" aria-label="Срочность рекомендаций"></div><div class="review-projects"></div><p class="review-footer note">Рекомендации по правилам TOYS Media-Buyer. Настройки рекламы меняет команда после проверки.</p>`;
  const status=section.querySelector('.review-status'),list=section.querySelector('.review-projects'),filters=section.querySelector('.review-filters'),history=section.querySelector('select');
@@ -53,7 +55,10 @@ export function mountDailyReview({host,json,isVisible=()=>true}){
  async function load(force=false){
   if(pending||!force&&Date.now()-lastLoad<120000)return;pending=true;const current=++seq,requested=date;
   try{
-   const next=await json('/api/v2/master/daily-review'+(requested?'?date='+encodeURIComponent(requested):''));if(current!==seq)return;
+   const address='/api/v2/master/daily-review'+(requested?'?date='+encodeURIComponent(requested):''),saved=await savedReviews.load(address);
+   if(current!==seq)return;
+   if(saved&&(!data||data.reportDate!==saved.value.reportDate)){data=saved.value;render();}
+   const next=await savedReviews.get(address,()=>json(address),{force:lastError});if(current!==seq)return;
    data=next;lastLoad=Date.now();const key=JSON.stringify([requested,next.reportDate,next.history,next.counts,next.currentRun]);if(key!==signature||lastError){signature=key;render();}lastError=false;
   }catch(e){if(current===seq){lastError=true;lastLoad=0;if([401,403].includes(e.status)){data=null;list.replaceChildren();filters.replaceChildren();}status.textContent='Не удалось загрузить обзор. Повторим автоматически.'+(data?.reportDate?' Показан сохранённый обзор от '+day(data.reportDate)+'.':'');}}
   finally{if(current===seq)pending=false;}

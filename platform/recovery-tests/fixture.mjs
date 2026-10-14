@@ -4,8 +4,8 @@ import {build} from 'esbuild';
 import {buildImportSql} from '../scripts/build-housevip-mvp-import.mjs';
 
 export async function testWorker(){
-  await build({entryPoints:['unified/worker.js'],outfile:'dist/test-worker.mjs',bundle:true,platform:'node',format:'esm',loader:{'.html':'text','.css':'text','.txt':'text'},plugins:[{name:'test-cloudflare-entrypoint',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'cloudflare:workers',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export class WorkerEntrypoint { constructor(ctx,env){ this.ctx=ctx;this.env=env; } }'}));}}]});
-  return (await import('../dist/test-worker.mjs')).default;
+  await build({entryPoints:['unified/worker.js'],outfile:`dist/test-worker-${process.pid}.mjs`,bundle:true,platform:'node',format:'esm',loader:{'.html':'text','.css':'text','.txt':'text'},plugins:[{name:'test-cloudflare-entrypoint',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'cloudflare:workers',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export class WorkerEntrypoint { constructor(ctx,env){ this.ctx=ctx;this.env=env; } }'}));}}]});
+  return (await import(`../dist/test-worker-${process.pid}.mjs`)).default;
 }
 export function fixture(){
   const db=new DatabaseSync(':memory:');db.exec(readFileSync(new URL('../recovered/schema.sql',import.meta.url),'utf8'));db.exec(readFileSync(new URL('../migrations/0012_native_crm.sql',import.meta.url),'utf8'));db.exec(readFileSync(new URL('../migrations/0013_crm_messages.sql',import.meta.url),'utf8'));db.exec(readFileSync(new URL('../migrations/0014_google_compact_pages.sql',import.meta.url),'utf8'));

@@ -20,7 +20,7 @@ async function json(url, options = {}) {
   if (!response.ok || !(body?.ok || body?.status==='ok' && body?.table)) {const error = new Error(body?.error || (response.redirected || /text\/html/.test(response.headers.get('content-type') || '') ? 'Требуется повторный вход' : `HTTP ${response.status}`));error.status=response.redirected ? 401 : response.status;throw error;}
   return body;
 }
-const write = (path, body, key = crypto.randomUUID(), method = 'POST') => json(api + path, {method, headers:{'x-idempotency-key':key},body:JSON.stringify(body)});
+const write = async (path, body, key = crypto.randomUUID(), method = 'POST') => {const result=await json(api + path, {method, headers:{'x-idempotency-key':key},body:JSON.stringify(body)});window.TOYS_PLATFORM?.invalidate?.();return result;};
 function today() {const timezone = state.dashboard?.project?.sourceTimezone || state.dashboard?.project?.reportingTimezone || 'UTC';try{return new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());}catch{return new Date().toISOString().slice(0,10);}}
 function requestedRange() {return {from:$('dateFrom').value,to:$('dateTo').value};}
 function updatePresets(days) { document.querySelectorAll('[data-days]').forEach(b => b.classList.toggle('active',Number(b.dataset.days) === days)); }

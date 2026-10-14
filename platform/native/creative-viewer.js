@@ -1,11 +1,13 @@
 import {escapeHtml as h} from '../unified/model.js';
+import {responseCache} from './response-cache.js';
+const detailsCache=responseCache({ttl:5*60000});
 const cache=new Map(),pending=new Map();
 const link=value=>{try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u.href:null;}catch{return null;}};
 const ctaLabels={SHOP_NOW:'Купить',LEARN_MORE:'Подробнее',SIGN_UP:'Зарегистрироваться',CONTACT_US:'Связаться',SEND_MESSAGE:'Написать',WHATSAPP_MESSAGE:'Написать в WhatsApp',BOOK_TRAVEL:'Забронировать',GET_QUOTE:'Получить предложение',DOWNLOAD:'Скачать',APPLY_NOW:'Оставить заявку',ORDER_NOW:'Заказать',SUBSCRIBE:'Подписаться'};
 async function details(url){
  const cached=cache.get(url);if(cached&&Date.now()-cached.at<300000)return cached.value;
  if(pending.has(url))return pending.get(url);
- const promise=(async()=>{const response=await fetch(url,{headers:{accept:'application/json'},signal:AbortSignal.timeout(16000)});const data=await response.json();if(!response.ok||!data.ok)throw new Error('creative_unavailable');cache.set(url,{value:data.creative,at:Date.now()});while(cache.size>40)cache.delete(cache.keys().next().value);return data.creative;})();
+ const promise=(async()=>{const data=await detailsCache.get(url,async()=>{const response=await fetch(url,{headers:{accept:'application/json'},signal:AbortSignal.timeout(16000)});const value=await response.json();if(!response.ok||!value.ok)throw Object.assign(new Error('creative_unavailable'),{status:response.status});return value;});cache.set(url,{value:data.creative,at:Date.now()});while(cache.size>40)cache.delete(cache.keys().next().value);return data.creative;})();
  pending.set(url,promise);try{return await promise;}finally{pending.delete(url);}
 }
 const detailURL=(row,slug,range,endpoint='top-creatives')=>`/api/v2/projects/${encodeURIComponent(slug)}/${endpoint==='campaign-browser'?'campaign-browser/'+row.detailsKey+'/creative':'top-creatives/'+row.detailsKey}?${new URLSearchParams(range)}`;
@@ -87,7 +89,7 @@ export function openCreative({row,slug,range,trigger,endpoint='top-creatives'}){
     target.innerHTML=!item?`<p class="creative-detail-note">${provider} не предоставила медиафайл.</p>`:item.kind==='video'?`<video controls playsinline preload="metadata" ${link(item.poster)?`poster="${h(item.poster)}"`:''} src="${h(item.url)}" aria-label="${h(row.name)}"></video>`:`<img src="${h(item.url)}" alt="${h(item.title||row.name)}" decoding="async" referrerpolicy="no-referrer">`;
     original.innerHTML=item?`${item.kind==='preview'?`<p class="creative-detail-note">Доступно только превью. ${d.hasVideo?'Meta не предоставила исходное видео.':'Meta не предоставила изображение высокого разрешения.'}</p>`:`<a href="${h(item.url)}" target="_blank" rel="noopener noreferrer">Открыть ${item.kind==='video'?'видео':'изображение'} отдельно</a>`}`:'';
     const position=body.querySelector('.creative-media-navigation span');if(position)position.textContent=`${index+1} / ${media.length}`;
-    const element=target.querySelector('img,video');if(element)element.addEventListener('error',()=>{const note=document.createElement('p');note.className='creative-detail-note';note.textContent=`Не удалось загрузить медиафайл из ${provider}. Попробуйте открыть его отдельно или повторить загрузку.`;target.replaceChildren(note);const retry=document.createElement('button');retry.type='button';retry.className='creative-retry';retry.textContent='Повторить загрузку';retry.onclick=()=>{cache.delete(url);load();};target.append(retry);},{once:true});
+    const element=target.querySelector('img,video');if(element)element.addEventListener('error',()=>{const note=document.createElement('p');note.className='creative-detail-note';note.textContent=`Не удалось загрузить медиафайл из ${provider}. Попробуйте открыть его отдельно или повторить загрузку.`;target.replaceChildren(note);const retry=document.createElement('button');retry.type='button';retry.className='creative-retry';retry.textContent='Повторить загрузку';retry.onclick=()=>{cache.delete(url);detailsCache.delete(url);load();};target.append(retry);},{once:true});
    };
    body.querySelectorAll('[data-direction]').forEach(b=>b.onclick=()=>{index=(index+Number(b.dataset.direction)+media.length)%media.length;show();});show();
    const preview=media.find(m=>m.kind==='image')?.url||media.find(m=>m.kind==='video')?.poster;

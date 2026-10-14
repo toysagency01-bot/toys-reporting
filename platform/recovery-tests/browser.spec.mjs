@@ -26,7 +26,7 @@ test('native password invitation opens CRM, signs out and signs back in',async({
  await page.locator('[name=password]').fill('Test browser long password 123');await page.locator('[name=confirm]').fill('Test browser long password 123');
  await page.getByRole('button',{name:'Сохранить пароль и войти'}).click();await expect(page).toHaveURL(/\/housevip-cxp7\/(?:#overview)?$/);
  await page.locator('#platformCRMNav').click();await expect(page.locator('#platformClientCRM #newLead')).toBeVisible();
- await page.goto('/api/v2/portal/session?choose=1');await page.getByRole('link',{name:'Выйти из аккаунта'}).click();await expect(page).toHaveURL(/\/login$/);
+ await page.goto('/api/v2/portal/session?choose=1');await page.getByRole('link',{name:'Выйти из аккаунта'}).click();await expect(page).toHaveURL(/\/login$/);expect(await page.evaluate(()=>Object.keys(sessionStorage).filter(k=>k.startsWith('toys-dashboard-cache:')).length)).toBe(0);
  await page.locator('[name=email]').fill('password-browser@example.test');await page.locator('[name=password]').fill('Test browser long password 123');await page.getByRole('button',{name:'Войти',exact:true}).click();await expect(page).toHaveURL(/\/housevip-cxp7\/(?:#overview)?$/);
 });
 
@@ -347,7 +347,7 @@ test('chart instances survive updates, rendering is batched and unchanged creati
 });
 
 test('campaign hierarchy fetches and renders only opened levels, paginates ads and refreshes expanded rows',async({page})=>{
- await page.clock.install();const fixture=await mockCampaignBrowser(page);
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const fixture=await mockCampaignBrowser(page);
  await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');expect(fixture.calls.length).toBe(0);
  await page.locator('[data-ux-view="campaigns"]').click();await expect(page.locator('.campaign-entity')).toHaveCount(1);expect(fixture.calls.length).toBe(1);
  await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(2);expect(fixture.calls.length).toBe(2);
@@ -405,6 +405,7 @@ test('top creative opens full-size media and escaped copy lazily, supports carou
  await page.screenshot({path:'dist/creative-viewer-desktop.png'});await dialog.getByRole('button',{name:'Следующий файл'}).click();await expect(media).toHaveAttribute('src','https://scontent.xx.fbcdn.net/second.jpg');await expect(dialog.locator('.creative-media-navigation span')).toHaveText('2 / 2');
  await page.keyboard.press('Escape');await expect(dialog).toBeHidden();await expect(open).toBeFocused();await open.click();await expect(dialog.locator('.creative-copy').first()).toContainText('Полный текст');expect(calls).toBe(1);
  await page.setViewportSize({width:390,height:844});expect(await dialog.evaluate(d=>d.scrollWidth<=d.clientWidth+1)).toBe(true);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'dist/creative-viewer-mobile.png'});await dialog.getByRole('button',{name:'Закрыть креатив'}).click();expect(await page.evaluate(()=>document.body.style.overflow)).not.toBe('hidden');
+ await page.reload();await page.getByRole('button',{name:'Открыть креатив: Объявление с текстом'}).click();await expect(page.getByRole('dialog',{name:'Объявление с текстом'})).toContainText('Полный текст');expect(calls).toBe(1);
 });
 test('creative viewer recovers from Meta errors and releases video when closed without autoplay',async({page})=>{
  const key='b'.repeat(64);let calls=0;
@@ -480,4 +481,57 @@ test('morning review remains legible on mobile and keeps saved cards if history 
 test('client CRM does not mount or request agency morning reviews',async({page})=>{
  let requests=0;page.on('request',r=>{if(r.url().includes('/master/daily-review'))requests++;});
  await page.goto('/api/v2/projects/housevip-cxp7/content-crm');await expect(page.locator('#leadsBoard')).toBeVisible();await expect(page.locator('#dailyReview')).toHaveCount(0);expect(requests).toBe(0);
+});
+
+async function mockCachedStatistics(page){
+ const state={calls:0,clicks:77,gate:null};
+ await page.route('**/content-project/ads/hierarchy?*',async route=>{
+  state.calls++;if(state.gate)await state.gate;const url=new URL(route.request().url()),range={from:url.searchParams.get('from'),to:url.searchParams.get('to')},observed=value=>({value:String(value),state:'observed'});
+  await route.fulfill({json:{ok:true,providers:[{provider:'meta_ads',freshness:'fresh',requestedRange:range,hierarchy:{currency:'IDR',children:[{providerId:'cached',name:'Cached campaign',dailyMetrics:[{date:range.to,metrics:{impressions:observed(1000),clicks:observed(state.clicks),spend:observed(250),conversions:observed(4)}}],children:[]}]}}]}});
+ });
+ return state;
+}
+test('reload reuses snapshot, statistics, rankings and campaign pages without repeating data requests',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const stats=await mockCachedStatistics(page),campaigns=await mockCampaignBrowser(page),requests=[];
+ page.on('request',r=>{if(/\/(dashboard|top-creatives)(?:\?|$)/.test(r.url()))requests.push(r.url());});
+ await page.goto(portal);await expect(page.locator('#kClicks')).toHaveText('77');await expect(page.locator('.top-basis')).toBeVisible();
+ await page.locator('[data-ux-view=campaigns]').click();await expect(page.locator('#platformCampaignBrowser')).toContainText('Lazy campaign');
+ const before={stats:stats.calls,campaigns:campaigns.calls.length,requests:requests.length};
+ await page.reload();await expect(page.locator('#kClicks')).toHaveText('77');await expect(page.locator('#platformCampaignBrowser')).toContainText('Lazy campaign');
+ expect({stats:stats.calls,campaigns:campaigns.calls.length,requests:requests.length}).toEqual(before);
+ // Returning to a known period uses that period's cache; a new period gets its own request.
+ await page.locator('[data-ux-view=overview]').click();await page.locator('#periodSeg [data-days="1"]').click();await page.clock.fastForward(350);await expect.poll(()=>stats.calls).toBe(2);
+ await page.reload();await expect(page.locator('#kClicks')).toHaveText('77');expect(stats.calls).toBe(2);
+});
+test('expired statistics stay visible during background refresh after reload and then update',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const stats=await mockCachedStatistics(page);await page.goto(portal);await expect(page.locator('#kClicks')).toHaveText('77');
+ await page.evaluate(()=>{for(const key of Object.keys(sessionStorage))if(key.startsWith('toys-dashboard-cache:')){const value=JSON.parse(sessionStorage.getItem(key));value.expiresAt=Date.now()-1;sessionStorage.setItem(key,JSON.stringify(value));}});
+ let release;stats.gate=new Promise(resolve=>release=resolve);stats.clicks=88;
+ await page.reload({waitUntil:'domcontentloaded'});await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.locator('#kClicks')).toHaveText('77');await expect(page.locator('#platformNotice')).toContainText('в фоне');
+ release();await expect(page.locator('#kClicks')).toHaveText('88');expect(stats.calls).toBe(2);
+});
+test('master reload reuses project summaries and the saved morning review',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const daily=await mockDailyReview(page);let summaryCalls=0;
+ page.on('request',r=>{if(r.url().includes('/master/projects/')&&r.url().includes('/summary?'))summaryCalls++;});
+ await page.goto('/master/');await expect(page.locator('#dailyReview .review-project')).toHaveCount(4);await expect(page.locator('#updated')).toContainText('Обновлено');const before=summaryCalls;
+ await page.reload();await expect(page.locator('#dailyReview .review-project')).toHaveCount(4);await expect(page.locator('#updated')).toContainText('Обновлено');expect(summaryCalls).toBe(before);expect(daily.calls.length).toBe(1);
+});
+test('changing account role cannot reuse the previous private dashboard cache',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const stats=await mockCachedStatistics(page);await page.goto(portal);await expect(page.locator('#kClicks')).toHaveText('77');const previous=await page.evaluate(()=>window.TOYS_CACHE_SCOPE);
+ await page.setExtraHTTPHeaders({'x-test-viewer':'true'});stats.clicks=33;await page.reload();await expect(page.locator('#kClicks')).toHaveText('33');expect(stats.calls).toBe(2);expect(await page.evaluate(()=>window.TOYS_CACHE_SCOPE)).not.toEqual(previous);
+});
+test('large history restores after reload without another dashboard download',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});await mockCachedStatistics(page);let downloads=0;
+ await page.route('**/api/v2/projects/housevip-cxp7/dashboard',async route=>{downloads++;const response=await route.fetch(),data=await response.json();data.dashboard.syntheticHistory=Array.from({length:20000},(_,i)=>({date:'2026-10-14',campaign:'Synthetic '+i,metrics:{impressions:1000,clicks:10,spend:15.7},padding:'campaign history '.repeat(12)}));await route.fulfill({json:data});});
+ await page.goto(portal);await expect(page.locator('#kClicks')).toHaveText('77');
+ expect(await page.evaluate(()=>Object.keys(sessionStorage).filter(k=>k.endsWith('/dashboard')).some(k=>JSON.parse(sessionStorage.getItem(k)).encoding==='gzip'))).toBe(true);
+ await page.reload();await expect(page.locator('#kClicks')).toHaveText('77');expect(downloads).toBe(1);
+});
+test('CRM writes invalidate saved statistics before returning home and reloading',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const stats=await mockCachedStatistics(page);await page.goto(portal);await expect(page.locator('#kClicks')).toHaveText('77');
+ await page.locator('#platformCRMNav').click();await page.locator('#newLead').click();await page.locator('[name=name]').fill('Saved cache invalidation');await page.locator('[name=phone]').fill('+995555019922');stats.clicks=88;
+ await page.getByRole('button',{name:'Добавить',exact:true}).click();await expect(page.locator('#leadsBoard')).toContainText('Saved cache invalidation');
+ await page.getByRole('link',{name:'Главная',exact:true}).click();
+ await page.reload();await expect(page.locator('#kClicks')).toHaveText('88');expect(stats.calls).toBe(2);
+ await page.reload();await expect(page.locator('#kClicks')).toHaveText('88');expect(stats.calls).toBe(2);
 });
