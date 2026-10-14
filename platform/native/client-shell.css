@@ -1,0 +1,20 @@
+body.platform-client-shell{padding-left:180px}
+#platformClientNav{position:fixed;left:0;top:0;bottom:0;width:160px;padding:32px 12px;border-right:1px solid var(--line);background:var(--panel);z-index:40;display:flex;flex-direction:column;gap:8px;box-sizing:border-box}
+#platformClientNav a{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;color:var(--muted);text-decoration:none;font:500 14px 'Golos Text',sans-serif}
+#platformClientNav a:hover,#platformClientNav a.active{background:var(--accent-dim);color:var(--accent)}
+#platformClientNav svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;flex:none}
+#platformHomeNav svg{fill:currentColor;stroke:none}
+#platformAccountNav{margin-top:auto}
+#platformMobileAccount{display:none}
+#platformClientNav a:focus-visible,#platformMobileAccount:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:760px){
+  html{scroll-padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+  body.platform-client-shell{padding-top:max(18px,env(safe-area-inset-top,0px));padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
+  html body.platform-show-crm{padding-left:0}
+  #platformClientNav{inset:auto 0 0;width:100%;height:calc(65px + env(safe-area-inset-bottom,0px));padding:6px max(12px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px));border-right:0;border-top:1px solid var(--line);flex-direction:row;gap:8px}
+  #platformClientNav a{flex:1;justify-content:center;flex-direction:column;gap:4px;padding:5px 12px;min-height:52px;font-size:11px;line-height:16px;border-radius:10px}
+  #platformClientNav #platformAccountNav{display:none}
+  #platformMobileAccount{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;margin-left:auto;padding:10px;border:1px solid var(--line);border-radius:10px;color:var(--text);background:var(--panel);text-decoration:none}
+  #platformMobileAccount svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7}
+  html[data-mobile-keyboard] #platformClientNav{visibility:hidden;pointer-events:none}
+}

@@ -6,6 +6,7 @@ import {makeConnection} from './make-connection.js';
 import {escapeHtml as h,dateShift} from '../unified/model.js';
 import {mountCalendar} from '../native/calendar.js';
 import {memoryCache} from './cache.js';
+import {mountMasterMobileControls} from '../native/mobile-navigation.js';
 export function mountMaster({root=document,client=null,embedded=false,isVisible=()=>true,onChange=()=>{},asset=null}={}){
 const $=id=>root.getElementById(id),prefix='',api=prefix+'/api/v2';
 const cache=memoryCache(),overviewCache=memoryCache({ttl:20*60*1000});
@@ -28,6 +29,7 @@ function preset(days){if(days==='all'){$('dateFrom').value=$('dateTo').value='';
 const periods={home:null,crm:{from:'',to:'',days:'all'}};let periodMode='home';
 function switchPeriod(mode){$('allDates').hidden=mode!=='crm';if(mode===periodMode)return;periods[periodMode]={from:$('dateFrom').value,to:$('dateTo').value,days:root.querySelector('#periodSeg button.active')?.dataset.days||''};periodMode=mode;const next=periods[mode];$('dateFrom').value=next.from;$('dateTo').value=next.to;$('periodSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.days===next.days));calendar?.sync();}
 if(embedded){$('theme').style.margin='0';root.querySelector('header').append($('theme'));}
+mountMasterMobileControls(root);
 function theme(){const light=document.documentElement.dataset.theme==='light',path='assets/'+(light?'toys-black.svg':'toys-logo.svg');if(!embedded)$('brandLogo').src=asset?asset(path):prefix+'/api/ui/reference/'+path;$('theme').textContent=light?'Тёмная тема':'Светлая тема';}
 try{if(!embedded)document.documentElement.dataset.theme=localStorage.getItem('toys-unified-theme')||'dark';}catch{}theme();$('theme').onclick=()=>{document.documentElement.dataset.theme=document.documentElement.dataset.theme==='light'?'dark':'light';try{localStorage.setItem('toys-unified-theme',document.documentElement.dataset.theme);}catch{}theme();};
 function show(view){state.view=['crm','access'].includes(view)&&(!client||view!=='access')?view:'home';switchPeriod(state.view==='crm'?'crm':'home');$('channels').hidden=state.view==='crm';$('home').hidden=state.view!=='home';$('crm').hidden=state.view!=='crm';$('access').hidden=state.view!=='access';$('projectSelect').closest('.controls').hidden=state.view==='access';$('heading').textContent=state.view==='crm'?'CRM':state.view==='access'?'Доступы клиентов':'Все проекты';root.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===state.view));if(state.view==='crm'&&!state.slug){state.slug=state.projects[0]?.slug||'';$('projectSelect').value=state.slug;}refresh();}

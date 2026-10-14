@@ -39,7 +39,7 @@ export function mountClientNavigation({slug,api,prefix,asset,onChange,initialCRM
   if(crm&&!active){homeHash=location.hash||homeHash;homeScroll=scrollY;}
   if(!crm&&active)crmScroll=scrollY;
   active=crm;host.hidden=!crm;document.body.classList.toggle('platform-show-crm',crm);
-  nav.querySelectorAll('#platformHomeNav,#platformCRMNav').forEach(a=>a.classList.toggle('active',crm===a.id.endsWith('CRMNav')));
+  nav.querySelectorAll('#platformHomeNav,#platformCRMNav').forEach(a=>{const selected=crm===a.id.endsWith('CRMNav');a.classList.toggle('active',selected);if(selected)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   if(historyMode!=='none')history[historyMode+'State'](null,'',crm?api+'/content-crm':prefix+'/'+encodeURIComponent(slug)+'/'+homeHash);
   window.scrollTo(0,crm?crmScroll:homeScroll);
   if(crm)load();
