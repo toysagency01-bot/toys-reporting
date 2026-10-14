@@ -2,12 +2,14 @@ import {hierarchyRows,total} from '../unified/model.js';
 import {authorizeMvp,onDemandAdsService} from '../runtime/backend.js';
 import {project,summary,reply,readJSON,crypt} from '../crm/service.js';
 import {discoverPages} from '../crm/connections.js';
+import {dailyReviewResponse} from './review-service.js';
 export async function masterAuth(request,env){return authorizeMvp(request,env,'__master','editor');}
 export async function masterAPI(request,env,ctx){
  const url=new URL(request.url),m=url.pathname.match(/^\/api\/v2\/master(?:\/(.*))?$/);if(!m)return null;
  const auth=await masterAuth(request,env);if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  try{
  const path=m[1]||'';
+ if(path==='daily-review'&&request.method==='GET')return reply(await dailyReviewResponse(env.TOYS_DB,url.searchParams.get('date')));
  if(path===''&&request.method==='GET'){
  const projects=(await env.TOYS_DB.prepare(`SELECT p.id,p.slug,p.name,p.currency,p.timezone,p.project_type AS type,p.status,(SELECT COUNT(*) FROM leads l WHERE l.project_id=p.id AND l.deleted_at IS NULL) AS leadCount,(SELECT MAX(last_good_at) FROM ads_on_demand_cache c WHERE c.project_id=p.id) AS updatedAt,(SELECT COUNT(*) FROM crm_delivery d WHERE d.project_id=p.id AND d.state IN ('blocked','error') AND COALESCE(d.last_error,'')!='lead_deleted') AS deliveryIssues FROM projects p WHERE p.organization_id='org_toys_agency' AND p.status IN ('active','draft') ORDER BY p.name`).all()).results||[];
  const integrations=(await env.TOYS_DB.prepare('SELECT project_id AS projectId,provider,status FROM integrations').all()).results||[];

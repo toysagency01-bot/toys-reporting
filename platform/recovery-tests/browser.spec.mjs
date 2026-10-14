@@ -439,3 +439,45 @@ test('opening a creative after a failed background preview replaces the missing-
  await page.getByRole('button',{name:'Открыть креатив: Retry preview'}).click();await expect(page.getByRole('dialog')).toContainText('Creative is available');await page.keyboard.press('Escape');
  await expect(page.locator('.creative-preview > img')).toHaveAttribute('src','https://scontent.xx.fbcdn.net/recovered.svg');await expect(page.locator('.creative-preview-placeholder')).toHaveCount(0);expect(calls).toBe(2);
 });
+
+async function mockDailyReview(page){
+ const calls=[],reviewDate='2026-10-14';
+ const reports=['critical','attention','healthy','insufficient'].map((priority,index)=>({
+  project:{slug:'synthetic-'+index,name:index===0?'Project <img src=x onerror=alert(1)>':'Project '+index},priority,headline:'Проверка '+priority,recommendation:'Проверить измерение и сохранить бюджет.',accounts:[{provider:'meta_ads',currency:'CZK',timeZone:'Europe/Prague',periods:{day:{from:'2026-10-13',to:'2026-10-13'}},day:{spend:100,conversions:10,cpa:10,roas:null},checkedAt:'2026-10-14T05:20:00Z'}],crm:{available:false},findings:priority==='critical'?[{code:'cpa_up',severity:'critical',provider:'meta_ads',title:'Стоимость результата выросла',path:[{name:'Campaign <script>bad()</script>'},{name:'Group'},{name:'Ad'}],period:{from:'2026-10-13',to:'2026-10-13'},comparison:{from:'2026-10-06',to:'2026-10-12'},evidence:'CPA 20 CZK против 5 CZK.',recommendation:'Проверить целевое событие.',confidence:'medium',checkpoint:'Следующий закрытый день.'}]:[],findingCount:priority==='critical'?1:0,limitations:['Атрибуция может уточняться.']
+ }));
+ const state={fail:false,calls};
+ await page.route('**/api/v2/master/daily-review*',r=>{
+  const url=new URL(r.request().url());calls.push(url);
+  if(state.fail)return r.fulfill({status:503,json:{ok:false,error:'review_unavailable'}});
+  const date=url.searchParams.get('date')||reviewDate;
+  return r.fulfill({json:{ok:true,reportDate:date,today:reviewDate,reports,history:[{date:reviewDate,state:'complete',generatedAt:'2026-10-14T05:30:00Z'},{date:'2026-10-13',state:'complete',generatedAt:'2026-10-13T05:30:00Z'}],counts:{critical:1,attention:1,healthy:1,insufficient:1},currentRun:{state:'complete'}}});
+ });
+ return state;
+}
+test('morning review has urgency colors, evidence, cached navigation, history and safe ad names',async({page})=>{
+ const state=await mockDailyReview(page);await page.goto('/master/');const panel=page.locator('#dailyReview');await expect(panel.locator('.review-project')).toHaveCount(4);
+ const critical=panel.locator('.review-project.review-critical'),healthy=panel.locator('.review-project.review-healthy');
+ expect(await critical.evaluate(el=>getComputedStyle(el).borderLeftColor)).not.toEqual(await healthy.evaluate(el=>getComputedStyle(el).borderLeftColor));
+ await critical.locator('summary').click();await expect(critical.locator('.review-findings')).toContainText('Campaign <script>bad()</script>');await expect(critical.locator('script,img')).toHaveCount(0);await expect(critical).toContainText('Уверенность: средняя');
+ await panel.locator('[data-review-priority=attention]').click();await expect(panel.locator('.review-project')).toHaveCount(1);await expect(panel.locator('.review-project')).toContainText('Project 1');
+ await panel.locator('[data-review-priority=""]').click();await expect(panel.locator('.review-project')).toHaveCount(4);
+ await page.locator('[data-view=crm]').click();await page.locator('[data-view=home]').click();expect(state.calls.length).toBe(1);
+ // The master keeps the selected CRM project: return to all projects for this overview.
+ await page.locator('#projectSelect').selectOption('');
+ await panel.locator('select').selectOption('2026-10-13');await expect(panel.locator('.review-status')).toContainText('13.10.2026');expect(state.calls.length).toBe(2);
+ await page.screenshot({path:'dist/daily-review-desktop.png',fullPage:true});
+});
+test('morning review remains legible on mobile and keeps saved cards if history loading fails',async({page})=>{
+ await page.clock.install();
+ const state=await mockDailyReview(page);await page.setViewportSize({width:390,height:844});await page.goto('/master/');const panel=page.locator('#dailyReview');await expect(panel.locator('.review-project')).toHaveCount(4);
+ await page.evaluate(()=>{document.documentElement.dataset.theme='light';});await panel.locator('.review-project').first().locator('summary').click();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await expect(panel.locator('select')).toBeVisible();
+ state.fail=true;await panel.locator('select').selectOption('2026-10-13');await expect(panel.locator('.review-status')).toContainText('Повторим автоматически');await expect(panel.locator('.review-project')).toHaveCount(4);
+ await expect(panel.locator('.review-status')).toContainText('Показан сохранённый обзор от 14.10.2026');
+ state.fail=false;await page.clock.fastForward(60001);await expect(panel.locator('.review-status')).toContainText('Обзор от 13.10.2026');
+ await page.screenshot({path:'dist/daily-review-mobile.png',fullPage:true});
+});
+test('client CRM does not mount or request agency morning reviews',async({page})=>{
+ let requests=0;page.on('request',r=>{if(r.url().includes('/master/daily-review'))requests++;});
+ await page.goto('/api/v2/projects/housevip-cxp7/content-crm');await expect(page.locator('#leadsBoard')).toBeVisible();await expect(page.locator('#dailyReview')).toHaveCount(0);expect(requests).toBe(0);
+});

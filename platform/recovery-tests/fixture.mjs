@@ -13,6 +13,7 @@ export function fixture(){
   db.exec(readFileSync(new URL('../migrations/0016_password_auth.sql',import.meta.url),'utf8'));
   db.exec(readFileSync(new URL('../migrations/0018_crm_current_sale.sql',import.meta.url),'utf8'));
   db.exec(readFileSync(new URL('../migrations/0019_crm_lead_deletion.sql',import.meta.url),'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0020_daily_reviews.sql',import.meta.url),'utf8'));
   db.exec(`INSERT INTO organizations(id,slug,name) VALUES('org_toys_agency','toys-agency','Synthetic test');
 INSERT INTO clients(id,organization_id,slug,name) VALUES('client_housevip','org_toys_agency','housevip','Synthetic test');
 INSERT INTO projects(id,organization_id,slug,name,project_type,status,currency,client_id,capabilities_json,active_preset) VALUES('prj_housevip_cxp7','org_toys_agency','housevip-cxp7','HOUSEVIP','leadgen','active','IDR','client_housevip','["ads","content","period_reports"]','leadgen');
