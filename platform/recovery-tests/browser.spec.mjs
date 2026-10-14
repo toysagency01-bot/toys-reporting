@@ -2,6 +2,19 @@ import {test,expect} from '@playwright/test';
 import {rankCreatives} from '../native/top-creatives.js';
 const portal='/api/v2/projects/housevip-cxp7/content-project';
 
+async function mockCampaignBrowser(page){
+ const state={calls:[],creativeCalls:0,groupName:'Lazy group',fail:false};
+ const row=(id,level,name)=>({key:id.toString(16).padStart(64,'0'),level,name,provider:'meta_ads',currency:'IDR',status:'ACTIVE',childCount:level==='ad'?0:1,history:false,metrics:{impressions:100,clicks:10,ctr:10,spend:1000,conversions:2,cpa:500}});
+ const campaign=row(1,'campaign','Lazy campaign');
+ await page.route('**/campaign-browser?*',async r=>{const u=new URL(r.request().url());state.calls.push(u);if(state.holdFirst&&state.calls.length===1)await state.holdFirst;if(state.fail)return r.fulfill({status:503,json:{ok:false}});
+ const parent=u.searchParams.get('parent'),offset=Number(u.searchParams.get('offset')||0),group=row(2,'group',state.groupName),all=parent===group.key?Array.from({length:105},(_,i)=>row(i+3,'ad','Lazy ad '+i)):parent===campaign.key?[group]:[campaign];
+ return r.fulfill({json:{ok:true,rows:all.slice(offset,offset+50),total:all.length,nextOffset:offset+50<all.length?offset+50:null,parent:parent===campaign.key?campaign:parent===group.key?group:null,sources:[],refreshing:false}});
+ });
+ await page.route('**/campaign-browser/*/creative?*',r=>{state.creativeCalls++;return r.fulfill({json:{ok:true,creative:{bodies:['Полный текст объявления'],media:[]}}});});
+ return state;
+}
+
+
 test('native password invitation opens CRM, signs out and signs back in',async({page})=>{
  await page.goto('/master/#access');await page.locator('#newClient').click();
  await page.locator('#accessForm [name=email]').fill('password-browser@example.test');await page.locator('#accessForm [name=projects]').first().check();
@@ -144,7 +157,7 @@ test('dashboard and durable weekly workflow',async({page})=>{
 });
 test('mobile navigation stays within viewport',async({page})=>{await page.setViewportSize({width:390,height:844});await page.goto(portal);await expect(page.locator('#mainCards')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'dist/mobile.png',fullPage:true,animations:'disabled'});});
 test('native cards refresh once, expose groups and retain usable data after a failed refresh',async({page})=>{
- const errors=[];page.on('pageerror',e=>errors.push(e.message));let calls=0;
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));let calls=0;await mockCampaignBrowser(page);
  const observed=value=>({value:String(value),state:'observed'});
  await page.route('**/content-project/ads/hierarchy?*',async route=>{
   const url=new URL(route.request().url());calls++;
@@ -154,7 +167,7 @@ test('native cards refresh once, expose groups and retain usable data after a fa
  await page.clock.install();await page.goto(portal);await expect(page.locator('#platformNotice')).toContainText('обновлено');
  await expect(page.locator('#kClicks')).toHaveText('9');await expect(page.locator('#kConv')).toHaveText('—');
  await page.locator('#uxNav [data-ux-view="campaigns"]').click();await expect(page.locator('#campList')).toContainText('Обновлённая кампания');
- await page.locator('.platform-drilldown > summary').click();await expect(page.locator('.platform-child')).toContainText('Группа объявлений');
+ await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await expect(page.locator('#platformCampaignBrowser')).toContainText('Lazy group');
  await page.clock.fastForward(20*60*1000);await expect(page.locator('#platformNotice')).toContainText('подключение не завершено');
  await expect(page.locator('#kClicks')).toHaveText('9');expect(errors).toEqual([]);
 });
@@ -333,15 +346,41 @@ test('chart instances survive updates, rendering is batched and unchanged creati
  await expect.poll(()=>page.evaluate(()=>auditChart.data.datasets.map(d=>d.label).join(','))).toContain('CTR');
 });
 
-test('large advertising hierarchy creates ad details only when their parent is opened',async({page})=>{
- let groupName='Lazy group';await page.clock.install();
- const observed=value=>({value:String(value),state:'observed'}),metrics={impressions:observed(100),clicks:observed(10),spend:observed(1000),conversions:observed(1)};
- await page.route('**/content-project/ads/hierarchy?*',r=>{const u=new URL(r.request().url()),date=u.searchParams.get('to'),dailyMetrics=[{date,metrics}];return r.fulfill({json:{ok:true,providers:[{provider:'meta_ads',integrationId:'test',freshness:'fresh',requestedRange:{from:u.searchParams.get('from'),to:date},hierarchy:{currency:'IDR',children:[{providerId:'campaign',name:'Lazy campaign',dailyMetrics,children:[{providerId:'group',name:groupName,dailyMetrics,children:Array.from({length:100},(_,i)=>({providerId:String(i),name:'Lazy ad '+i,dailyMetrics}))}]}]}}]}});});
- await page.goto(portal);await expect(page.locator('#platformNotice')).toContainText('обновлено');await page.locator('[data-ux-view="campaigns"]').click();
- await expect(page.locator('.platform-child')).toHaveCount(0);await page.locator('.platform-drilldown > summary').click();await expect(page.locator('.platform-child')).toHaveCount(1);
- await page.locator('.platform-child > summary').click();await expect(page.locator('.platform-child')).toHaveCount(101);await expect(page.locator('.platform-child .camp-metrics')).toHaveCount(1);
- await page.getByText('Lazy ad 0',{exact:true}).click();await expect(page.locator('.platform-child .camp-metrics')).toHaveCount(2);
- groupName='Updated group, unchanged campaign totals';await page.clock.fastForward(20*60*1000);await expect(page.locator('.platform-drilldown')).not.toHaveAttribute('open','');await page.locator('.platform-drilldown > summary').click();await expect(page.locator('.platform-child > summary')).toHaveText(groupName);
+test('campaign hierarchy fetches and renders only opened levels, paginates ads and refreshes expanded rows',async({page})=>{
+ await page.clock.install();const fixture=await mockCampaignBrowser(page);
+ await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');expect(fixture.calls.length).toBe(0);
+ await page.locator('[data-ux-view="campaigns"]').click();await expect(page.locator('.campaign-entity')).toHaveCount(1);expect(fixture.calls.length).toBe(1);
+ await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(2);expect(fixture.calls.length).toBe(2);
+ await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(52);
+ await page.getByRole('button',{name:'Показать ещё · 50 из 105'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(102);
+ await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(2);
+ await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(102);expect(fixture.calls.length).toBe(4);
+ await page.getByRole('button',{name:'Открыть объявление: Lazy ad 0',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Полный текст объявления');await page.keyboard.press('Escape');expect(fixture.creativeCalls).toBe(1);
+ await page.screenshot({path:'dist/campaign-hierarchy-desktop.png'});
+ fixture.groupName='Updated group';await page.clock.fastForward(20*60*1000);await expect(page.getByRole('button',{name:'Открыть объявления: Updated group'})).toBeVisible();await expect(page.locator('.campaign-entity')).toHaveCount(52);
+ fixture.fail=true;await page.clock.fastForward(20*60*1000);await expect(page.locator('.campaign-state[role=alert]').first()).toContainText('Не удалось загрузить');await expect(page.locator('.campaign-entity')).toHaveCount(52);
+ fixture.fail=false;await page.locator('.campaign-state[role=alert] button').first().click();await expect(page.locator('.campaign-list > .campaign-state[role=alert]')).toHaveCount(0);await expect(page.locator('.campaign-entity')).toHaveCount(52);
+});
+
+test('mobile campaigns use breadcrumbs, cached drill-in and preserve viewport and bottom navigation',async({page})=>{
+ await page.setViewportSize({width:390,height:844});const fixture=await mockCampaignBrowser(page);
+ await page.goto(portal);await page.locator('[data-ux-view="campaigns"]').click();await expect(page.locator('.campaign-entity')).toHaveCount(1);
+ await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(1);await expect(page.locator('.campaign-breadcrumbs')).toContainText('Lazy campaign');
+ await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(50);await expect(page.locator('.campaign-breadcrumbs')).toContainText('Lazy group');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await expect(page.locator('#platformCRMNav')).toBeVisible();
+ await page.screenshot({path:'dist/campaign-hierarchy-mobile.png'});
+ await page.locator('.campaign-breadcrumbs').getByRole('button',{name:'Lazy campaign',exact:true}).click();await expect(page.locator('.campaign-entity')).toHaveCount(1);await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(50);expect(fixture.calls.length).toBe(3);
+ await page.getByRole('button',{name:'Сегодня',exact:true}).click();await expect(page.locator('.campaign-breadcrumbs')).not.toContainText('Lazy group');await expect.poll(()=>fixture.calls.length).toBe(4);
+});
+
+test('changing periods cancels pending campaign reads and returning to the previous period does not hang',async({page})=>{
+ const fixture=await mockCampaignBrowser(page);let release;fixture.holdFirst=new Promise(resolve=>release=resolve);
+ try{
+  await page.goto(portal);await page.locator('[data-ux-view="campaigns"]').click();await expect.poll(()=>fixture.calls.length).toBe(1);
+  await page.getByRole('button',{name:'Сегодня',exact:true}).click();await expect.poll(()=>fixture.calls.length).toBe(2);await expect(page.locator('.campaign-entity')).toHaveCount(1);
+  await page.getByRole('button',{name:'7 дней',exact:true}).click();await expect.poll(()=>fixture.calls.length).toBe(3);await expect(page.locator('.campaign-entity')).toHaveCount(1);
+  expect(fixture.calls[0].search).toBe(fixture.calls[2].search);
+ }finally{release();}
 });
 
 test('returning to Meta approvals and weekly reports reuses their screens without repeated reads',async({page})=>{

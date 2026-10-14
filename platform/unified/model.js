@@ -4,7 +4,7 @@ export const dateShift = (date, days) => {
   const d = new Date(`${date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10);
 };
 export const validRange = (from, to) => /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to) &&
-  !Number.isNaN(Date.parse(from)) && dateShift(from, 0) === from && dateShift(to, 0) === to && from <= to;
+  !Number.isNaN(Date.parse(from)) && !Number.isNaN(Date.parse(to)) && dateShift(from, 0) === from && dateShift(to, 0) === to && from <= to;
 export const valueOf = m => m?.state === 'observed' && m.value !== null && Number.isFinite(Number(m.value)) ? Number(m.value) : null;
 export const total = (rows, key) => rows.length && rows.every(r => r[key] != null) ? rows.reduce((n, r) => n + r[key], 0) : null;
 const metric = (row, ...codes) => (row.metrics || []).find(m => codes.includes(m.metricCode));

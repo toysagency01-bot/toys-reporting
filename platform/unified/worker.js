@@ -19,6 +19,7 @@ import {attachCRMQualification} from '../native/crm-attribution.js';
 import backend, {authorizeMvp, projectRecord, onDemandAdsService,runDirectAdsImports} from '../runtime/backend.js';
 import {creativeKey,loadMetaCreative} from '../native/meta-creative.js';
 import {rankCreatives} from '../native/top-creatives.js';
+import {campaignAPI} from '../native/campaign-api.js';
 export {AdsReadOnlyPreflight,activeProject,databaseHealth,handleApi,internalAuthorized,listProjects,projectLeadStatuses,publicDashboard,publicExchangeRate,publicLeads,publicTab,sameOriginWrite,scheduledHousevipSync,scheduledPilotSyncs,scheduledRealCommerceSync,validDate} from '../runtime/backend.js';
 import nativeAssets from '../dist/native-assets.json';
 import nativeBoot from '../dist/native-boot.txt';
@@ -53,6 +54,7 @@ export default {
     const agency=await masterAPI(request,env,ctx);if(agency)return agency;
     const connection=await connections(request,env,ctx);if(connection)return connection;
     const crm=await crmRoute(request,env,ctx);if(crm){if(crm.ok&&request.method==='PATCH')ctx?.waitUntil(drain(env));return crm;}
+    const campaigns=await campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,onDemandAdsService,backend});if(campaigns)return campaigns;
 
     const privateHierarchy=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/content-project\/ads\/hierarchy$/);
     const top=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/(top-creatives|ads-summary)(?:\/([a-f0-9]{64}))?$/)||privateHierarchy;
