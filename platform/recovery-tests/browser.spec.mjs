@@ -408,8 +408,34 @@ test('top creative opens full-size media and escaped copy lazily, supports carou
 });
 test('creative viewer recovers from Meta errors and releases video when closed without autoplay',async({page})=>{
  const key='b'.repeat(64);let calls=0;
- await page.route('**/top-creatives?*',r=>r.fulfill({json:{ok:true,rankings:{leads:[{provider:'meta_ads',rows:[{name:'Видео',detailsKey:key,score:2,ctr:1,spend:10,currency:'EUR'}]}]}}}));
+ await page.route('**/top-creatives?*',r=>r.fulfill({json:{ok:true,rankings:{leads:[{provider:'meta_ads',rows:[{name:'Видео',detailsKey:key,previewUrl:'https://scontent.xx.fbcdn.net/poster.svg',score:2,ctr:1,spend:10,currency:'EUR'}]}]}}}));
+ await page.route('https://scontent.xx.fbcdn.net/poster.svg',r=>r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"/>'}));
  await page.route('https://scontent.xx.fbcdn.net/movie.mp4',()=>{});
  await page.route('**/top-creatives/'+key+'?*',r=>++calls===1?r.fulfill({status:503,json:{ok:false,error:'creative_unavailable'}}):r.fulfill({json:{ok:true,creative:{bodies:['Текст видео'],media:[{kind:'video',url:'https://scontent.xx.fbcdn.net/movie.mp4'}],mediaStatus:'ready',hasVideo:true}}}));
  await page.goto(portal);await page.getByRole('button',{name:'Открыть креатив: Видео'}).click();const dialog=page.getByRole('dialog',{name:'Видео',exact:true});await expect(dialog).toContainText('Не удалось получить креатив');await dialog.getByRole('button',{name:'Повторить загрузку'}).click();const video=dialog.locator('video');await expect(video).toBeVisible();expect(await video.evaluate(v=>v.controls&&!v.autoplay&&v.paused)).toBe(true);await dialog.getByRole('button',{name:'Закрыть креатив'}).click();expect(await page.locator('#creativeViewer video').evaluate(v=>v.paused&&!v.getAttribute('src'))).toBe(true);expect(calls).toBe(2);
+});
+
+
+test('missing and expired creative thumbnails recover from full media, reuse detail reads and never preload video',async({page})=>{
+ const keys=['c','d','e'].map(c=>c.repeat(64)),calls=new Map(),seen=[];
+ const rows=keys.map((detailsKey,i)=>({detailsKey,name:'Recovered '+i,previewUrl:i===1?'https://scontent.xx.fbcdn.net/expired.jpg':null,score:3-i,ctr:2,spend:30,currency:'EUR',freshness:'fresh'}));
+ await page.route('**/top-creatives?*',r=>r.fulfill({json:{ok:true,rankings:Object.fromEntries(['leads','roas'].map(basis=>[basis,[{provider:'meta_ads',rows}]]))}}));
+ await page.route('https://scontent.xx.fbcdn.net/**',r=>{seen.push(r.request().url());return r.request().url().endsWith('expired.jpg')?r.fulfill({status:403,body:'Expired'}):r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1500"><rect width="1200" height="1500" fill="#26ddcc"/></svg>'});});
+ await page.route('**/top-creatives/*?*',r=>{const key=new URL(r.request().url()).pathname.split('/').at(-1),i=keys.indexOf(key);calls.set(key,(calls.get(key)||0)+1);return r.fulfill({json:{ok:true,creative:{bodies:['Full copy '+i],media:i===2?[{kind:'video',url:'https://scontent.xx.fbcdn.net/never-preload.mp4',poster:'https://scontent.xx.fbcdn.net/poster.jpg'}]:[{kind:'image',url:'https://scontent.xx.fbcdn.net/full'+i+'.jpg'}]}}});});
+ await page.goto(portal);await page.locator('.platform-top-creatives').scrollIntoViewIfNeeded();
+ const previews=page.locator('.creative-preview');
+ for(let i=0;i<3;i++){await expect(previews.nth(i).locator('img')).toHaveAttribute('src','https://scontent.xx.fbcdn.net/'+(i===2?'poster.jpg':'full'+i+'.jpg'));await expect.poll(()=>previews.nth(i).locator('img').evaluate(img=>img.naturalWidth)).toBe(1200);}
+ expect(seen.some(u=>u.endsWith('.mp4'))).toBe(false);await expect(page.locator('.creative-preview-placeholder')).toHaveCount(0);expect([...calls.values()]).toEqual([1,1,1]);
+ await page.getByRole('button',{name:'Открыть креатив: Recovered 0'}).click();await expect(page.getByRole('dialog')).toContainText('Full copy 0');await page.keyboard.press('Escape');expect(calls.get(keys[0])).toBe(1);
+ await page.locator('[data-ranking="roas"]').click();await expect(page.locator('.creative-preview img')).toHaveCount(3);expect([...calls.values()]).toEqual([1,1,1]);await expect(page.locator('.creative-rank')).toHaveText(['1','2','3']);
+});
+
+test('opening a creative after a failed background preview replaces the missing-image placeholder',async({page})=>{
+ const key='f'.repeat(64);let calls=0;
+ await page.route('**/top-creatives?*',r=>r.fulfill({json:{ok:true,rankings:{leads:[{provider:'meta_ads',rows:[{name:'Retry preview',detailsKey:key,score:2,ctr:1,spend:5,currency:'EUR'}]}]}}}));
+ await page.route('**/top-creatives/'+key+'?*',r=>++calls===1?r.fulfill({status:503,json:{ok:false}}):r.fulfill({json:{ok:true,creative:{media:[{kind:'image',url:'https://scontent.xx.fbcdn.net/recovered.svg'}],bodies:['Creative is available']}}}));
+ await page.route('https://scontent.xx.fbcdn.net/recovered.svg',r=>r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"/>'}));
+ await page.goto(portal);await page.locator('.creative-preview').scrollIntoViewIfNeeded();await expect(page.locator('.creative-preview-placeholder')).toContainText('Не удалось загрузить предпросмотр');
+ await page.getByRole('button',{name:'Открыть креатив: Retry preview'}).click();await expect(page.getByRole('dialog')).toContainText('Creative is available');await page.keyboard.press('Escape');
+ await expect(page.locator('.creative-preview > img')).toHaveAttribute('src','https://scontent.xx.fbcdn.net/recovered.svg');await expect(page.locator('.creative-preview-placeholder')).toHaveCount(0);expect(calls).toBe(2);
 });
