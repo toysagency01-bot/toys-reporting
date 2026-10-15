@@ -1,6 +1,6 @@
 import {escapeHtml as h} from '../unified/model.js';
 import {responseCache} from './response-cache.js';
-const detailsCache=responseCache({ttl:5*60000});
+const detailsCache=responseCache();
 const cache=new Map(),pending=new Map();
 const link=value=>{try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u.href:null;}catch{return null;}};
 const ctaLabels={SHOP_NOW:'Купить',LEARN_MORE:'Подробнее',SIGN_UP:'Зарегистрироваться',CONTACT_US:'Связаться',SEND_MESSAGE:'Написать',WHATSAPP_MESSAGE:'Написать в WhatsApp',BOOK_TRAVEL:'Забронировать',GET_QUOTE:'Получить предложение',DOWNLOAD:'Скачать',APPLY_NOW:'Оставить заявку',ORDER_NOW:'Заказать',SUBSCRIBE:'Подписаться'};

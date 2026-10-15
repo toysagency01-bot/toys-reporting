@@ -34,10 +34,12 @@ test('CRM contacts, client grants and mutable content are never persisted, even 
  }
  assert.equal(calls,8);assert.equal(Object.keys(store).length,0);
 });
-test('pending refreshes and provider failures cannot freeze a ready-looking cached response',async()=>{
- let now=Date.now(),calls=0;const cache=responseCache({scope,storage:storage(),now:()=>now});
- await cache.set(path,{ok:true,refreshing:true});assert.equal(cache.peek(path).fresh,false);await cache.get(path,async()=>({ok:true,n:++calls}));assert.equal(calls,1);
- await cache.set(path,{ok:true,providers:[{freshness:'stale'}]});now+=60001;assert.equal(cache.peek(path).fresh,false);
+test('running imports and partial, stale or failed sources remain cached until the next scheduled slot',async()=>{
+ let now=Date.parse('2026-10-15T06:03:00Z'),calls=0;const cache=responseCache({scope,storage:storage(),now:()=>now});
+ for(const response of [{ok:true,refreshing:true},{ok:true,providers:[{freshness:'partial'}]},{ok:true,providers:[{freshness:'stale',refresh:{state:'failed'}}]}]){
+  await cache.set(path,response);now+=60001;assert.equal(cache.peek(path).fresh,true);assert.deepEqual(await cache.get(path,async()=>{calls++;return {ok:true}}),response);
+ }
+ assert.equal(calls,0);now=Date.parse('2026-10-15T06:21:00Z');await cache.get(path,async()=>{calls++;return {ok:true}});assert.equal(calls,1);
 });
 test('concurrent reads are shared; a response started before invalidation cannot refill the saved cache',async()=>{
  const store=storage(),cache=responseCache({scope,storage:store});let release,calls=0;const gate=new Promise(resolve=>release=resolve),read=async()=>{calls++;await gate;return {ok:true,value:'old'};};
@@ -73,4 +75,17 @@ test('multi-megabyte history survives reload in compressed storage and invalidat
  // Truncated or unsupported compressed entries are discarded and fetched normally.
  store[CACHE_PREFIX+scope+':'+address]=JSON.stringify({schema:1,at:Date.now(),expiresAt:Date.now()+60000,encoding:'gzip',length:5000000,data:'broken'});
  assert.equal((await responseCache({scope,storage:storage(data)}).get(address,async()=>({ok:true,recovered:true}))).recovered,true);
+});
+test('clearing CRM-derived rankings does not cancel an unrelated pending advertising response',async()=>{
+ const store=storage(),cache=responseCache({scope,storage:store});let release,started;const gate=new Promise(r=>release=r),began=new Promise(r=>started=r);
+ const pending=cache.get(path,async()=>{started();await gate;return {ok:true,spend:17};});await began;
+ responseCache({scope,storage:store,prefix:'/api/v2/projects/housevip-cxp7/top-creatives?'}).clear();release();await pending;
+ assert.equal(cache.peek(path).value.spend,17);
+});
+test('a failed scheduled read keeps the last good response and does not hammer the API before the next slot',async()=>{
+ let now=Date.parse('2026-10-15T06:03:00Z'),calls=0;const data={},cache=responseCache({scope,storage:storage(data),now:()=>now});
+ await cache.set(path,{ok:true,spend:17});now=Date.parse('2026-10-15T06:21:00Z');
+ await assert.rejects(cache.get(path,async()=>{calls++;throw Error('offline')}));
+ const reload=responseCache({scope,storage:storage(data),now:()=>now});assert.equal((await reload.get(path,async()=>{calls++;return {ok:true,spend:99}})).spend,17);assert.equal(calls,1);
+ now=Date.parse('2026-10-15T06:41:00Z');assert.equal((await reload.get(path,async()=>{calls++;return {ok:true,spend:99}})).spend,99);assert.equal(calls,2);
 });

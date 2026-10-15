@@ -1,7 +1,7 @@
 import projectRegistry from '../projects.json' with {type:'json'};
 import {saveAdsSnapshot,shift} from './ads-store.js';
 import {createGoogleReceiverAdapter} from '../native/google-receiver.js';
-import {nextRefreshAt,isNightRefresh,shouldPollAds,adsAreStale} from './refresh-policy.js';
+import {nextRefreshAt,shouldPollAds,adsAreStale} from './refresh-policy.js';
 
 const slugs=Object.keys(projectRegistry);
 const iso=ms=>new Date(ms).toISOString();
@@ -9,7 +9,7 @@ const safeCode=e=>/^[a-z][a-z0-9_]{1,80}$/.test(e?.code||'')?e.code:/exceeded.*(
 export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,now=()=>Date.now(),scheduledAt}={}){
  if(env.DIRECT_ADS_IMPORT_ENABLED!=='true')return [];
  // Check before touching D1: the two-minute CRM cron must not cause ad writes
- // or retries between hourly overnight imports, even with an old next_attempt_at.
+ // or retries between advertising slots, even with an old next_attempt_at.
  if(!shouldPollAds(scheduledAt??now()))return [];
  const db=env.TOYS_DB;
  const rows=(await db.prepare(`SELECT i.id,i.provider,i.external_account_id AS externalAccountId,i.config_json AS configJson,
@@ -53,10 +53,9 @@ export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,
     .bind(iso(now()),iso(nextRefreshAt(now())),from,to,rowsWritten,row.id,token).run();
    return {integrationId:row.id,status:'success',from,to,rowsWritten};
   }catch(error){
-   const status=await db.prepare('SELECT failure_count FROM ads_import_status WHERE integration_id=?').bind(row.id).first();
-   const code=safeCode(error),backoff=Math.min(20*60000,2*60000*2**Math.min(status?.failure_count||0,4));
+   const code=safeCode(error);
    await db.prepare(`UPDATE ads_import_status SET state='error',last_error_code=?,failure_count=failure_count+1,
-    next_attempt_at=?,lease_token=NULL,lease_until=NULL WHERE integration_id=? AND lease_token=?`).bind(code,iso(isNightRefresh(now())?nextRefreshAt(now()):now()+backoff),row.id,token).run();
+    next_attempt_at=?,lease_token=NULL,lease_until=NULL WHERE integration_id=? AND lease_token=?`).bind(code,iso(nextRefreshAt(now())),row.id,token).run();
    return {integrationId:row.id,status:'error',error:code};
   }
  };

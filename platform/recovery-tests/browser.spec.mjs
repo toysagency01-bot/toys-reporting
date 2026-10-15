@@ -26,7 +26,7 @@ test('native password invitation opens CRM, signs out and signs back in',async({
  await page.locator('[name=password]').fill('Test browser long password 123');await page.locator('[name=confirm]').fill('Test browser long password 123');
  await page.getByRole('button',{name:'Сохранить пароль и войти'}).click();await expect(page).toHaveURL(/\/housevip-cxp7\/(?:#overview)?$/);
  await page.locator('#platformCRMNav').click();await expect(page.locator('#platformClientCRM #newLead')).toBeVisible();
- await page.goto('/api/v2/portal/session?choose=1');await page.getByRole('link',{name:'Выйти из аккаунта'}).click();await expect(page).toHaveURL(/\/login$/);expect(await page.evaluate(()=>Object.keys(sessionStorage).filter(k=>k.startsWith('toys-dashboard-cache:')).length)).toBe(0);
+ await page.goto('/api/v2/portal/session?choose=1');await page.getByRole('link',{name:'Выйти из аккаунта'}).click();await expect(page).toHaveURL(/\/login$/);expect(await page.evaluate(()=>Object.keys(sessionStorage).filter(k=>k.startsWith('toys-dashboard-cache:')).length)).toBe(0);expect(await page.evaluate(async()=>(await caches.keys()).filter(k=>k.startsWith('toys-dashboard-cache:')).length)).toBe(0);
  await page.locator('[name=email]').fill('password-browser@example.test');await page.locator('[name=password]').fill('Test browser long password 123');await page.getByRole('button',{name:'Войти',exact:true}).click();await expect(page).toHaveURL(/\/housevip-cxp7\/(?:#overview)?$/);
 });
 
@@ -98,6 +98,8 @@ test('client viewer gets published weekly reports and an account link without ag
  await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyContent')).not.toContainText('Для этого действия войдите');await expect(page.locator('#weeklyForm')).toHaveCount(0);await expect(page.locator('#platformAccountNav')).toHaveAttribute('href','/api/v2/portal/session?choose=1');await page.locator('#platformCRMNav').click();await expect(page.locator('#platformClientCRM #newLead')).toBeVisible();await expect(page.locator('#platformClientCRM #accessNav')).toBeHidden();
 });
 test('mounted portal renders Golos with the generic asset route unavailable',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const requests=[];page.on('request',r=>requests.push(r.url()));
  await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expectGolos(page);
@@ -136,6 +138,8 @@ test('BSCLINIC keeps lead metrics and resolves material tabs by explicit channel
  expect(requests.some(u=>/docs.google|sheets.googleapis/.test(u))).toBe(false);expect(errors).toEqual([]);
 });
 test('dashboard and durable weekly workflow',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
  await expectGolos(page);
@@ -164,7 +168,7 @@ test('native cards refresh once, expose groups and retain usable data after a fa
   const metrics={impressions:observed(120),clicks:observed(9),spend:observed(100),conversions:{value:null,state:'unsupported'}};
   await route.fulfill({json:{ok:true,providers:[{provider:'meta_ads',integrationId:'test',freshness:'fresh',requestedRange:{from:url.searchParams.get('from'),to:url.searchParams.get('to')},hierarchy:calls===1?{currency:'IDR',children:[{providerId:'live',name:'Обновлённая кампания',dailyMetrics:[{date:'2026-10-07',metrics}],children:[{providerId:'group',name:'Группа объявлений',dailyMetrics:[{date:'2026-10-07',metrics}]}]}]}:null}]}});
  });
- await page.clock.install();await page.goto(portal);await expect(page.locator('#platformNotice')).toContainText('обновлено');
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});await page.goto(portal);await expect(page.locator('#platformNotice')).toContainText('обновлено');
  await expect(page.locator('#kClicks')).toHaveText('9');await expect(page.locator('#kConv')).toHaveText('—');
  await page.locator('#uxNav [data-ux-view="campaigns"]').click();await expect(page.locator('#campList')).toContainText('Обновлённая кампания');
  await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await expect(page.locator('#platformCampaignBrowser')).toContainText('Lazy group');
@@ -172,6 +176,8 @@ test('native cards refresh once, expose groups and retain usable data after a fa
  await expect(page.locator('#kClicks')).toHaveText('9');expect(errors).toEqual([]);
 });
 for(const slug of ['karlovarska-sul-k4rm','profkit-instashop-r4vk'])test(slug+' retains original board sections and icons',async({page,request})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const d=await(await request.get('/api/v2/projects/housevip-cxp7/dashboard')).json();const original=d.dashboard.facts.rows[0];
  const observed=(metricCode,value,currency=null)=>({metricCode,value:String(value),state:'observed',currency});
@@ -205,6 +211,8 @@ test('brand calendar, today, light logo and creative metric switches',async({pag
  await page.screenshot({path:'dist/light-updates.png',fullPage:true,animations:'disabled'});await page.locator('#platformCalendar').click();await page.screenshot({path:'dist/calendar-updates.png',animations:'disabled'});await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 test('creative cards reorder on metric switch and exclude unsupported qualifications',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  const observed=value=>({value:String(value),state:'observed'});
  await page.route('**/top-creatives?*',route=>{const u=new URL(route.request().url());const requestedRange={from:u.searchParams.get('from'),to:u.searchParams.get('to')};const date=requestedRange.from;const metrics={impressions:observed(100),clicks:observed(12),spend:observed(10),conversions:{value:null,state:'unsupported'}};
  const ads=[['Лучший по лидам',10,1,20],['Лучший по продажам',1,8,30],['Лучший по ROAS',2,2,100]].map(([name,leads,purchases,purchaseValue],i)=>({level:'ad',providerId:String(i),name,dailyMetrics:[{date,metrics}],outcomeDaily:[{date,metrics:{leads:observed(leads),purchases:observed(purchases),purchaseValue:observed(purchaseValue)}}]}));
@@ -218,6 +226,8 @@ test('public short board requests creative rankings without requesting private h
  await page.goto('/housevip-cxp7/#overview');await expect(page.locator('.top-creative h3')).toHaveText('Публичный креатив');expect(seen.some(u=>u.includes('/top-creatives?'))).toBe(true);expect(seen.some(u=>u.includes('/ads/hierarchy'))).toBe(false);
 });
 test('dashboard shell is visible while data is pending, without an entry loading screen',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  let release;const gate=new Promise(resolve=>release=resolve);await page.route('**/dashboard',async route=>{await gate;await route.continue();});
  await page.goto('/housevip-cxp7/#overview',{waitUntil:'domcontentloaded'});
  await expect(page.locator('header')).toBeVisible();await expect(page.locator('#uxNav')).toBeVisible();await expect(page.locator('#uxOverview')).toBeVisible();await expect(page.locator('#mainCards')).toBeVisible();await expect(page.getByText('Загружаю данные…',{exact:true})).not.toBeVisible();
@@ -307,14 +317,16 @@ test('agency connection settings explain Make intake and do not require the dire
  await expect(page.getByText('Только для прямого подключения:',{exact:false})).toBeHidden();
 });
 
-test('pending provider refresh automatically updates both statistics and creatives without a reload',async({page})=>{
+test('pending imports are cached without rapid polling and update at the next scheduled slot',async({page})=>{
  let stats=0,creatives=0;
  await page.setExtraHTTPHeaders({'x-test-public':'true'});
  await page.route('**/ads-summary?*',route=>{const u=new URL(route.request().url()),range={from:u.searchParams.get('from'),to:u.searchParams.get('to')};const pending=++stats===1,m=v=>({value:String(v),state:'observed'});return route.fulfill({json:{ok:true,refreshing:pending,providers:[{provider:'meta_ads',freshness:pending?'refreshing':'fresh',requestedRange:range,hierarchy:pending?null:{currency:'IDR',children:[{providerId:'live',name:'Updated',dailyMetrics:[{date:range.to,metrics:{impressions:m(200),clicks:m(88),spend:m(900),conversions:m(3)}}]}]}}]}});});
  await page.route('**/top-creatives?*',route=>{const pending=++creatives===1;return route.fulfill({json:{ok:true,refreshing:pending,rankings:{leads:[{provider:'meta_ads',rows:pending?[]:[{name:'Automatically refreshed creative',score:4,ctr:2,spend:100,currency:'IDR',freshness:'fresh'}]}]}}});});
- await page.clock.install();await page.goto('/housevip-cxp7/');
- await expect(page.locator('#platformNotice')).toContainText('Обновляем рекламные данные');await expect(page.locator('.top-basis')).toContainText('Обновляем креативы');
- await page.clock.fastForward(2000);await expect(page.locator('#kClicks')).toHaveText('88');await expect(page.locator('.top-creative h3')).toHaveText('Automatically refreshed creative');await expect(page.locator('#platformNotice')).toContainText('обновлено');expect(stats).toBe(2);expect(creatives).toBe(2);
+ await page.clock.install({time:new Date('2026-10-14T06:03:00Z')});await page.goto('/housevip-cxp7/');
+ await expect(page.locator('#platformNotice')).toContainText('Импорт по расписанию');
+ await page.clock.fastForward(10*60000);expect(stats).toBe(1);expect(creatives).toBe(1);
+ await page.reload();await expect(page.locator('#platformNotice')).toContainText('Импорт по расписанию');expect(stats).toBe(1);expect(creatives).toBe(1);
+ await page.clock.fastForward(9*60000);await expect(page.locator('#kClicks')).toHaveText('88');await expect(page.locator('.top-creative h3')).toHaveText('Automatically refreshed creative');await expect(page.locator('#platformNotice')).toContainText('обновлено');expect(stats).toBe(2);expect(creatives).toBe(2);
 });
 
 test('open dashboard refreshes hourly at night and resumes daytime cadence using Tbilisi time',async({page})=>{
@@ -337,7 +349,11 @@ test('open dashboard refreshes hourly at night and resumes daytime cadence using
 });
 
 test('chart instances survive updates, rendering is batched and unchanged creative cards keep their DOM',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.locator('.platform-top-creatives')).toBeVisible();
+ await expect(page.locator('.top-basis')).toBeVisible();
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  await page.evaluate(()=>{window.auditChart=Chart.getChart(document.getElementById('chart'));window.auditCreative=document.querySelector('.platform-top-creatives');window.auditUpdates=0;Chart.register({id:'render-regression',afterUpdate(){window.auditUpdates++;}});TOYS_NATIVE.render();TOYS_NATIVE.render();TOYS_NATIVE.render();});
  await expect.poll(()=>page.evaluate(()=>window.auditUpdates)).toBe(1);
  expect(await page.evaluate(()=>auditChart===Chart.getChart(document.getElementById('chart'))&&auditCreative===document.querySelector('.platform-top-creatives'))).toBe(true);
@@ -363,6 +379,8 @@ test('campaign hierarchy fetches and renders only opened levels, paginates ads a
 });
 
 test('mobile campaigns use breadcrumbs, cached drill-in and preserve viewport and bottom navigation',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  await page.setViewportSize({width:390,height:844});const fixture=await mockCampaignBrowser(page);
  await page.goto(portal);await page.locator('[data-ux-view="campaigns"]').click();await expect(page.locator('.campaign-entity')).toHaveCount(1);
  await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(1);await expect(page.locator('.campaign-breadcrumbs')).toContainText('Lazy campaign');
@@ -373,17 +391,21 @@ test('mobile campaigns use breadcrumbs, cached drill-in and preserve viewport an
  await page.getByRole('button',{name:'Сегодня',exact:true}).click();await expect(page.locator('.campaign-breadcrumbs')).not.toContainText('Lazy group');await expect.poll(()=>fixture.calls.length).toBe(4);
 });
 
-test('changing periods cancels pending campaign reads and returning to the previous period does not hang',async({page})=>{
+test('changing periods shares pending campaign reads when returning to the previous period',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  const fixture=await mockCampaignBrowser(page);let release;fixture.holdFirst=new Promise(resolve=>release=resolve);
  try{
   await page.goto(portal);await page.locator('[data-ux-view="campaigns"]').click();await expect.poll(()=>fixture.calls.length).toBe(1);
   await page.getByRole('button',{name:'Сегодня',exact:true}).click();await expect.poll(()=>fixture.calls.length).toBe(2);await expect(page.locator('.campaign-entity')).toHaveCount(1);
-  await page.getByRole('button',{name:'7 дней',exact:true}).click();await expect.poll(()=>fixture.calls.length).toBe(3);await expect(page.locator('.campaign-entity')).toHaveCount(1);
-  expect(fixture.calls[0].search).toBe(fixture.calls[2].search);
+  await page.getByRole('button',{name:'7 дней',exact:true}).click();release();await expect(page.locator('.campaign-entity')).toHaveCount(1);expect(fixture.calls.length).toBe(2);
+  await page.reload();await expect(page.locator('.campaign-entity')).toHaveCount(1);expect(fixture.calls.length).toBe(2);
  }finally{release();}
 });
 
 test('returning to Meta approvals and weekly reports reuses their screens without repeated reads',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  const calls=[];page.on('request',r=>{if(r.method()==='GET'&&r.resourceType()==='fetch')calls.push(r.url());});
  await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
  const meta=page.locator('#uxProjectChannels [data-channel="meta"],#uxProjectChannels [data-legacy-view="meta"]');
@@ -394,6 +416,8 @@ test('returning to Meta approvals and weekly reports reuses their screens withou
 });
 
 test('top creative opens full-size media and escaped copy lazily, supports carousel, mobile and cached reopening',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  const key='a'.repeat(64);let calls=0;
  await page.route('**/top-creatives?*',r=>r.fulfill({json:{ok:true,rankings:{leads:[{provider:'meta_ads',rows:[{name:'Объявление с текстом',detailsKey:key,previewUrl:'https://scontent.xx.fbcdn.net/tiny.jpg',score:12,ctr:2,spend:120,currency:'EUR',freshness:'fresh'}]}]}}}));
  const art='<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1500" viewBox="0 0 1200 1500"><rect width="1200" height="1500" fill="#0a1110"/><path d="M120 800L1030 450L600 1060L670 720Z" fill="#26ddcc"/><text x="90" y="200" fill="white" font-family="sans-serif" font-size="110">TOYS</text><text x="90" y="1370" fill="white" font-family="sans-serif" font-size="44">Creative preview · test fixture</text></svg>';
@@ -408,6 +432,8 @@ test('top creative opens full-size media and escaped copy lazily, supports carou
  await page.reload();await page.getByRole('button',{name:'Открыть креатив: Объявление с текстом'}).click();await expect(page.getByRole('dialog',{name:'Объявление с текстом'})).toContainText('Полный текст');expect(calls).toBe(1);
 });
 test('creative viewer recovers from Meta errors and releases video when closed without autoplay',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  const key='b'.repeat(64);let calls=0;
  await page.route('**/top-creatives?*',r=>r.fulfill({json:{ok:true,rankings:{leads:[{provider:'meta_ads',rows:[{name:'Видео',detailsKey:key,previewUrl:'https://scontent.xx.fbcdn.net/poster.svg',score:2,ctr:1,spend:10,currency:'EUR'}]}]}}}));
  await page.route('https://scontent.xx.fbcdn.net/poster.svg',r=>r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"/>'}));
@@ -418,6 +444,8 @@ test('creative viewer recovers from Meta errors and releases video when closed w
 
 
 test('missing and expired creative thumbnails recover from full media, reuse detail reads and never preload video',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  const keys=['c','d','e'].map(c=>c.repeat(64)),calls=new Map(),seen=[];
  const rows=keys.map((detailsKey,i)=>({detailsKey,name:'Recovered '+i,previewUrl:i===1?'https://scontent.xx.fbcdn.net/expired.jpg':null,score:3-i,ctr:2,spend:30,currency:'EUR',freshness:'fresh'}));
  await page.route('**/top-creatives?*',r=>r.fulfill({json:{ok:true,rankings:Object.fromEntries(['leads','roas'].map(basis=>[basis,[{provider:'meta_ads',rows}]]))}}));
@@ -432,6 +460,8 @@ test('missing and expired creative thumbnails recover from full media, reuse det
 });
 
 test('opening a creative after a failed background preview replaces the missing-image placeholder',async({page})=>{
+ // Match the dated advertising fixture; keep CRM tests on the server's current day.
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  const key='f'.repeat(64);let calls=0;
  await page.route('**/top-creatives?*',r=>r.fulfill({json:{ok:true,rankings:{leads:[{provider:'meta_ads',rows:[{name:'Retry preview',detailsKey:key,score:2,ctr:1,spend:5,currency:'EUR'}]}]}}}));
  await page.route('**/top-creatives/'+key+'?*',r=>++calls===1?r.fulfill({status:503,json:{ok:false}}):r.fulfill({json:{ok:true,creative:{media:[{kind:'image',url:'https://scontent.xx.fbcdn.net/recovered.svg'}],bodies:['Creative is available']}}}));
@@ -518,7 +548,7 @@ test('master reload reuses project summaries and the saved morning review',async
 });
 test('changing account role cannot reuse the previous private dashboard cache',async({page})=>{
  await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const stats=await mockCachedStatistics(page);await page.goto(portal);await expect(page.locator('#kClicks')).toHaveText('77');const previous=await page.evaluate(()=>window.TOYS_CACHE_SCOPE);
- await page.setExtraHTTPHeaders({'x-test-viewer':'true'});stats.clicks=33;await page.reload();await expect(page.locator('#kClicks')).toHaveText('33');expect(stats.calls).toBe(2);expect(await page.evaluate(()=>window.TOYS_CACHE_SCOPE)).not.toEqual(previous);
+ await page.setExtraHTTPHeaders({'x-test-viewer':'true'});stats.clicks=33;await page.reload();await expect(page.locator('#kClicks')).toHaveText('33');expect(stats.calls).toBe(2);expect(await page.evaluate(()=>window.TOYS_CACHE_SCOPE)).not.toEqual(previous);expect(await page.evaluate(async old=>(await caches.keys()).includes('toys-dashboard-cache:responses:'+old),previous)).toBe(false);
 });
 test('large history restores after reload without another dashboard download',async({page})=>{
  await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});await mockCachedStatistics(page);let downloads=0;
@@ -527,13 +557,13 @@ test('large history restores after reload without another dashboard download',as
  expect(await page.evaluate(()=>Object.keys(sessionStorage).filter(k=>k.endsWith('/dashboard')).some(k=>JSON.parse(sessionStorage.getItem(k)).encoding==='gzip'))).toBe(true);
  await page.reload();await expect(page.locator('#kClicks')).toHaveText('77');expect(downloads).toBe(1);
 });
-test('CRM writes invalidate saved statistics before returning home and reloading',async({page})=>{
+test('CRM writes update CRM summaries without invalidating advertising statistics',async({page})=>{
  await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const stats=await mockCachedStatistics(page);await page.goto(portal);await expect(page.locator('#kClicks')).toHaveText('77');
  await page.locator('#platformCRMNav').click();await page.locator('#newLead').click();await page.locator('[name=name]').fill('Saved cache invalidation');await page.locator('[name=phone]').fill('+995555019922');stats.clicks=88;
  await page.getByRole('button',{name:'Добавить',exact:true}).click();await expect(page.locator('#leadsBoard')).toContainText('Saved cache invalidation');
  await page.getByRole('link',{name:'Главная',exact:true}).click();
- await page.reload();await expect(page.locator('#kClicks')).toHaveText('88');expect(stats.calls).toBe(2);
- await page.reload();await expect(page.locator('#kClicks')).toHaveText('88');expect(stats.calls).toBe(2);
+ await page.reload();await expect(page.locator('#kClicks')).toHaveText('77');expect(stats.calls).toBe(1);
+ await page.reload();await expect(page.locator('#kClicks')).toHaveText('77');expect(stats.calls).toBe(1);
 });
 test('master direct Meta setup validates before connecting and displays conflicts without claiming delivery',async({page})=>{
  await page.route('**/api/v2/master',async route=>{const response=await route.fetch(),data=await response.json();data.pages=[{id:'123456',name:'Synthetic Meta page',projectId:'prj_housevip_cxp7'}];await route.fulfill({json:data});});
@@ -556,4 +586,28 @@ test('master pre-fills an undiscovered project page without connecting automatic
  await expect(page.locator('#directMetaForm [name=appSecret]')).toHaveValue('b'.repeat(32));
  await page.getByRole('button',{name:'Подключить напрямую',exact:true}).click();await expect(page.locator('#directMetaStatus')).toContainText('Ожидаем первую заявку');
  expect(requests.map(r=>r.pageId)).toEqual(['987654321','987654321']);expect(requests[1].appSecret).toBe('b'.repeat(32));await expect(page.locator('#directMetaForm [name=appSecret]')).toHaveValue('');
+});
+test('large responses survive session-cache eviction and a new tab without downloading advertising again',async({page,context})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});await mockCachedStatistics(page);let downloads=0;
+ const noise=Array.from({length:70000},()=>crypto.randomUUID()).join('');
+ await context.route('**/api/v2/projects/housevip-cxp7/dashboard',async route=>{downloads++;const response=await route.fetch(),data=await response.json();data.dashboard.syntheticNoise=noise;await route.fulfill({json:data});});
+ await page.goto(portal);await expect(page.locator('#kClicks')).toHaveText('77');
+ expect(await page.evaluate(()=>Object.keys(sessionStorage).some(k=>k.endsWith('/dashboard')))).toBe(false);
+ expect(await page.evaluate(async()=>{for(const name of await caches.keys())if(name.startsWith('toys-dashboard-cache:responses:')){const store=await caches.open(name);if((await store.keys()).some(r=>decodeURIComponent(r.url).endsWith('/dashboard')))return true;}return false;})).toBe(true);
+ await page.evaluate(()=>sessionStorage.clear());await page.reload();await expect(page.locator('#kClicks')).toHaveText('77');expect(downloads).toBe(1);
+ const second=await context.newPage();await second.clock.install({time:new Date('2026-10-14T06:08:00Z')});await second.goto(portal);await expect(second.locator('#kClicks')).toHaveText('77');expect(downloads).toBe(1);await second.close();
+});
+test('partial history stays cached through navigation and reloads until the next import slot',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:03:00Z')});let reads=0;
+ await page.route('**/content-project/ads/hierarchy?*',route=>{reads++;return route.fulfill({json:{ok:true,refreshing:false,providers:[{provider:'meta_ads',freshness:'partial',hierarchy:null}]}});});
+ await page.goto(portal);await expect.poll(()=>reads).toBe(1);await page.clock.fastForward(3*60000);
+ await page.locator('#platformCRMNav').click();await page.getByRole('link',{name:'Главная',exact:true}).click();await page.reload();await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');expect(reads).toBe(1);
+ await page.clock.fastForward(16*60000);await expect.poll(()=>reads).toBe(2);
+});
+test('returning to a cached campaign search reuses its completed response',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:03:00Z')});const fixture=await mockCampaignBrowser(page);
+ await page.goto(portal);await page.locator('[data-ux-view=campaigns]').click();await expect(page.locator('#platformCampaignBrowser')).toContainText('Lazy campaign');const count=fixture.calls.length;
+ await page.locator('#platformCampaignBrowser input[type=search]').fill('other');await page.clock.fastForward(300);
+ await expect.poll(()=>fixture.calls.length).toBe(count+1);
+ await page.locator('#platformCampaignBrowser input[type=search]').fill('');await page.clock.fastForward(300);await expect(page.locator('#platformCampaignBrowser')).toContainText('Lazy campaign');expect(fixture.calls.length).toBe(count+1);
 });

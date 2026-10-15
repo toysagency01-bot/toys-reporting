@@ -75,7 +75,7 @@ test('a failed database transaction cannot publish part of an import',async()=>{
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ads_daily_snapshots').get().n,0);
  }finally{db.close();}
 });
-test('scheduled imports survive provider failure, back off, recover and serve the dashboard without provider requests',async()=>{
+test('scheduled imports recover only at the next slot and dashboard reads never contact providers',async()=>{
  const{env,db}=setup();const original=globalThis.fetch;try{
   env.DIRECT_ADS_IMPORT_ENABLED='true';env.DIRECT_ADS_READ_ENABLED='true';
   db.exec(`INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES('direct-meta','prj_housevip_cxp7','meta_ads','123','active','{"timezone":"UTC","currency":"IDR"}')`);
@@ -83,11 +83,16 @@ test('scheduled imports survive provider failure, back off, recover and serve th
   const deps={now:()=>time,makeScope:rt.integrationScope,normalize:rt.normalizeAdsHierarchy,metrics:rt.METRIC_NAMES,metaAdapter:async()=>{calls++;if(fail)throw Object.assign(new Error('Down'),{code:'provider_timeout'});return {provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',coverage:'complete',dailyMetrics:[],campaigns:[]};}};
   assert.equal((await scheduledAds(env,deps))[0].error,'provider_timeout');
   assert.equal((await scheduledAds(env,deps))[0].status,'not_due');assert.equal(calls,1);
-  fail=false;time+=121000;assert.equal((await scheduledAds(env,deps))[0].status,'success');
+  fail=false;time+=121000;assert.deepEqual(await scheduledAds(env,deps),[]);assert.equal(calls,1);time=Date.parse('2026-10-12T18:20:00Z');assert.equal((await scheduledAds(env,deps))[0].status,'success');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ads_daily_snapshots').get().n,30);
-  globalThis.fetch=()=>{throw new Error('A dashboard must not call a provider');};
+  let providerReads=0;globalThis.fetch=()=>{providerReads++;throw new Error('A dashboard must not call a provider');};
   const r=await worker.fetch(request('/api/v2/projects/housevip-cxp7/ads-summary?from=2026-10-11&to=2026-10-12'),env);
   assert.equal(r.status,200);const data=await r.json();assert.equal(data.providers[0].coverage,'complete');assert.ok(data.providers[0].hierarchy);
+  // Fresh, historical and missing ranges all stay in the database, including repeated reads.
+  for(const range of ['from=2026-10-11&to=2026-10-12','from=2026-01-01&to=2026-01-02'])for(const endpoint of ['ads-summary','content-project/ads/hierarchy','top-creatives','campaign-browser'])for(let repeat=0;repeat<2;repeat++){
+   const response=await worker.fetch(request('/api/v2/projects/housevip-cxp7/'+endpoint+'?'+range),env);assert.equal(response.status,200,endpoint);
+  }
+  assert.equal(providerReads,0);
   const status=db.prepare('SELECT state,failure_count FROM ads_import_status').get();assert.equal(status.state,'success');assert.equal(status.failure_count,0);
  }finally{globalThis.fetch=original;db.close();}
 });

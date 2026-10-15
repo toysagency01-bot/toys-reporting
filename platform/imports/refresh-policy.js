@@ -8,7 +8,7 @@ export const refreshInterval=(at=Date.now())=>(isNightRefresh(at)?60:20)*minute;
 export const nextRefreshAt=(at=Date.now())=>(Math.floor(Number(at)/refreshInterval(at))+1)*refreshInterval(at);
 // Tbilisi is UTC+4; whole-hour and 20-minute boundaries align with UTC minutes.
 export const isReportRefreshSlot=(at=Date.now())=>new Date(at).getUTCMinutes()%(isNightRefresh(at)?60:20)===0;
-export const shouldPollAds=(at=Date.now())=>!isNightRefresh(at)||isReportRefreshSlot(at);
+export const shouldPollAds=(at=Date.now())=>isReportRefreshSlot(at);
 export function adsAreStale(fetchedAt,now=Date.now(),graceMinutes=10){
  const at=Date.parse(fetchedAt);
  return !Number.isFinite(at)||now>nextRefreshAt(at)+graceMinutes*minute;

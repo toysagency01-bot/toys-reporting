@@ -1,4 +1,5 @@
 import {nextRefreshAt} from '../imports/refresh-policy.js';
+import {persistentResponses,clearPersistentResponses} from './persistent-cache.js';
 
 export const CACHE_PREFIX='toys-dashboard-cache:v1:';
 const stores=new WeakMap(),volatileStore={};
@@ -29,6 +30,7 @@ function allowed(path){
   ||p==='/api/v2/master/daily-review';
 }
 export function clearDashboardStorage(storage=browserStorage()){
+ clearPersistentResponses();
  if(storage)try{for(const key of Object.keys(storage))if(key.startsWith(CACHE_PREFIX))storage.removeItem(key);}catch{}
  const scopes=stores.get(storage||volatileStore);if(scopes)for(const state of scopes.values()){state.epoch++;state.values.clear();state.pending.clear();state.restoring.clear();}
 }
@@ -37,56 +39,65 @@ export function responseCache({scope=globalThis.TOYS_CACHE_SCOPE,storage=browser
  // Session storage survives reloads in this tab, but is never shared across logins.
  const persistent=typeof scope==='string'&&/^[a-f0-9]{64}$/.test(scope),space=CACHE_PREFIX+(persistent?scope:'page')+':';
  if(persistent&&storage)try{if(Object.keys(storage).some(key=>key.startsWith(CACHE_PREFIX)&&!key.startsWith(space)))clearDashboardStorage(storage);}catch{}
+ const durable=persistent?persistentResponses(scope):null;
  const owner=storage||volatileStore;if(!stores.has(owner))stores.set(owner,new Map());
- const scopes=stores.get(owner);if(!scopes.has(space))scopes.set(space,{values:new Map(),pending:new Map(),restoring:new Map(),epoch:0});
+ const scopes=stores.get(owner);if(!scopes.has(space))scopes.set(space,{values:new Map(),pending:new Map(),restoring:new Map(),versions:new Map(),epoch:0});
  const state=scopes.get(space),eligible=path=>allowed(path)&&path.startsWith(prefix);
- function remove(path){state.values.delete(path);try{if(persistent)storage?.removeItem(space+path);}catch{}}
+ const version=path=>state.epoch+':'+(state.versions.get(path)||0);
+ const invalidate=path=>state.versions.set(path,(state.versions.get(path)||0)+1);
+ const remember=(path,entry)=>{state.values.delete(path);state.values.set(path,entry);while(state.values.size>maxEntries)state.values.delete(state.values.keys().next().value);};
+ function remove(path){state.values.delete(path);durable?.remove(path);try{if(persistent)storage?.removeItem(space+path);}catch{}}
  function peek(path){
   if(!eligible(path))return null;
   let entry=state.values.get(path);
   if(!entry&&persistent)try{const raw=storage?.getItem(space+path);if(raw)entry=JSON.parse(raw);}catch{remove(path);}
-  if(!entry||entry.schema!==1||!Number.isFinite(entry.at)||!Number.isFinite(entry.expiresAt)||now()<entry.at-60000||now()-entry.at>maxStale){remove(path);return null;}
+  if(!entry)return null;
+  if(entry.schema!==1||!Number.isFinite(entry.at)||!Number.isFinite(entry.expiresAt)||now()<entry.at-60000||now()-entry.at>maxStale){remove(path);return null;}
   if(entry.encoding==='gzip')return null;
   if(!(entry.value?.ok||entry.value?.status==='ok')){remove(path);return null;}
-  state.values.set(path,entry);
+  remember(path,entry);
   return {value:structuredClone(entry.value),at:entry.at,fresh:now()<entry.expiresAt};
  }
  async function load(path){
   const hit=peek(path);if(hit||!persistent||!eligible(path))return hit;
   if(state.restoring.has(path))return state.restoring.get(path);
-  const epoch=state.epoch,task=(async()=>{
-   try{const raw=storage?.getItem(space+path);if(!raw)return null;const entry=await unpack(JSON.parse(raw));if(state.epoch!==epoch)return null;state.values.set(path,entry);return peek(path);}catch{if(state.epoch===epoch)remove(path);return null;}
+  const epoch=version(path),task=(async()=>{
+   try{let raw;try{raw=storage?.getItem(space+path);}catch{}if(!raw)raw=await durable?.get(path);if(!raw)return null;const entry=await unpack(JSON.parse(raw));if(version(path)!==epoch)return null;remember(path,entry);return peek(path);}catch{if(version(path)===epoch)remove(path);return null;}
   })().finally(()=>{if(state.restoring.get(path)===task)state.restoring.delete(path);});
   state.restoring.set(path,task);return task;
  }
  async function persist(path,entry){
-  if(!persistent||!storage)return;
-  const epoch=state.epoch;
+  if(!persistent)return;
+  const epoch=version(path);
   try{
-   const raw=await pack(entry);if(state.epoch!==epoch||state.values.get(path)!==entry)return;
+   const raw=await pack(entry);if(version(path)!==epoch||state.values.get(path)!==entry)return;
+   if(raw)await durable?.put(path,raw,entry.at);
+   if(!storage||version(path)!==epoch||state.values.get(path)!==entry)return;
    if(!raw||raw.length>maxChars/2){storage.removeItem(space+path);return;}
    const old=Object.keys(storage).filter(k=>k.startsWith(CACHE_PREFIX)&&k!==space+path).map(key=>{const value=storage.getItem(key)||'';return {key,size:value.length,at:Number(value.match(/"at":(\d+)/)?.[1]||0)};}).sort((a,b)=>a.at-b.at);
    let size=raw.length+old.reduce((n,e)=>n+e.size,0);
-   while(old.length&&(size>maxChars||old.length>=maxEntries)){const oldest=old.shift();size-=oldest.size;storage.removeItem(oldest.key);if(oldest.key.startsWith(space))state.values.delete(oldest.key.slice(space.length));}
+   while(old.length&&(size>maxChars||old.length>=maxEntries)){const oldest=old.shift();size-=oldest.size;storage.removeItem(oldest.key);}
    storage.setItem(space+path,raw);
   }catch{ /* Restricted storage/quota must never prevent loading a dashboard. */ }
  }
  async function set(path,value){
   if(!eligible(path)||!(value?.ok||value?.status==='ok'))return;
-  const at=now(),degraded=value.refreshing||(value.providers||[]).some(p=>['stale','partial','missing'].includes(p.freshness)||['failed','refreshing','rate_limited'].includes(p.refresh?.state));
-  const expiresAt=value.refreshing?at:Math.min(ttl==null?nextRefreshAt(at)+60000:at+ttl,degraded?at+60000:Infinity);
+  // Source coverage/freshness describes the data, not the next browser read.
+  // Partial history and a running import must not start a polling loop.
+  const at=now(),expiresAt=ttl==null?nextRefreshAt(at)+60000:at+ttl;
   const entry={schema:1,at,expiresAt,value:structuredClone(value)};
-  state.values.delete(path);state.values.set(path,entry);while(state.values.size>maxEntries)remove(state.values.keys().next().value);await persist(path,entry);
+  remember(path,entry);await persist(path,entry);
  }
- function clear(){state.epoch++;state.restoring.clear();for(const path of [...state.values.keys()])if(path.startsWith(prefix))state.values.delete(path);for(const path of [...state.pending.keys()])if(path.startsWith(prefix))state.pending.delete(path);
+ function clear(){for(const path of new Set([...state.values.keys(),...state.pending.keys(),...state.restoring.keys()]))if(path.startsWith(prefix)){invalidate(path);state.values.delete(path);state.pending.delete(path);state.restoring.delete(path);}
+  durable?.clear(prefix);
   if(persistent)try{for(const key of Object.keys(storage||{}))if(key.startsWith(space+prefix))storage.removeItem(key);}catch{}
  }
  async function get(path,read,{force=false}={}){
   if(!eligible(path))return read();
   const hit=await load(path);if(hit?.fresh&&!force)return hit.value;
   if(state.pending.has(path))return structuredClone(await state.pending.get(path));
-  const epoch=state.epoch,task=Promise.resolve().then(read).then(async value=>{if(state.epoch===epoch)await set(path,value);return value;}).catch(error=>{if([401,403].includes(error.status))clearDashboardStorage(storage);throw error;}).finally(()=>{if(state.pending.get(path)===task)state.pending.delete(path);});
+  const epoch=version(path),task=Promise.resolve().then(read).then(async value=>{if(version(path)===epoch)await set(path,value);return value;}).catch(async error=>{if([401,403].includes(error.status))clearDashboardStorage(storage);else if(ttl==null&&hit&&version(path)===epoch){const entry=state.values.get(path);if(entry){entry.expiresAt=nextRefreshAt(now())+60000;await persist(path,entry);}}throw error;}).finally(()=>{if(state.pending.get(path)===task)state.pending.delete(path);});
   state.pending.set(path,task);return structuredClone(await task);
  }
- return {peek,load,get,set,clear,delete(path){state.epoch++;remove(path);state.pending.delete(path);state.restoring.delete(path);}};
+ return {peek,load,get,set,clear,delete(path){invalidate(path);remove(path);state.pending.delete(path);state.restoring.delete(path);}};
 }

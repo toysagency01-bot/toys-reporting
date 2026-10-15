@@ -31,9 +31,6 @@ const $=id=>document.getElementById(id);
 let creativeRankings=null,creativeState="loading",creativeSequence=0;
 let crmStats=null,clientNavigation,campaignBrowser;
 let dashboard,allRows=[],ads=null,snapshotPromise,tabsPromise,ready=false,toolkit,refreshing=false,sequence=0,calendar,refreshTimer,periodTimer;
-const retryTimers={},retryCounts={},retryDelays=[1500,3000,5000,8000,12000,20000,30000];
-function resetRetries(){for(const key of ['ads','creatives']){clearTimeout(retryTimers[key]);retryCounts[key]=0;}}
-function retrySoon(key,requested,run){clearTimeout(retryTimers[key]);const attempt=retryCounts[key]||0;if(attempt>=retryDelays.length)return;retryCounts[key]=attempt+1;retryTimers[key]=setTimeout(()=>{if(!document.hidden&&JSON.stringify(range())===JSON.stringify(requested))run();},retryDelays[attempt]);}
 const readJSON=async(url,options={})=>{const r=await fetch(url,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000),...options});const d=await r.json().catch(()=>({}));if(!r.ok||!(d.ok||d.status==='ok')){const status=r.redirected?401:r.status;if([401,403].includes(status))clearDashboardStorage();throw Object.assign(new Error(d.error||`HTTP ${status}`),{status});}return d;};
 const json=(url,options={})=>dataCache.get(url,()=>readJSON(url,options));
 const range=()=>({from:$(shop?'from':'dateFrom')?.value||'',to:$(shop?'to':'dateTo')?.value||''});
@@ -41,7 +38,7 @@ function notice(text,error=false){const n=$('platformNotice');if(n){n.textConten
 const load=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_SCRIPTS?.[path]){try{window.TOYS_BUNDLED_SCRIPTS[path]();resolve();}catch(e){reject(e);}return;}const s=document.createElement('script');s.src=asset(path);s.onload=resolve;s.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(s);});
 const css=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_STYLES?.[path]){const style=document.createElement('style');style.textContent=window.TOYS_BUNDLED_STYLES[path];document.head.append(style);resolve();return;}const l=document.createElement('link');l.rel='stylesheet';l.href=asset(path);l.onload=resolve;l.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(l);});
 const metric=r=>r.metrics||[];
-window.TOYS_PLATFORM={invalidate(){dataCache.clear();materialCache.clear();},asset,scheduleRender,updateChart,observeScrollFades,async fx(from,to){const d=await json(`${api}/exchange-rate?base=${from}&quote=${to}`);return Response.json({date:d.rate.date,[from.toLowerCase()]:{[to.toLowerCase()]:Number(d.rate.rate)}});},tabs:()=>tabsPromise,afterRender(){if(ready){attachHierarchy();maskUnavailable();calendar?.sync();renderCRM();renderCreatives();}},async table(name,raw){
+window.TOYS_PLATFORM={invalidate(){dataCache.delete(api+'/content/tabs');tabsPromise=json(api+'/content/tabs').then(d=>d.tabs||[]);materialCache.clear();},asset,scheduleRender,updateChart,observeScrollFades,async fx(from,to){const d=await json(`${api}/exchange-rate?base=${from}&quote=${to}`);return Response.json({date:d.rate.date,[from.toLowerCase()]:{[to.toLowerCase()]:Number(d.rate.rate)}});},tabs:()=>tabsPromise,afterRender(){if(ready){attachHierarchy();maskUnavailable();calendar?.sync();renderCRM();renderCreatives();}},async table(name,raw){
  if(name==='WeeklyComments')return weeklyTable((await json(api+'/weekly-reports')).reports||[]);
  if(['GoogleAds','MetaAds','InstashopSales','EcomFunnel','EcomFunnelCampaign','Insights','MetaAdsFormat','QualifiedLeads'].includes(name))return sourceTable(await snapshotPromise,name);
  const path=`${api}/content/tabs?tab=${encodeURIComponent(name)}${raw?'&raw=1':''}`;return materialCache.get(path,()=>json(path));
@@ -79,19 +76,23 @@ function applyAds(rows,commerce=null){const signature=JSON.stringify([rows,comme
 async function refresh(){
  if(refreshing)return;const requested=range();if(!validRange(requested.from,requested.to)||(Date.parse(requested.to)-Date.parse(requested.from))/86400000>=366){notice('Для обновления кабинета выберите период не длиннее года.',true);return;}
  refreshing=true;const seq=++sequence,address=`${api}/${privateMode?'content-project/ads/hierarchy':'ads-summary'}?from=${requested.from}&to=${requested.to}`;
- const apply=(result,cached=false)=>{if(seq!==sequence||JSON.stringify(range())!==JSON.stringify(requested))return;ads=result;crmStats=result.crm||null;renderCRM();
+ const apply=(result,cached=false)=>{if(seq!==sequence||JSON.stringify(range())!==JSON.stringify(requested))return;ads=result;if(!privateMode)crmStats=result.crm||null;renderCRM();
   const names=[...new Set((ads.providers||[]).map(p=>p.provider))].filter(name=>ads.providers.filter(p=>p.provider===name).every(p=>p.hierarchy&&p.requestedRange?.from===requested.from&&p.requestedRange?.to===requested.to));
   const normalized=advertisingModel(dashboard,ads,requested);const live=allRows.filter(r=>r.date>=requested.from&&r.date<=requested.to&&!names.includes(r.provider)).concat(normalized.filter(r=>names.includes(r.provider)));const base=allRows.filter(r=>r.date<requested.from||r.date>requested.to);const all=[...base,...live];
   let commerce=null;if(dashboard.ecommerce&&result.commerce?.completeProviders?.length){const updated=new Set(result.commerce.completeProviders.map(p=>p==='meta_ads'?'Meta Ads':'Google Ads'));for(const [key,rows]of [['account',result.commerce.account],['campaigns',result.commerce.campaigns]]){const previous=dashboard.ecommerce[key]||{};dashboard.ecommerce[key]={...previous,rows:[...(previous.rows||[]).filter(r=>!updated.has(r.platform)||r.date<requested.from||r.date>requested.to||(result.commerce.coverageByProvider?.[r.platform==='Meta Ads'?'meta_ads':'google_ads']&&!result.commerce.coverageByProvider[r.platform==='Meta Ads'?'meta_ads':'google_ads'].includes(r.date))),...rows]};}commerce={account:sourceTable(dashboard,'EcomFunnel'),campaigns:sourceTable(dashboard,'EcomFunnelCampaign')};}
   if(names.length||commerce){if(shop){const mapped=shopLiveRows(all);if(mapped.some(r=>r===null)){notice('Детализация получена. Для сводки в гривнах не хватает подтверждённого курса; сохранены опубликованные показатели.',true);attachHierarchy();return;}allRows=all;applyAds(mapped);}
   else {allRows=all;applyAds(all.map(r=>({date:r.date,platform:r.provider==='google_ads'?'Google Ads':'Meta Ads',account:title,accountId:r.integrationId||'',currency:r.currency,campaign:r.name,campaignId:r.campaignId,impr:r.impressions,clicks:r.clicks,cost:r.spend,conv:r.conversions})),commerce);}}
-  if(result.refreshing){notice('Обновляем рекламные данные. Последние доступные показатели сохранены.');if(!cached)retrySoon('ads',requested,refresh);}
-  else{clearTimeout(retryTimers.ads);notice(result.providers?.map(p=>`${p.provider==='google_ads'?'Google Ads':'Meta Ads'}: ${p.hierarchy?(p.freshness==='fresh'?'обновлено':p.freshness==='partial'?'история + данные API':'сохранённые данные')+(p.fetchedAt?' · '+new Date(p.fetchedAt).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}):''):'подключение не завершено'}`).join(' · ')||'Показаны опубликованные данные.');}maskUnavailable();
+  if(result.refreshing){notice('Показаны сохранённые данные. Импорт по расписанию ещё выполняется.');}
+  else{notice(result.providers?.map(p=>`${p.provider==='google_ads'?'Google Ads':'Meta Ads'}: ${p.hierarchy?(p.freshness==='fresh'?'обновлено':p.freshness==='partial'?'история + данные API':'сохранённые данные')+(p.fetchedAt?' · '+new Date(p.fetchedAt).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}):''):'подключение не завершено'}`).join(' · ')||'Показаны опубликованные данные.');}maskUnavailable();
  };
  try{const saved=await dataCache.load(address);if(saved){apply(saved.value,true);if(saved.fresh)return;notice('Показаны сохранённые данные. Обновляем в фоне…');}else notice('Обновляем данные…');apply(await json(address));}
- catch(e){notice('Не удалось обновить кабинет. Последние данные сохранены; повторяем запрос автоматически.',true);retrySoon('ads',requested,refresh);}finally{refreshing=false;renderCreatives();if(JSON.stringify(range())!==JSON.stringify(requested))queueRefresh();}
+ catch(e){notice('Не удалось обновить кабинет. Последние данные сохранены. Повторим по расписанию.',true);}finally{refreshing=false;renderCreatives();if(JSON.stringify(range())!==JSON.stringify(requested))queueRefresh();}
 }
 
+async function refreshCRM(){
+ if(!privateMode)return;const requested=range();
+ try{const d=await readJSON(`${api}/crm/summary?from=${requested.from}&to=${requested.to}`);if(JSON.stringify(range())===JSON.stringify(requested)){crmStats=d;renderCRM();}}catch{}
+}
 function renderCRM(){
  let panel=$('platformCRMStats');if(!panel){const host=$('mainCards')||$('cards')||document.querySelector('#uxOverview .cards');if(!host)return;panel=document.createElement('div');panel.id='platformCRMStats';panel.className='cards';host.after(panel);}
  panel.hidden=!crmStats?.available;if(panel.hidden)return;
@@ -101,16 +102,16 @@ function renderCRM(){
 function renderCreatives(){if(!ready)return;const channels=Object.keys(dashboard.advertising?.channels||{}).map(c=>/google/i.test(c)?'google_ads':'meta_ads');renderTopCreatives({rankings:creativeRankings,state:creativeState,activeChannel:document.querySelector('#platformSeg .active')?.dataset.platform||'__all',range:range(),channels:channels.length?[...new Set(channels)]:['meta_ads'],slug});}
 async function refreshCreatives(){
  const requested=range(),seq=++creativeSequence;if(!creativeRankings)creativeState='loading';renderCreatives();
- const address=`${api}/top-creatives?from=${requested.from}&to=${requested.to}`,apply=(data,cached=false)=>{if(seq!==creativeSequence||JSON.stringify(range())!==JSON.stringify(requested))return;creativeRankings=data.rankings;creativeState=data.refreshing?'refreshing':'ready';if(data.refreshing){if(!cached)retrySoon('creatives',requested,refreshCreatives);}else clearTimeout(retryTimers.creatives);renderCreatives();};
+ const address=`${api}/top-creatives?from=${requested.from}&to=${requested.to}`,apply=(data,cached=false)=>{if(seq!==creativeSequence||JSON.stringify(range())!==JSON.stringify(requested))return;creativeRankings=data.rankings;creativeState='ready';renderCreatives();};
  try{const saved=await dataCache.load(address);if(saved){apply(saved.value,true);if(saved.fresh)return;creativeState='refreshing';renderCreatives();}apply(await json(address));}
- catch{if(seq!==creativeSequence)return;creativeState='error';retrySoon('creatives',requested,refreshCreatives);}
+ catch{if(seq!==creativeSequence)return;creativeState='error';}
  finally{if(seq===creativeSequence)renderCreatives();}
 }
-function queueRefresh(){resetRetries();crmStats=null;renderCRM();creativeSequence++;creativeRankings=null;creativeState='loading';clearTimeout(periodTimer);periodTimer=setTimeout(()=>{renderCreatives();refreshCreatives();refresh();},300);}
+function queueRefresh(){crmStats=null;renderCRM();creativeSequence++;creativeRankings=null;creativeState='loading';clearTimeout(periodTimer);periodTimer=setTimeout(()=>{renderCreatives();refreshCreatives();refresh();refreshCRM();},300);}
 let lastAutoRefresh=Date.now(),autoRunning=false;
 async function autoRefresh(force=false){
- if(autoRunning||document.hidden||!force&&Date.now()<nextRefreshAt(lastAutoRefresh)+60000)return;autoRunning=true;lastAutoRefresh=Date.now();resetRetries();materialCache.clear();
- try{const d=await json(api+'/dashboard');const changed=JSON.stringify(d.dashboard)!==JSON.stringify(dashboard);dashboard=d.dashboard;snapshotPromise=Promise.resolve(dashboard);if(changed){appliedAds='';allRows=snapshotRows(dashboard);const names=['MetaAds','GoogleAds','InstashopSales','EcomFunnel','EcomFunnelCampaign'];window.TOYS_NATIVE.refreshSnapshot(Object.fromEntries(names.map(n=>[n,sourceTable(dashboard,n)])));}await Promise.all([refresh(),refreshCreatives()]);campaignBrowser?.refresh();}catch(e){notice('Автообновление временно недоступно. Сохранены последние данные.',true);}finally{autoRunning=false;}
+ if(autoRunning||document.hidden||!force&&Date.now()<nextRefreshAt(lastAutoRefresh)+60000)return;autoRunning=true;lastAutoRefresh=Date.now();materialCache.clear();
+ try{const d=await json(api+'/dashboard');const changed=JSON.stringify(d.dashboard)!==JSON.stringify(dashboard);dashboard=d.dashboard;snapshotPromise=Promise.resolve(dashboard);if(changed){appliedAds='';allRows=snapshotRows(dashboard);const names=['MetaAds','GoogleAds','InstashopSales','EcomFunnel','EcomFunnelCampaign'];window.TOYS_NATIVE.refreshSnapshot(Object.fromEntries(names.map(n=>[n,sourceTable(dashboard,n)])));}await Promise.all([refresh(),refreshCreatives(),refreshCRM()]);campaignBrowser?.refresh();}catch(e){notice('Автообновление временно недоступно. Сохранены последние данные.',true);}finally{autoRunning=false;}
 }
 
 function mountTools(){
@@ -156,7 +157,7 @@ async function boot(){
  const n=document.createElement('div');n.id='platformNotice';n.className='platform-notice';n.setAttribute('role','status');controls.after(n);notice(dashboard.coverage?.warning||'Опубликованные данные проекта.');
  ready=true;mountTools();maskUnavailable();
  if(!allRows.length&&$('updated'))$('updated').textContent='Нет рекламной активности в загруженном периоде';
- clientNavigation=mountClientNavigation({slug,api,prefix,asset,initialCRM,onChange:async()=>{try{const requested=range(),d=await json(`${api}/crm/summary?from=${requested.from}&to=${requested.to}`);if(JSON.stringify(range())===JSON.stringify(requested)){crmStats=d;renderCRM();}}catch{}}});
+ clientNavigation=mountClientNavigation({slug,api,prefix,asset,initialCRM,onChange:async()=>{await refreshCRM();await refreshCreatives();}});
  const from=$(shop?'from':'dateFrom'),to=$(shop?'to':'dateTo');
  calendar=mountCalendar({from,to,timeZone:projectConfig.periodTimezone,apply:(start,end)=>{document.querySelectorAll('#periodSeg button').forEach(b=>b.classList.remove('active'));sequence++;ads=null;window.TOYS_NATIVE.setPeriod(start,end);queueRefresh();}});
  if(projectConfig.defaultLastDays){const end=calendar.today(),start=new Date(Date.parse(end+'T12:00:00Z')-(projectConfig.defaultLastDays-1)*86400000).toISOString().slice(0,10);from.value=start;to.value=end;window.TOYS_NATIVE.setPeriod(start,end);calendar.sync();}
@@ -167,7 +168,7 @@ async function boot(){
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)autoRefresh();});
  document.addEventListener('change',e=>{if(e.target===from||e.target===to){sequence++;ads=null;queueRefresh();}},true);
  document.addEventListener('click',e=>{if(e.target.closest('[data-days]')){sequence++;ads=null;queueRefresh();}},true);
- await Promise.all([refresh(),refreshCreatives()]);
+ await Promise.all([refresh(),refreshCreatives(),refreshCRM()]);
  if(savedSnapshot&&!savedSnapshot.fresh)autoRefresh(true);
 }
 boot().catch(e=>{delete document.body.dataset.platformLoading;const n=document.createElement('p');n.setAttribute('role','alert');n.textContent='Не удалось загрузить борд: '+e.message;document.body.append(n);});

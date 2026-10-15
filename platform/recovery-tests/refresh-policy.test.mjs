@@ -14,13 +14,13 @@ test('Tbilisi night is 00:00 inclusive to 09:00 exclusive, independent of host t
   assert.equal(new Date(nextRefreshAt(at(time))).toISOString(),new Date(next).toISOString(),time);
  }
 });
-test('a full Tbilisi day has 9 hourly night runs and 45 daytime runs; CRM wakeups cannot add night imports',()=>{
+test('a full Tbilisi day has 9 hourly night runs and 45 daytime runs; CRM wakeups cannot add advertising imports',()=>{
  const start=at('2026-10-12T20:00:00Z'),hours=[];
  for(let m=0;m<1440;m+=2){
   const time=start+m*60000;
   if(isReportRefreshSlot(time))hours.push(m);
   if(m<540)assert.equal(shouldPollAds(time),m%60===0);
-  else assert.equal(shouldPollAds(time),true);
+  else assert.equal(shouldPollAds(time),m%20===0);
  }
  assert.equal(hours.length,54);
  assert.deepEqual(hours.filter(m=>m<540),[0,60,120,180,240,300,360,420,480]);

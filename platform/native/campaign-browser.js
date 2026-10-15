@@ -20,24 +20,23 @@ export function mountCampaignBrowser({slug,context}){
  const list=host.querySelector('.campaign-list'),crumbs=host.querySelector('.campaign-breadcrumbs'),note=host.querySelector('.campaign-source-note'),summary=host.querySelector('.campaign-level-summary');
  const cache=responseCache({prefix:`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser`}),pages=new Map(),nodes=new Map(),expanded=new Set(),loading=new Set(),errors=new Map();
  const mobile=matchMedia('(max-width:760px)');
- let scope='',current,query='',sort='spend',path=[],generation=0,controller=new AbortController(),searchTimer,retryTimer,retries=0;
+ let scope='',current,query='',sort='spend',path=[],generation=0,searchTimer;
  const visible=()=>section.classList.contains('active')&&!document.body.classList.contains('platform-show-crm');
  const params=(parent='',offset=0)=>new URLSearchParams({...current.range,provider:current.provider||'',parent,q:query,sort,offset:String(offset)});
  const url=(parent,offset)=>`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser?${params(parent,offset)}`;
  const selectedParent=()=>mobile.matches?path.at(-1)||'':'';
- function reset(){generation++;if(loading.size)cache.clear();controller.abort();controller=new AbortController();pages.clear();nodes.clear();loading.clear();errors.clear();expanded.clear();path=[];clearTimeout(retryTimer);retries=0;}
+ function reset(){generation++;pages.clear();nodes.clear();loading.clear();errors.clear();expanded.clear();path=[];}
  async function load(parent='',more=false){
   if(loading.has(parent)||!current||!validRange(current.range.from,current.range.to))return;
   const offset=more?pages.get(parent)?.nextOffset:0;if(offset===null||offset===undefined)return;
   const seq=generation;loading.add(parent);errors.delete(parent);render();
   try{
-   const address=url(parent,offset),signal=controller.signal;
+   const address=url(parent,offset);
    const saved=await cache.load(address);if(seq!==generation)return;if(saved&&!saved.fresh&&!more){for(const row of saved.value.rows)nodes.set(row.key,row);pages.set(parent,saved.value);render();}
-   const data=await cache.get(address,async()=>{const response=await fetch(address,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.any([signal,AbortSignal.timeout(30000)])});const d=await response.json();if(!response.ok||!d.ok)throw Object.assign(new Error(response.status===401||response.status===403?'access_denied':'unavailable'),{status:response.status});return d;});
+   const data=await cache.get(address,async()=>{const response=await fetch(address,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000)});const d=await response.json();if(!response.ok||!d.ok)throw Object.assign(new Error(response.status===401||response.status===403?'access_denied':'unavailable'),{status:response.status});return d;});
    if(seq!==generation)return;
    for(const row of data.rows)nodes.set(row.key,row);
    pages.set(parent,{...data,rows:more?[...pages.get(parent).rows,...data.rows]:data.rows});
-   if(data.refreshing&&retries++<5){clearTimeout(retryTimer);retryTimer=setTimeout(()=>{if(visible()){cache.clear();load(parent);}},5000);}
   }catch(error){if(seq===generation&&error.name!=='AbortError')errors.set(parent,error.message==='access_denied'?'Войдите в кабинет, чтобы открыть детализацию.':'Не удалось загрузить детализацию. Попробуйте ещё раз.');}
   finally{if(seq===generation){loading.delete(parent);render();}}
  }
@@ -75,7 +74,7 @@ export function mountCampaignBrowser({slug,context}){
   if(action==='history')return;
   if(action==='root'){path=[];render();return;}
   if(action==='crumb'){path=path.slice(0,Number(button.dataset.index)+1);render();return;}
-  if(action==='retry'){cache.clear();load(button.dataset.parent);return;}
+  if(action==='retry'){cache.delete(url(button.dataset.parent,0));load(button.dataset.parent);return;}
   if(action==='more'){load(button.dataset.parent,true);return;}
   if(action==='open'){
    if(mobile.matches){path.push(key);render();host.scrollIntoView({block:'start'});}
@@ -95,5 +94,5 @@ export function mountCampaignBrowser({slug,context}){
  new MutationObserver(sync).observe(section,{attributes:true,attributeFilter:['class']});
  document.getElementById('platformSeg')?.addEventListener('click',()=>queueMicrotask(sync));
  sync();
- return {sync,refresh(){cache.clear();generation++;controller.abort();controller=new AbortController();loading.clear();errors.clear();clearTimeout(retryTimer);retries=0;if(visible()){load();for(const key of new Set([...expanded,...path]))load(key);}else{pages.clear();nodes.clear();expanded.clear();path=[];}}};
+ return {sync,refresh(){generation++;loading.clear();errors.clear();if(visible()){load();for(const key of new Set([...expanded,...path]))load(key);}else{pages.clear();nodes.clear();expanded.clear();path=[];}}};
 }
