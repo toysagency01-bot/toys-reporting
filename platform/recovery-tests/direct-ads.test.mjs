@@ -53,6 +53,24 @@ test('independent reconciliation mismatch is recorded without silently replacing
 test('Google account totals preserve exact currency and fractional conversions',()=>{
  assert.equal(addDecimal('21.23','8.404938'),'29.634938');assert.equal(addDecimal('0.1','0.2'),'0.3');assert.equal(addDecimal('9007199254740993','1'),'9007199254740994');
 });
+test('Meta import diagnostics retain numeric provider codes without leaking raw errors or changing retry cadence',async()=>{
+ const {env,db}=setup();try{
+  env.DIRECT_ADS_IMPORT_ENABLED='true';
+  db.exec(`INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES('direct-meta','prj_housevip_cxp7','meta_ads','123','active','{"timezone":"UTC","currency":"IDR"}')`);
+  let calls=0,time=Date.parse('2026-10-13T12:00:00Z');
+  const error=Object.assign(new Error('sensitive token and provider URL'),{code:'provider_unauthorized',providerCode:200,providerSubcode:1815694,accessToken:'sensitive'});
+  const deps={now:()=>time,makeScope:rt.integrationScope,normalize:rt.normalizeAdsHierarchy,metrics:rt.METRIC_NAMES,metaAdapter:async()=>{calls++;throw error;}};
+  assert.equal((await scheduledAds(env,deps))[0].error,'provider_unauthorized');
+  const log=db.prepare("SELECT * FROM sync_runs WHERE job_type='meta-import-diagnostic'").get();
+  assert.deepEqual(JSON.parse(log.details_json),{schemaVersion:'meta-import-error/1',integrationId:'direct-meta',accountId:'123',providerCode:200,providerSubcode:1815694});
+  assert.equal(log.message,'provider_unauthorized');assert.ok(!JSON.stringify(log).includes('sensitive'));
+  assert.equal(db.prepare('SELECT next_attempt_at FROM ads_import_status').get().next_attempt_at,'2026-10-13T12:20:00.000Z');
+  assert.equal((await scheduledAds(env,deps))[0].status,'not_due');assert.equal(calls,1);
+  time+=20*60000;error.providerCode='sensitive';error.providerSubcode={token:'sensitive'};
+  assert.equal((await scheduledAds(env,deps))[0].error,'provider_unauthorized');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sync_runs WHERE job_type='meta-import-diagnostic'").get().n,1);
+ }finally{db.close();}
+});
 function payload(at='2026-10-12T18:00:00Z',spend='20'){
  const day={date:'2026-10-12',metrics:{impressions:'100',clicks:'4',spend,conversions:'2',conversionValue:'0'}};
  return {...rt.normalizeAdsHierarchy({provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',coverage:'complete',dailyMetrics:[day],campaigns:[{id:'1',name:'Synthetic',dailyMetrics:[day],adsets:[]}]},{...scope,from:'2026-10-11',to:'2026-10-12'}),fetchedAt:at};

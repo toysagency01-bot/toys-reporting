@@ -56,6 +56,15 @@ export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,
    const code=safeCode(error);
    await db.prepare(`UPDATE ads_import_status SET state='error',last_error_code=?,failure_count=failure_count+1,
     next_attempt_at=?,lease_token=NULL,lease_until=NULL WHERE integration_id=? AND lease_token=?`).bind(code,iso(nextRefreshAt(now())),row.id,token).run();
+   // Preserve Meta's numeric diagnostic codes, never raw messages, URLs or tokens.
+   // These distinguish account permissions from app restrictions and rate limits.
+   if(row.provider==='meta_ads'&&Number.isSafeInteger(error?.providerCode)&&error.providerCode>=0){
+    const details={schemaVersion:'meta-import-error/1',integrationId:row.id,accountId:row.externalAccountId,providerCode:error.providerCode};
+    if(Number.isSafeInteger(error.providerSubcode)&&error.providerSubcode>=0)details.providerSubcode=error.providerSubcode;
+    await db.prepare(`INSERT INTO sync_runs(project_id,provider,job_type,status,started_at,finished_at,message,details_json) VALUES(?,'meta_ads','meta-import-diagnostic','error',?,?,?,?)`)
+     .bind(row.projectId,at,iso(now()),code,JSON.stringify(details)).run()
+     .catch(()=>console.error('Meta import diagnostic could not be persisted'));
+   }
    return {integrationId:row.id,status:'error',error:code};
   }
  };
