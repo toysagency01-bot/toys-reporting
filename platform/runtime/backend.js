@@ -3697,6 +3697,25 @@ async function contentItem(env, project, logicalKey) {
   ).bind(project.organizationId, project.id, logicalKey).first();
 }
 __name(contentItem, "contentItem");
+async function initializeWeeklyContent(request, env, slug2) {
+  const auth = await authorizeMvp(request, env, slug2, "editor");
+  if (!auth.ok) return response3({ok:false,error:auth.error},auth.status);
+  if (!sameOriginWrite(request)) return response3({ok:false,error:"origin_forbidden"},403);
+  const project = await projectRecord(env,slug2);
+  if (!project) return response3({ok:false,error:"not_found"},404);
+  let item = await contentItem(env,project,"weekly-main");
+  if (!item) {
+    // A project may contain imported weekly_reports but no editable content yet.
+    // A deterministic id and unique scope make concurrent first opens idempotent.
+    await env.TOYS_DB.prepare(`INSERT INTO content_items
+      (id,organization_id,project_id,channel_key,locale,kind,logical_key,title,period_kind)
+      VALUES (?,?,?,'all','ru','period_summary','weekly-main','Итоги и комментарии','week')
+      ON CONFLICT DO NOTHING`).bind('weekly_main_'+project.id,project.organizationId,project.id).run();
+    item = await contentItem(env,project,"weekly-main");
+  }
+  if (!item) return response3({ok:false,error:"content_unavailable"},409);
+  return response3({ok:true,item});
+}
 async function revisionModel(env, item, revisionId) {
   if (!revisionId) return null;
   const revision = await env.TOYS_DB.prepare(
@@ -4432,6 +4451,8 @@ async function handleMvpApi(request, env) {
   if (["GET", "HEAD"].includes(request.method) && weeklyMatch) return weeklyReports(request, env, weeklyMatch[1]);
   const contentMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/content$/);
   if (request.method === "GET" && contentMatch) return publishedContent(request, env, contentMatch[1]);
+  const initializeWeeklyMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/content\/weekly-main\/initialize$/);
+  if (request.method === "POST" && initializeWeeklyMatch) return initializeWeeklyContent(request,env,initializeWeeklyMatch[1]);
   const commentsMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/content\/([a-z0-9-]+)\/comments$/);
   if (["GET", "POST"].includes(request.method) && commentsMatch) return contentComments(request, env, commentsMatch[1], commentsMatch[2]);
   const historyMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/content\/([a-z0-9-]+)\/revisions$/);

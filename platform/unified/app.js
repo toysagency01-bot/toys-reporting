@@ -95,13 +95,25 @@ function show(view){if(!['overview','campaigns','funnel','weekly','project','cre
 // Weekly uses the existing revision and publication API. A save never publishes implicitly.
 const fields=[['summary','Главный итог'],['wins','Что сработало'],['issues','Риски и вопросы'],['changes','Что изменили'],['nextSteps','План на следующую неделю']];
 function summaryPayload(revision){return revision?.blocks?.find(b=>b.type==='period_summary')?.payload || {};}
-let weeklyLoading=false,weeklyAttempt=null,weeklyLoadedAt=0,weeklyRange='';
-async function loadWeekly(force=false){
+let weeklyLoading=false,weeklyAttempt=null,weeklyLoadedAt=0,weeklyRange='',weeklyPending=null;
+function loadWeekly(force=false){
+  if(weeklyPending)return weeklyPending;
+  weeklyPending=fetchWeekly(force).finally(()=>weeklyPending=null);return weeklyPending;
+}
+async function fetchWeekly(force=false){
   if(weeklyLoading || state.dirty&&!force)return;
   const selectedRange=JSON.stringify(state.range);if(!force&&weeklyRange===selectedRange&&Date.now()-weeklyLoadedAt<60000)return;
   weeklyLoading=true;if(!weeklyLoadedAt)$('weeklyContent').innerHTML=empty('Загружаем отчёт…');
   try{
-    const published=await json(`${api}/content?logicalKey=weekly-main`);
+    let published;
+    try{published=await json(`${api}/content?logicalKey=weekly-main`);}
+    catch(e){
+      if(e.status!==404||e.message!=='not_found')throw e;
+      if(privateMode&&window.TOYS_ACCESS_ROLE!=='viewer'){
+        await write('/content/weekly-main/initialize',{});
+        published=await json(`${api}/content?logicalKey=weekly-main`);
+      }else published={publishedRevision:null};
+    }
     if(privateMode&&window.TOYS_ACCESS_ROLE!=='viewer'){const history=await json(`${api}/content/weekly-main/revisions`);let revision=published.publishedRevision;
       if(history.revisions[0])revision=(await json(`${api}/content/weekly-main/revisions/${history.revisions[0].id}`)).revision;
       state.weekly={published,history,revision};renderWeeklyEditor();

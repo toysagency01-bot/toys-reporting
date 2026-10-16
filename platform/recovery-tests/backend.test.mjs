@@ -1,6 +1,27 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {fixture,testWorker,request} from './fixture.mjs';
 const worker=await testWorker();const base='/api/v2/projects/housevip-cxp7';
+test('first weekly editor initializes an empty item once without altering imported content',async()=>{
+ const {env,db}=fixture();try{
+  db.exec("UPDATE content_items SET logical_key='legacy-weekly' WHERE logical_key='weekly-main'");
+  const legacy=db.prepare('SELECT * FROM content_items').get(),before=db.prepare('SELECT count(*) n FROM content_revisions').get().n;
+  const path=base+'/content/weekly-main/initialize';
+  const init=(role='editor',origin='https://test.local')=>{const r=request(path,{method:'POST',role,body:{}});if(origin)r.headers.set('origin',origin);return worker.fetch(r,env);};
+  assert.equal((await init('viewer')).status,403);assert.equal((await init(null)).status,401);
+  assert.equal((await init('editor','https://other.test')).status,403);assert.equal((await init('editor','')).status,403);
+  assert.equal((await worker.fetch(request(base+'/content?logicalKey=weekly-main'),env)).status,404);
+  assert.equal(db.prepare('SELECT count(*) n FROM content_items').get().n,1);
+  const responses=await Promise.all([init(),init()]);assert.ok(responses.every(r=>r.status===200));
+  const items=await Promise.all(responses.map(r=>r.json()));assert.equal(items[0].item.id,items[1].item.id);
+  assert.equal(items[0].item.latestRevision,0);assert.equal(items[0].item.publishedRevisionId,null);
+  assert.deepEqual(db.prepare('SELECT * FROM content_items WHERE id=?').get(legacy.id),legacy);
+  assert.equal(db.prepare('SELECT count(*) n FROM content_revisions').get().n,before);
+  const saved=await worker.fetch(request(base+'/content/weekly-main/save-and-publish',{method:'POST',body:{expectedRevision:0,expectedPublishedRevisionId:null,blocks:[{type:'period_summary',blockKey:'summary',payload:{periodStart:'2026-10-10',periodEnd:'2026-10-16',summary:'Первый итог'}}]}}),env);
+  assert.equal(saved.status,201,await saved.clone().text());
+  await init();const published=await(await worker.fetch(request(base+'/content?logicalKey=weekly-main',{role:'viewer'}),env)).json();
+  assert.equal(published.publishedRevision.blocks[0].payload.summary,'Первый итог');assert.equal(published.item.latestRevision,1);
+ }finally{db.close();}
+});
 test('single shell preserves authentication and rejects other project scopes',async()=>{const {env,db}=fixture();try{
   assert.equal((await worker.fetch(request(base+'/content-project',{role:null}),env)).status,401);
   assert.equal((await worker.fetch(request('/api/v2/projects/profkit-instashop-r4vk/content-project'),env)).status,403);
