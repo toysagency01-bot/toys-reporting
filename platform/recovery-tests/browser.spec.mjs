@@ -624,3 +624,20 @@ test('client lead card exposes original request and full imported comments separ
  await expect(page.locator('.lead-request')).toContainText('Original request');await expect(page.locator('.lead-request')).toContainText('<script>never execute</script>');await expect(page.locator('#leadComments')).toContainText('Original agency note');
  const latest=page.locator('#leadComments .history-entry').first();await expect(latest).toContainText('Updated comment');expect(await latest.locator('p').textContent()).toContain('Updated comment\nSecond line');await expect(page.locator('#leadComments img,.lead-request script')).toHaveCount(0);await expect(page.locator('#leadForm [name=note]')).toHaveValue('');await expect(page.locator('#leadHistory')).toContainText('Комментарий из таблицы');
 });
+
+test('TOYS Agency clean URL routes through Pages, requires login and keeps dashboard navigation',async({page})=>{
+ await page.clock.setFixedTime(new Date('2026-10-13T06:07:00Z'));
+ await page.setExtraHTTPHeaders({'x-test-public':'true'});const redirect=page.waitForResponse(r=>r.url().endsWith('/toys-agency-ctft/')&&r.status()===302);await page.goto('/toys-agency-ctft/');expect(['/login','/api/v2/portal/session?choose=1']).toContain((await redirect).headers().location);await expect(page).toHaveURL(/\/(?:login|api\/v2\/portal\/session\?choose=1)$/);await expect(page.locator('body')).not.toContainText('"error":"not_found"');
+ await page.setExtraHTTPHeaders({});
+ // Reuse the synthetic HOUSEVIP dataset for TOYS project API payloads only.
+ // The clean URL, Pages forwarding, authorization and HTML use the real TOYS route.
+ await page.route('**/api/v2/projects/toys-agency-ctft/**',async route=>{
+  const response=await route.fetch({url:route.request().url().replace('/projects/toys-agency-ctft/','/projects/housevip-cxp7/')});await route.fulfill({response});
+ });
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/toys-agency-ctft/');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');expect(await page.evaluate(()=>window.TOYS_UNIFIED_PROJECT)).toBe('toys-agency-ctft');
+ await expect(page.locator('#mainCards')).toBeVisible();
+ await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyContent')).not.toBeEmpty();await page.locator('#uxWeeklyAdd').click();await expect(page.locator('#weeklyForm')).toBeVisible();
+ await page.locator('[data-ux-view="overview"]').click();await expect(page.locator('#mainCards')).toBeVisible();await page.reload();await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
+ await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'dist/toys-agency-route-mobile.png',fullPage:true});expect(errors).toEqual([]);
+});

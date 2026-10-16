@@ -4,7 +4,7 @@
 Usage: python scripts/release-unified.py upload
        python scripts/release-unified.py deploy VERSION EXPECTED_CURRENT_VERSION
 """
-import json, os, pathlib, sys, urllib.request, urllib.error, uuid, hashlib, re, time
+import json, os, pathlib, sys, urllib.request, urllib.error, uuid, hashlib, re, time, subprocess
 ACCOUNT='6e1e68500c0dc88e70dde2da4117c79d'
 SCRIPT='toys-agency-platform-staging'
 BASE=f'https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/workers/scripts/{SCRIPT}'
@@ -18,6 +18,22 @@ def api(suffix, method='GET', payload=None, content_type='application/json'):
         raise SystemExit(f'Cloudflare HTTP {error.code}: {error.read().decode()[:1600]}')
     if not result.get('success'): raise SystemExit(json.dumps(result.get('errors')))
     return result['result']
+
+def verify_pages_registry():
+    # The browser enters through Pages, whose project registry ships separately.
+    # A Worker-only release must not claim a new dashboard URL is reachable.
+    endpoint=f'https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/pages/projects/toys-agency-dashboard'
+    request=urllib.request.Request(endpoint,headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN']})
+    with urllib.request.urlopen(request,timeout=30) as response: payload=json.load(response)
+    if not payload.get('success'):raise SystemExit('Unable to verify the active Pages deployment.')
+    deployment=payload['result']['canonical_deployment']
+    commit=deployment.get('deployment_trigger',{}).get('metadata',{}).get('commit_hash','')
+    if not re.fullmatch(r'[a-f0-9]{40}',commit):raise SystemExit('Pages deployment has no verifiable source commit; deploy the current gateway first.')
+    source=subprocess.run(['git','show',commit+':platform/projects.json'],capture_output=True,text=True)
+    if source.returncode:raise SystemExit('Pages source commit is missing locally; fetch it before releasing.')
+    missing=set(json.loads(pathlib.Path('projects.json').read_text()))-set(json.loads(source.stdout))
+    if missing:raise SystemExit('Pages gateway is missing projects: '+', '.join(sorted(missing))+'. Commit and run npm run pages:gateway:deploy before releasing the Worker.')
+    return {'pages_deployment':deployment['id'],'registry_verified':True}
 
 def current(): return api('/deployments')['deployments'][0]['versions']
 
@@ -76,7 +92,10 @@ if __name__=='__main__':
         result=api('/versions','POST',b''.join(parts)+f'--{boundary}--\r\n'.encode(),f'multipart/form-data; boundary={boundary}')
         pathlib.Path('dist/uploaded-version.json').write_text(json.dumps(result,indent=2))
         print(json.dumps({'uploaded_version':result['id'],'active_versions':current()}))
+    elif action=='verify-pages':
+        print(json.dumps(verify_pages_registry()))
     elif action=='deploy' and len(sys.argv)==4:
+        verify_pages_registry()
         version,expected=sys.argv[2:]
         if current()!=[{'version_id':expected,'percentage':100}]:raise SystemExit('Current deployment changed. Reconcile before release.')
         api('/versions/'+version)

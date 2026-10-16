@@ -1,7 +1,7 @@
 import pages from '../pages-hotfix/_worker.js';
 import http from 'node:http';
 import {fixture,testWorker} from './fixture.mjs';
-const worker=await testWorker();const{env,db}=fixture();env.MVP_EDITOR_PROJECTS+=',__master,profkit-instashop-r4vk,karlovarska-sul-k4rm,bs-clinic-a5b4';env.MVP_VIEW_PROJECTS=env.MVP_EDITOR_PROJECTS;
+const worker=await testWorker();const{env,db}=fixture();env.MVP_EDITOR_PROJECTS+=',__master,profkit-instashop-r4vk,karlovarska-sul-k4rm,bs-clinic-a5b4,toys-agency-ctft';env.MVP_VIEW_PROJECTS=env.MVP_EDITOR_PROJECTS;
 if(process.env.TOYS_TEST_EMPTY_WEEKLY==='true')db.exec("UPDATE content_items SET logical_key='legacy-weekly' WHERE logical_key='weekly-main'");
 if(process.env.TOYS_TEST_CRM_INDUSTRY==='real_estate')db.exec("UPDATE projects SET settings_json=json_set(settings_json,'$.industry','real_estate') WHERE id='prj_housevip_cxp7'");
 if(process.env.TOYS_TEST_REPORT_STORAGE==='true'){const files=new Map();env.REPORT_ATTACHMENTS={put:async(k,v)=>files.set(k,v),get:async k=>files.has(k)?{body:files.get(k)}:null};}
