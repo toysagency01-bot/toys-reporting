@@ -486,13 +486,13 @@ async function mockDailyReview(page){
  return state;
 }
 test('morning review has urgency colors, evidence, cached navigation, history and safe ad names',async({page})=>{
- const state=await mockDailyReview(page);await page.goto('/master/');const panel=page.locator('#dailyReview');await expect(panel.locator('.review-project')).toHaveCount(4);
+ const state=await mockDailyReview(page);await page.goto('/master/');const panel=page.locator('#dailyReview');await expect(page.locator('#projectsTable')).toBeVisible();await expect(panel).toBeHidden();expect(state.calls.length).toBe(0);await page.locator('[data-view=reviews]').click();await expect(page).toHaveURL(/#reviews$/);await expect(page.locator('#home')).toBeHidden();await expect(page.locator('#periodSeg')).toBeHidden();await expect(panel.locator('.review-project')).toHaveCount(4);
  const critical=panel.locator('.review-project.review-critical'),healthy=panel.locator('.review-project.review-healthy');
  expect(await critical.evaluate(el=>getComputedStyle(el).borderLeftColor)).not.toEqual(await healthy.evaluate(el=>getComputedStyle(el).borderLeftColor));
  await critical.locator('summary').click();await expect(critical.locator('.review-findings')).toContainText('Campaign <script>bad()</script>');await expect(critical.locator('script,img')).toHaveCount(0);await expect(critical).toContainText('Уверенность: средняя');
  await panel.locator('[data-review-priority=attention]').click();await expect(panel.locator('.review-project')).toHaveCount(1);await expect(panel.locator('.review-project')).toContainText('Project 1');
  await panel.locator('[data-review-priority=""]').click();await expect(panel.locator('.review-project')).toHaveCount(4);
- await page.locator('[data-view=crm]').click();await page.locator('[data-view=home]').click();expect(state.calls.length).toBe(1);
+ await page.locator('[data-view=crm]').click();await page.locator('[data-view=home]').click();await expect(panel).toBeHidden();await expect(page.locator('#periodSeg')).toBeVisible();await page.locator('[data-view=reviews]').click();expect(state.calls.length).toBe(1);await page.goBack();await expect(panel).toBeHidden();await page.goForward();await expect(panel).toBeVisible();
  // The master keeps the selected CRM project: return to all projects for this overview.
  await page.locator('#projectSelect').selectOption('');
  await panel.locator('select').selectOption('2026-10-13');await expect(panel.locator('.review-status')).toContainText('13.10.2026');expect(state.calls.length).toBe(2);
@@ -500,7 +500,7 @@ test('morning review has urgency colors, evidence, cached navigation, history an
 });
 test('morning review remains legible on mobile and keeps saved cards if history loading fails',async({page})=>{
  await page.clock.install();
- const state=await mockDailyReview(page);await page.setViewportSize({width:390,height:844});await page.goto('/master/');const panel=page.locator('#dailyReview');await expect(panel.locator('.review-project')).toHaveCount(4);
+ const state=await mockDailyReview(page);await page.setViewportSize({width:390,height:844});await page.goto('/master/#reviews');const panel=page.locator('#dailyReview');await expect(panel.locator('.review-project')).toHaveCount(4);
  await page.evaluate(()=>{document.documentElement.dataset.theme='light';});await panel.locator('.review-project').first().locator('summary').click();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await expect(panel.locator('select')).toBeVisible();
  state.fail=true;await panel.locator('select').selectOption('2026-10-13');await expect(panel.locator('.review-status')).toContainText('Повторим автоматически');await expect(panel.locator('.review-project')).toHaveCount(4);
@@ -543,8 +543,9 @@ test('expired statistics stay visible during background refresh after reload and
 test('master reload reuses project summaries and the saved morning review',async({page})=>{
  await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const daily=await mockDailyReview(page);let summaryCalls=0;
  page.on('request',r=>{if(r.url().includes('/master/projects/')&&r.url().includes('/summary?'))summaryCalls++;});
- await page.goto('/master/');await expect(page.locator('#dailyReview .review-project')).toHaveCount(4);await expect(page.locator('#updated')).toContainText('Обновлено');const before=summaryCalls;
- await page.reload();await expect(page.locator('#dailyReview .review-project')).toHaveCount(4);await expect(page.locator('#updated')).toContainText('Обновлено');expect(summaryCalls).toBe(before);expect(daily.calls.length).toBe(1);
+ await page.goto('/master/');await expect(page.locator('#updated')).toContainText('Обновлено');expect(daily.calls.length).toBe(0);const before=summaryCalls;
+ await page.reload();await expect(page.locator('#updated')).toContainText('Обновлено');expect(summaryCalls).toBe(before);
+ await page.locator('[data-view=reviews]').click();await expect(page.locator('#dailyReview .review-project')).toHaveCount(4);await page.reload();await expect(page.locator('[data-view=reviews]')).toHaveClass('active');await expect(page.locator('#dailyReview .review-project')).toHaveCount(4);expect(summaryCalls).toBe(before);expect(daily.calls.length).toBe(1);
 });
 test('changing account role cannot reuse the previous private dashboard cache',async({page})=>{
  await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const stats=await mockCachedStatistics(page);await page.goto(portal);await expect(page.locator('#kClicks')).toHaveText('77');const previous=await page.evaluate(()=>window.TOYS_CACHE_SCOPE);

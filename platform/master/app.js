@@ -15,7 +15,7 @@ export function mountMaster({root=document,client=null,embedded=false,isVisible=
 const $=id=>root.getElementById(id),prefix='',api=prefix+'/api/v2';
 const cache=memoryCache(),overviewCache=responseCache({prefix:api+'/master/projects/'});
 const state={projects:[],pages:[],summaries:new Map(),slug:'',view:'home',provider:'',offset:0,leads:[],seq:0};
-const dailyReview=client?null:mountDailyReview({host:$('home'),json,isVisible:()=>isVisible()&&state.view==='home'});
+const dailyReview=client?null:mountDailyReview({host:$('reviews'),json,isVisible:()=>isVisible()&&state.view==='reviews'});
 let statuses=[];
 const nf=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}),fmt=n=>n==null?'—':nf.format(n),money=items=>items.map(m=>`${fmt(m.value??m.spend)} ${h(m.currency)}`).join('<br>')||'—';
 const errorNames={not_found:'Лид удалён или больше недоступен.',invalid_status_or_version:'Этапы CRM изменились. Обновите страницу и повторите действие.',version_conflict:'Лид изменён другим пользователем. Закрой карточку и открой заново.',sale_value_currency_required:'Укажи сумму и валюту продажи.',page_already_linked:'Страница уже связана с другим проектом.',contact_required:'Укажи телефон или email.',invalid_email:'Проверь email.',staff_access_managed_separately:'Доступы команды управляются отдельно от клиентских.',invalid_projects:'Выберите действующий проект платформы.',access_unavailable:'Не удалось сохранить доступ. Повторите попытку.',client_access_preparing:'Настройка доступов ещё выполняется. Повторите позже.',origin_forbidden:'Обновите страницу и повторите действие.',page_not_discovered:'Сначала получи список доступных страниц.',capi_token_required:'Добавь токен Conversions API.',invalid_ingest_key:'Неверный ключ подключения.',meta_190:'Meta отклонила токен доступа.'};
@@ -23,7 +23,7 @@ function message(s,error=false){$('message').textContent=s;$('message').classNam
 async function json(path,options={}){const r=await fetch(path,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(path.endsWith('/connections/direct-meta')?60000:15000),...options,headers:{...(options.body?{'content-type':'application/json'}:{}),...options.headers}});const d=await r.json().catch(()=>({}));if(!r.ok||!d.ok){if(r.status===401||r.status===403){cache.clear();overviewCache.clear();clearDashboardStorage();state.leads=[];$('leadsBoard').replaceChildren();$('crmSummary').replaceChildren();$('editor').close();$('deleteConfirmation').close();}throw Object.assign(new Error(errorNames[d.error]||d.error||'Ошибка запроса'),{status:r.status});}return d;}
 const cached=(path,store=cache)=>store.get(path,()=>json(path));
 const write=async(path,body,method='POST',key=crypto.randomUUID())=>{const d=await json(path,{method,body:JSON.stringify(body),headers:{'x-idempotency-key':key}});cache.clear();const slug=path.match(/^\/api\/v2\/projects\/([^/]+)\/crm(?:\/|$)/)?.[1];if(slug){responseCache({prefix:api+'/projects/'+slug+'/top-creatives?'}).clear();responseCache({prefix:api+'/master/projects/'+slug+'/summary?'}).clear();}onChange();return d;};
-const accessUI=client?null:mountClientAccess({root,api,json,write});$('accessNav').hidden=Boolean(client);$('masterAccount').href=api+'/portal/session?choose=1';
+const accessUI=client?null:mountClientAccess({root,api,json,write});$('accessNav').hidden=Boolean(client);$('reviewsNav').hidden=Boolean(client);$('masterAccount').href=api+'/portal/session?choose=1';
 const projectApi=()=>api+'/projects/'+encodeURIComponent(state.slug)+'/crm';
 const dates=()=>`from=${$('dateFrom').value}&to=${$('dateTo').value}`;
 const leadFilters=()=>new URLSearchParams({q:$('search').value,...($('dateFrom').value&&$('dateTo').value?{from:$('dateFrom').value,to:$('dateTo').value}:{})}).toString();
@@ -37,8 +37,25 @@ if(embedded){$('theme').style.margin='0';root.querySelector('header').append($('
 mountMasterMobileControls(root);
 function theme(){const light=document.documentElement.dataset.theme==='light',path='assets/'+(light?'toys-black.svg':'toys-logo.svg');if(!embedded)$('brandLogo').src=asset?asset(path):prefix+'/api/ui/reference/'+path;$('theme').textContent=light?'Тёмная тема':'Светлая тема';}
 try{if(!embedded)document.documentElement.dataset.theme=localStorage.getItem('toys-unified-theme')||'dark';}catch{}theme();$('theme').onclick=()=>{document.documentElement.dataset.theme=document.documentElement.dataset.theme==='light'?'dark':'light';try{localStorage.setItem('toys-unified-theme',document.documentElement.dataset.theme);}catch{}theme();};
-function show(view){state.view=['crm','access'].includes(view)&&(!client||view!=='access')?view:'home';switchPeriod(state.view==='crm'?'crm':'home');$('channels').hidden=state.view==='crm';$('home').hidden=state.view!=='home';$('crm').hidden=state.view!=='crm';$('access').hidden=state.view!=='access';$('projectSelect').closest('.controls').hidden=state.view==='access';$('heading').textContent=state.view==='crm'?'CRM':state.view==='access'?'Доступы клиентов':'Все проекты';root.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===state.view));if(state.view==='crm'&&!state.slug){state.slug=state.projects[0]?.slug||'';$('projectSelect').value=state.slug;}refresh();}
-async function refresh(){if(state.view==='access')return accessUI?.load();if(!state.projects.length)return;if(state.view==='crm')return loadLeads();dailyReview?.setFilter(state.slug,'');dailyReview?.load();return overview();}
+function show(view){
+ state.view=['crm',...(!client?['access','reviews']:[])].includes(view)?view:'home';
+ switchPeriod(state.view==='crm'?'crm':'home');
+ const reviews=state.view==='reviews';
+ $('channels').hidden=state.view==='crm'||reviews;$('periodSeg').hidden=reviews;$('dateFrom').parentElement.hidden=reviews;
+ for(const name of ['home','crm','access','reviews'])$(name).hidden=state.view!==name;
+ $('projectSelect').closest('.controls').hidden=state.view==='access';
+ $('heading').textContent={crm:'CRM',access:'Доступы клиентов',reviews:'Утренний обзор',home:'Все проекты'}[state.view];
+ root.querySelectorAll('[data-view]').forEach(b=>{const active=b.dataset.view===state.view;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+ if(state.view==='crm'&&!state.slug){state.slug=state.projects[0]?.slug||'';$('projectSelect').value=state.slug;}
+ refresh();
+}
+async function refresh(){
+ if(state.view==='access')return accessUI?.load();
+ if(state.view==='reviews'){dailyReview?.setFilter(state.slug,'');return dailyReview?.load();}
+ if(!state.projects.length)return;
+ if(state.view==='crm')return loadLeads();
+ return overview();
+}
 function selected(){return state.projects.filter(p=>!state.slug||p.slug===state.slug);}
 function renderOverview(){
  const projects=selected(),summaries=projects.map(p=>state.summaries.get(p.slug)).filter(Boolean),moneyMap=new Map();let conversions=0,qualified=0,sales=0;
@@ -93,8 +110,9 @@ async function settings(){if(!state.slug)return;try{const d=await json(projectAp
  submit($('capiForm'),async(body,key)=>{await write(projectApi()+'/connections/capi',{...body,enabled:body.enabled==='on',useAgentToken:body.useAgentToken==='on'},'POST',key);await settings();});$('retry').onclick=async()=>{try{await write(projectApi()+'/connections/retry',{});await settings();}catch(e){$('connectionMessage').textContent=e.message;}};
  }catch(e){message(e.message,true);}}
 $('connections').onclick=settings;
-async function loadMaster(render=true){if(client){state.slug=client.project.slug;state.projects=[client.project];state.pages=[];$('projectSelect').hidden=true;$('connections').hidden=true;$('newLead').hidden=!client.canEdit;root.querySelector('header .sub').textContent=client.project.name;if(!embedded)document.title='TOYS · '+client.project.name+' · CRM';if(render)show('crm');return;}const d=await json(api+'/master');state.projects=d.projects;state.pages=d.pages;state.channels=d.channels||[];$('projectSelect').innerHTML='<option value="">Все проекты</option>'+state.projects.map(p=>`<option value="${h(p.slug)}">${h(p.name)}</option>`).join('');$('projectSelect').value=state.slug;if(render)show(location.hash.includes('access')?'access':location.hash.includes('crm')?'crm':'home');}
+async function loadMaster(render=true){if(client){state.slug=client.project.slug;state.projects=[client.project];state.pages=[];$('projectSelect').hidden=true;$('connections').hidden=true;$('newLead').hidden=!client.canEdit;root.querySelector('header .sub').textContent=client.project.name;if(!embedded)document.title='TOYS · '+client.project.name+' · CRM';if(render)show('crm');return;}const d=await json(api+'/master');state.projects=d.projects;state.pages=d.pages;state.channels=d.channels||[];$('projectSelect').innerHTML='<option value="">Все проекты</option>'+state.projects.map(p=>`<option value="${h(p.slug)}">${h(p.name)}</option>`).join('');$('projectSelect').value=state.slug;if(render)show(location.hash.slice(1).split('?')[0]);}
 root.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');if(nav&&client&&nav.dataset.view==='home'){location.href=prefix+'/'+encodeURIComponent(client.project.slug)+'/';return;}if(nav){if(!embedded)location.hash=nav.dataset.view;show(nav.dataset.view);}const p=e.target.closest('[data-project]');if(p){state.slug=p.dataset.project;$('projectSelect').value=state.slug;refresh();}const c=e.target.closest('[data-crm]');if(c){state.slug=c.dataset.crm;$('projectSelect').value=state.slug;location.hash='crm';show('crm');}const l=e.target.closest('[data-lead]');if(l)editLead(l.dataset.lead);});
+if(!embedded&&!client)window.addEventListener('hashchange',()=>{const view=location.hash.slice(1).split('?')[0]||'home';if(view!==state.view)show(view);});
 $('projectSelect').onchange=e=>{state.slug=e.target.value;state.offset=0;if(state.view==='crm'&&!state.slug){state.slug=state.projects[0]?.slug||'';e.target.value=state.slug;}refresh();};
 $('statusFilter').innerHTML='<option value="">Все статусы</option>'+statuses.map(s=>`<option>${h(s)}</option>`).join('');$('statusFilter').onchange=()=>{state.offset=0;loadLeads();};let searchTimer;$('search').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.offset=0;loadLeads();},300);};
 $('channels').onclick=e=>{const b=e.target.closest('[data-provider]');if(!b)return;state.provider=b.dataset.provider;$('channels').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));refresh();};$('periodSeg').onclick=e=>{const b=e.target.closest('[data-days]');if(!b)return;preset(b.dataset.days==='all'?'all':Number(b.dataset.days));$('periodSeg').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));refresh();};
