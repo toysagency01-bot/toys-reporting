@@ -10,6 +10,7 @@ import {mountCampaignBrowser} from './campaign-browser.js';
 import {scheduleRender,updateChart,observeScrollFades} from './rendering.js';
 import {renderTopCreatives} from './top-creatives.js';
 import {sourceTable,weeklyTable} from './data.js';
+import {syncInstashopCoverage} from './instashop-coverage.js';
 import {tools} from '../dist/native-tools.mjs';
 import {advertisingModel,snapshotRows,aggregate,escapeHtml as h,validRange,valueOf} from '../unified/model.js';
 const slug=window.TOYS_UNIFIED_PROJECT;
@@ -25,8 +26,11 @@ const privateMode=window.TOYS_MVP_PROJECT_PORTAL===true;
 const dataCache=responseCache({prefix:api+'/'});
 const materialCache=memoryCache({ttl:20*60*1000,maxEntries:30});
 const shop=slug==='profkit-instashop-r4vk';
+// Retire only the old, truncated Instashop snapshot cache after this schema fix.
+const dashboardAddress=api+'/dashboard'+(shop?'?coverage=streams-v2':'');
 const projectConfig=projectRegistry[slug];
 const title=projectConfig.title;
+const projectDay=new Intl.DateTimeFormat('en-CA',{timeZone:projectConfig.periodTimezone||'Asia/Tbilisi',year:'numeric',month:'2-digit',day:'2-digit'});
 const $=id=>document.getElementById(id);
 let creativeRankings=null,creativeState="loading",creativeSequence=0;
 let crmStats=null,clientNavigation,campaignBrowser;
@@ -38,7 +42,7 @@ function notice(text,error=false){const n=$('platformNotice');if(n){n.textConten
 const load=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_SCRIPTS?.[path]){try{window.TOYS_BUNDLED_SCRIPTS[path]();resolve();}catch(e){reject(e);}return;}const s=document.createElement('script');s.src=asset(path);s.onload=resolve;s.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(s);});
 const css=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_STYLES?.[path]){const style=document.createElement('style');style.textContent=window.TOYS_BUNDLED_STYLES[path];document.head.append(style);resolve();return;}const l=document.createElement('link');l.rel='stylesheet';l.href=asset(path);l.onload=resolve;l.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(l);});
 const metric=r=>r.metrics||[];
-window.TOYS_PLATFORM={invalidate(){dataCache.delete(api+'/content/tabs');tabsPromise=json(api+'/content/tabs').then(d=>d.tabs||[]);materialCache.clear();},asset,scheduleRender,updateChart,observeScrollFades,async fx(from,to){const d=await json(`${api}/exchange-rate?base=${from}&quote=${to}`);return Response.json({date:d.rate.date,[from.toLowerCase()]:{[to.toLowerCase()]:Number(d.rate.rate)}});},tabs:()=>tabsPromise,afterRender(){if(ready){attachHierarchy();maskUnavailable();calendar?.sync();renderCRM();renderCreatives();}},async table(name,raw){
+window.TOYS_PLATFORM={today:()=>projectDay.format(new Date()),invalidate(){dataCache.delete(api+'/content/tabs');tabsPromise=json(api+'/content/tabs').then(d=>d.tabs||[]);materialCache.clear();},asset,scheduleRender,updateChart,observeScrollFades,async fx(from,to){const d=await json(`${api}/exchange-rate?base=${from}&quote=${to}`);return Response.json({date:d.rate.date,[from.toLowerCase()]:{[to.toLowerCase()]:Number(d.rate.rate)}});},tabs:()=>tabsPromise,afterRender(){if(ready){attachHierarchy();maskUnavailable();calendar?.sync();renderCRM();renderCreatives();}},async table(name,raw){
  if(name==='WeeklyComments')return weeklyTable((await json(api+'/weekly-reports')).reports||[]);
  if(['GoogleAds','MetaAds','InstashopSales','EcomFunnel','EcomFunnelCampaign','Insights','MetaAdsFormat','QualifiedLeads'].includes(name))return sourceTable(await snapshotPromise,name);
  const path=`${api}/content/tabs?tab=${encodeURIComponent(name)}${raw?'&raw=1':''}`;return materialCache.get(path,()=>json(path));
@@ -47,6 +51,7 @@ const numberFormat=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2});
 const format=n=>n==null?'—':numberFormat.format(n);
 function selectedRows(){const r=range();return allRows.filter(row=>row.date>=r.from&&row.date<=r.to);}
 function maskUnavailable(){
+ if(shop)syncInstashopCoverage({dashboard,rows:allRows,ads,range:range()});
  const rows=selectedRows();if(!rows.length)return;const t=aggregate(rows);
  const missing={kImpr:t.impressions,kClicks:t.clicks,kConv:t.conversions,kCpa:t.conversions,kCtr:t.impressions};
  for(const[id,v]of Object.entries(missing)){if(v===null&&$(id))$(id).textContent='—';}
@@ -111,7 +116,7 @@ function queueRefresh(){crmStats=null;renderCRM();creativeSequence++;creativeRan
 let lastAutoRefresh=Date.now(),autoRunning=false;
 async function autoRefresh(force=false){
  if(autoRunning||document.hidden||!force&&Date.now()<nextRefreshAt(lastAutoRefresh)+60000)return;autoRunning=true;lastAutoRefresh=Date.now();materialCache.clear();
- try{const d=await json(api+'/dashboard');const changed=JSON.stringify(d.dashboard)!==JSON.stringify(dashboard);dashboard=d.dashboard;snapshotPromise=Promise.resolve(dashboard);if(changed){appliedAds='';allRows=snapshotRows(dashboard);const names=['MetaAds','GoogleAds','InstashopSales','EcomFunnel','EcomFunnelCampaign'];window.TOYS_NATIVE.refreshSnapshot(Object.fromEntries(names.map(n=>[n,sourceTable(dashboard,n)])));}await Promise.all([refresh(),refreshCreatives(),refreshCRM()]);campaignBrowser?.refresh();}catch(e){notice('Автообновление временно недоступно. Сохранены последние данные.',true);}finally{autoRunning=false;}
+ try{const d=await json(dashboardAddress);const changed=JSON.stringify(d.dashboard)!==JSON.stringify(dashboard);dashboard=d.dashboard;snapshotPromise=Promise.resolve(dashboard);if(changed){appliedAds='';allRows=snapshotRows(dashboard);const names=['MetaAds','GoogleAds','InstashopSales','EcomFunnel','EcomFunnelCampaign'];window.TOYS_NATIVE.refreshSnapshot(Object.fromEntries(names.map(n=>[n,sourceTable(dashboard,n)])));}await Promise.all([refresh(),refreshCreatives(),refreshCRM()]);campaignBrowser?.refresh();}catch(e){notice('Автообновление временно недоступно. Сохранены последние данные.',true);}finally{autoRunning=false;}
 }
 
 function mountTools(){
@@ -130,7 +135,7 @@ function mountTools(){
  const syncCreatives=()=>{const selected=channels?.querySelector('.active');const meta=(selected?.dataset.legacyView||selected?.dataset.channel)==='meta';creative.hidden=!meta;if(meta)toolkit.loadCreatives();};
  document.addEventListener('click',e=>{if(e.target.closest('#uxProjectChannels button,[data-ux-view="project"]'))queueMicrotask(syncCreatives);});
  toolkit=tools({api,range,notify:notice,privateMode});syncCreatives();if(shop&&entryHash==='#meta'){$('uxNav')?.querySelector('[data-ux-view="project"]')?.click();syncCreatives();}
- if(!privateMode||window.TOYS_ACCESS_ROLE==='viewer'){document.querySelectorAll('#uxWeeklyAdd,#openWeekly').forEach(n=>n.hidden=true);}
+ if(!privateMode||window.TOYS_ACCESS_ROLE==='viewer'){document.querySelectorAll('#uxWeeklyAdd,#openWeekly').forEach(n=>{n.hidden=true;n.classList.add('hidden');});}
  document.addEventListener('click',async e=>{if(e.target.closest('#uxWeeklyAdd,#openWeekly')){e.preventDefault();e.stopImmediatePropagation();$('uxNav')?.querySelector('[data-ux-view="weekly"]')?.click();await toolkit.openWeeklyEditor();}if(e.target.closest('[data-ux-view="weekly"]')){toolkit.loadWeekly();toolkit.loadWeeklyArchive();}},true);
  if(location.hash==='#weekly'||location.pathname.endsWith('/content-editor')){$('uxNav')?.querySelector('[data-ux-view="weekly"]')?.click();toolkit.loadWeekly();toolkit.loadWeeklyArchive();}
 }
@@ -144,9 +149,9 @@ async function boot(){
  document.title=`TOYS × ${title} — Дашборд результатов`;const icon=document.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=window.TOYS_FAVICON||asset('assets/favicon.svg');document.head.append(icon);
  window.DASH_CONFIG={...(slug==='housevip-cxp7'?{spendFx:{from:'IDR',to:'EUR'}}:{}),title,locked:true,showDrafts:false,sheetId:'platform',projectSheetId:'platform',projectApiKey:'platform',projectChannels:channels,weeklyProjectKey:slug,weeklyFormUrl:'#platform-weekly',conversionLabel:projectConfig.conversionLabel||'Конверсии',conversionShortLabel:projectConfig.conversionShortLabel||'Конв.',platformExplicitTabs:projectConfig.explicitTabs===true};
  window.INSTASHOP_CONFIG={title,sheetId:'platform',weeklyFormUrl:'#platform-weekly'};
- const savedSnapshot=await dataCache.load(api+'/dashboard');
+ const savedSnapshot=await dataCache.load(dashboardAddress);
  if(savedSnapshot)lastAutoRefresh=savedSnapshot.at;
- snapshotPromise=(savedSnapshot?Promise.resolve(savedSnapshot.value):json(api+'/dashboard')).then(d=>dashboard=d.dashboard);tabsPromise=json(api+'/content/tabs').then(d=>d.tabs||[]);
+ snapshotPromise=(savedSnapshot?Promise.resolve(savedSnapshot.value):json(dashboardAddress)).then(d=>dashboard=d.dashboard);tabsPromise=json(api+'/content/tabs').then(d=>d.tabs||[]);
 
  if(shop){await load('core/instashop-model.js');await load('core/instashop.js');css('core/ux-v2.css');await load('core/ux-v2-instashop.js');}
  else{await load(slug==='housevip-cxp7'?'housevip-cxp7/core.js':'core/core.js');$('weeklyPanel')?.classList.remove('hidden');css(slug==='housevip-cxp7'?'housevip-cxp7/ux-v2.css':'core/ux-v2.css');await load(slug==='housevip-cxp7'?'housevip-cxp7/ux-v2.js':'core/ux-v2.js');}

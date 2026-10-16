@@ -1,3 +1,4 @@
+import {commerceRange} from '../native/commerce-range.js';
 import {reportDeletionRoute} from '../reports/deletions.js';
 import {reportAttachmentRoute,validateReportAttachments} from '../reports/attachments.js';
 import {leadgenDashboard} from '../native/leadgen-dashboard.js';
@@ -3473,11 +3474,7 @@ async function commerceDashboard(env, project, release, manifest, url, auth, syn
   if (!roles.ok) {
     return response3({ ok: false, error: "invalid_release_dataset", reason: roles.reason, datasetKey: roles.datasetKey || null }, 500);
   }
-  const requested = manifest.requestedRange || {};
-  const firstDescriptor = normalized.byRole.values().next().value;
-  const firstGeneration = !requested.from || !requested.toExclusive ? await generationRecord(env, project, firstDescriptor.generationId) : null;
-  const from = url.searchParams.get("from") || requested.from || firstGeneration?.observedFrom;
-  const toExclusive = url.searchParams.get("toExclusive") || requested.toExclusive || firstGeneration?.observedToExclusive;
+  const {from,toExclusive} = await commerceRange(manifest,normalized.byRole.values(),url.searchParams,id=>generationRecord(env,project,id));
   if (!validDate(from) || !validDate(toExclusive) || from >= toExclusive) {
     return response3({ ok: false, error: "invalid_range" }, 400);
   }

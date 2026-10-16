@@ -186,7 +186,7 @@ for(const slug of ['karlovarska-sul-k4rm','profkit-instashop-r4vk'])test(slug+' 
  d.dashboard.project.slug=slug;d.dashboard.project.name=slug==='karlovarska-sul-k4rm'?'Karlovarska Sul':'PROFKIT';
  if(slug.startsWith('karl')){d.dashboard.advertising={channels:{meta:d.dashboard.facts,google:d.dashboard.facts}};const rows=[{date:original.date,platform:'Meta Ads',metrics:[observed('ecom.purchases',2),observed('ecom.purchase_value',200,'EUR'),observed('ecom.add_to_cart',5),observed('ecom.checkout',3)]}];rows.push({...rows[0],platform:'Google Ads'});d.dashboard.ecommerce={account:{rows},campaigns:{rows:rows.map(r=>({...r,campaign:{label:'Тестовая кампания'}}))}};}
  else{d.dashboard.instashop={ads:{rows:[{...original,metrics:[observed('ads.spend_uah',410,'UAH'),observed('ads.raw_spend_usd',10,'USD'),observed('ads.impressions',1000),observed('ads.clicks',25),observed('instashop.meta_direct',4)]}]},sales:{rows:[{date:original.date,metrics:[observed('instashop.sales_count',2),observed('instashop.revenue_uah',1000,'UAH'),observed('instashop.direct_inquiries',10),observed('instashop.qualified_inquiries',8),observed('instashop.unqualified_inquiries',2)]}]}};}
- await page.route('**/projects/'+slug+'/dashboard',r=>r.fulfill({json:d}));
+ await page.route('**/projects/'+slug+'/dashboard*',r=>r.fulfill({json:d}));
  await page.route('**/projects/'+slug+'/content/tabs',r=>r.fulfill({json:{ok:true,tabs:[]}}));
  await page.route('**/projects/'+slug+'/weekly-reports',r=>r.fulfill({json:{ok:true,reports:[]}}));
  await page.goto('/'+slug+'/#section=overview&view=account');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
@@ -640,4 +640,46 @@ test('TOYS Agency clean URL routes through Pages, requires login and keeps dashb
  await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyContent')).not.toBeEmpty();await page.locator('#uxWeeklyAdd').click();await expect(page.locator('#weeklyForm')).toBeVisible();
  await page.locator('[data-ux-view="overview"]').click();await expect(page.locator('#mainCards')).toBeVisible();await page.reload();await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'dist/toys-agency-route-mobile.png',fullPage:true});expect(errors).toEqual([]);
+});
+
+for(const viewer of [false,true])test(`PROFKIT current periods and independent sales coverage (${viewer?'client':'admin'})`,async({page,request})=>{
+ await page.clock.setFixedTime(new Date('2026-10-16T10:07:00Z'));
+ if(viewer)await page.setExtraHTTPHeaders({'x-test-viewer':'true'});
+ const errors=[],reads=[];page.on('pageerror',e=>errors.push(e.message));
+ const slug='profkit-instashop-r4vk',d=await(await request.get('/api/v2/projects/housevip-cxp7/dashboard')).json();
+ const observed=(metricCode,value,currency=null)=>({metricCode,value:String(value),state:'observed',currency});
+ const dates=(from,to)=>Array.from({length:Math.floor((Date.parse(to)-Date.parse(from))/86400000)+1},(_,i)=>new Date(Date.parse(from)+i*86400000).toISOString().slice(0,10));
+ const ad=date=>({date,campaign:{label:'PROFKIT campaign'},metrics:[observed('ads.spend_uah',410,'UAH'),observed('ads.raw_spend_usd',10,'USD'),observed('ads.impressions',1000),observed('ads.clicks',25),observed('instashop.meta_direct',4)]});
+ d.dashboard.project.slug=slug;d.dashboard.project.name='PROFKIT';delete d.dashboard.advertising;
+ d.dashboard.instashop={ads:{rows:dates('2026-10-07','2026-10-11').map(ad)},sales:{rows:dates('2026-10-07','2026-10-15').map(date=>({date,metrics:[observed('instashop.sales_count',2),observed('instashop.revenue_uah',1000,'UAH'),observed('instashop.direct_inquiries',10),observed('instashop.qualified_inquiries',8),observed('instashop.unqualified_inquiries',2)]}))}};
+ await page.route('**/projects/'+slug+'/dashboard*',r=>r.fulfill({json:d}));
+ await page.route('**/projects/'+slug+'/content/tabs',r=>r.fulfill({json:{ok:true,tabs:[]}}));
+ await page.route('**/projects/'+slug+'/weekly-reports',r=>r.fulfill({json:{ok:true,reports:[]}}));
+ await page.route(/\/projects\/profkit-instashop-r4vk\/(content-project\/ads\/hierarchy|ads-summary)\?/,r=>{
+  const u=new URL(r.request().url()),requestedRange={from:u.searchParams.get('from'),to:u.searchParams.get('to')},coveredDates=dates(requestedRange.from,requestedRange.to);reads.push(requestedRange);
+  const m=value=>({state:'observed',value:String(value)}),dailyMetrics=coveredDates.map(date=>({date,metrics:{spend:m(10),impressions:m(1000),clicks:m(25),conversions:m(4)}}));
+  return r.fulfill({json:{ok:true,exchangeRates:coveredDates.map(date=>({date,rate:41})),providers:[{provider:'meta_ads',freshness:'fresh',requestedRange,coveredDates,fetchedAt:'2026-10-16T10:00:00Z',hierarchy:{currency:'USD',children:[{providerId:'campaign',name:'PROFKIT campaign',dailyMetrics,children:[]}]}}]}});
+ });
+ await page.route('**/projects/'+slug+'/top-creatives?*',r=>r.fulfill({json:{ok:true,rankings:{roas:[],purchases:[],leads:[],qualifiedLeads:[]}}}));
+ await mockCampaignBrowser(page);
+ await page.goto('/'+slug+'/#weekly');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
+ if(viewer)await expect(page.locator('#openWeekly')).toBeHidden();
+ await expect(page.locator('#to')).toHaveValue('2026-10-16');await expect(page.locator('#from')).toHaveValue('2026-10-10');
+ await expect(page.locator('#updated')).toHaveText('Реклама: 2026-10-16 · Продажи: 2026-10-15');
+ await page.locator('#periodSeg [data-days="max"]').click();await expect(page.locator('#to')).toHaveValue('2026-10-16');await expect(page.locator('#from')).toHaveValue('2026-10-07');
+ await page.locator('#uxNav [data-ux-view="overview"]').click();
+ const metric=label=>page.locator('#cards .card').filter({has:page.locator('.label',{hasText:new RegExp('^'+label+'$')})}).locator('.value');
+ await expect(metric('Продажи')).toHaveText('18');await expect(metric('ROAS')).toHaveText('—');await expect(page.locator('#platformSalesCoverage')).toBeVisible();
+ await page.locator('#periodSeg [data-days="1"]').click();await expect(page.locator('#from')).toHaveValue('2026-10-16');await expect(metric('Продажи')).toHaveText('—');
+ await expect.poll(()=>reads.at(-1)?.from).toBe('2026-10-16');await expect(metric('Расход')).toHaveText('410 ₴');
+ await page.locator('#platformCalendar').click();await page.locator('[data-date="2026-10-09"]').click();await page.locator('[data-date="2026-10-15"]').click();await page.getByRole('button',{name:'Применить',exact:true}).click();
+ await expect(metric('Продажи')).toHaveText('14');await expect(metric('Выручка')).toHaveText(/7\s?000 ₴/);await expect(page.locator('#platformSalesCoverage')).toBeHidden();await expect(metric('ROAS')).toHaveText('2.44×');
+ await page.locator('#periodSeg [data-days="30"]').click();await expect(page.locator('#to')).toHaveValue('2026-10-16');
+ await page.locator('#uxNav [data-ux-view="campaigns"]').click();await expect(page.locator('#uxCampaigns')).toBeVisible();
+ await page.locator('#uxNav [data-ux-view="overview"]').click();await page.screenshot({path:'dist/profkit-coverage-desktop.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'dist/profkit-coverage-mobile.png',fullPage:true});
+ const initialReads=reads.filter(r=>r.from==='2026-10-10'&&r.to==='2026-10-16').length;
+ await page.reload();await expect(page.locator('#to')).toHaveValue('2026-10-16');await expect(page.locator('#updated')).toHaveText('Реклама: 2026-10-16 · Продажи: 2026-10-15');
+ expect(reads.filter(r=>r.from==='2026-10-10'&&r.to==='2026-10-16').length).toBe(initialReads);
+ expect(errors).toEqual([]);
 });
