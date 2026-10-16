@@ -1,3 +1,4 @@
+import {reportDeletionRoute} from '../reports/deletions.js';
 import {reportAttachmentRoute,validateReportAttachments} from '../reports/attachments.js';
 import {leadgenDashboard} from '../native/leadgen-dashboard.js';
 import {passwordIdentity} from '../portal/password-auth.js';
@@ -3707,11 +3708,11 @@ async function initializeWeeklyContent(request, env, slug2) {
   let item = await contentItem(env,project,"weekly-main");
   if (!item) {
     // A project may contain imported weekly_reports but no editable content yet.
-    // A deterministic id and unique scope make concurrent first opens idempotent.
+    // Unique scope makes concurrent first opens idempotent; a fresh id allows recreating a deleted report.
     await env.TOYS_DB.prepare(`INSERT INTO content_items
       (id,organization_id,project_id,channel_key,locale,kind,logical_key,title,period_kind)
       VALUES (?,?,?,'all','ru','period_summary','weekly-main','Итоги и комментарии','week')
-      ON CONFLICT DO NOTHING`).bind('weekly_main_'+project.id,project.organizationId,project.id).run();
+      ON CONFLICT DO NOTHING`).bind('weekly_main_'+crypto.randomUUID(),project.organizationId,project.id).run();
     item = await contentItem(env,project,"weekly-main");
   }
   if (!item) return response3({ok:false,error:"content_unavailable"},409);
@@ -3815,7 +3816,7 @@ async function revisionHistory(request, env, slug2, logicalKey) {
       WHERE organization_id = ? AND project_id = ? AND content_item_id = ?
       ORDER BY revision_number DESC`
   ).bind(project.organizationId, project.id, item.id).all();
-  return response3({ ok: true, item: { logicalKey: item.logicalKey, publishedRevisionId: item.publishedRevisionId, latestRevision: item.latestRevision }, revisions: result.results || [] });
+  return response3({ ok: true, canDelete:(await authorizeMvp(request,env,"__master","editor")).ok, item: { id:item.id, logicalKey: item.logicalKey, publishedRevisionId: item.publishedRevisionId, latestRevision: item.latestRevision }, revisions: result.results || [] });
 }
 __name(revisionHistory, "revisionHistory");
 async function contentComments(request, env, slug2, logicalKey) {
@@ -4386,15 +4387,16 @@ async function weeklyReports(request, env, slug2) {
   const project = await projectRecord(env, slug2);
   if (!project) return response3({ ok: false, error: "not_found" }, 404);
   const result = await env.TOYS_DB.prepare(
-    `SELECT period_start AS periodStart,period_end AS periodEnd,summary,wins,issues,changes,next_steps AS nextSteps
-       FROM weekly_reports
-      WHERE project_id = ? AND status = 'published'
+    `SELECT id,updated_at AS updatedAt,period_start AS periodStart,period_end AS periodEnd,summary,wins,issues,changes,next_steps AS nextSteps
+       FROM weekly_reports w
+      WHERE project_id = ? AND status = 'published' AND NOT EXISTS (SELECT 1 FROM report_deletions d WHERE d.organization_id=? AND d.project_id=w.project_id AND d.report_kind='imported' AND d.report_id=w.id)
       ORDER BY period_end DESC,period_start DESC`
-  ).bind(project.id).all();
+  ).bind(project.id,project.organizationId).all();
   return response3({
     ok: true,
     access: { role: auth.role },
     project: { slug: project.slug },
+    canDelete:(await authorizeMvp(request,env,"__master","editor")).ok,
     reports: result.results || []
   });
 }
@@ -4422,6 +4424,7 @@ async function handleMvpApi(request, env) {
   if (request.method === "GET" && adsHierarchyMatch) return adsHierarchy(request, env, adsHierarchyMatch[1], false);
   const adsRefreshMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/(?:content-project\/)?ads\/refresh$/);
   if (request.method === "POST" && adsRefreshMatch) return adsHierarchy(request, env, adsRefreshMatch[1], true);
+  const deletion=await reportDeletionRoute(request,env,{authorizeMvp,projectRecord,sameOriginWrite});if(deletion)return deletion;
   const attachments=await reportAttachmentRoute(request,env,{authorizeMvp,projectRecord,publicProjectMaterialAllowed,sameOriginWrite});if(attachments)return attachments;
   const creativeCollectionMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/(?:content-project\/)?creatives$/);
   if (["GET", "POST"].includes(request.method) && creativeCollectionMatch) {
