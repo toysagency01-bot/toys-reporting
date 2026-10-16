@@ -10,3 +10,13 @@ Validation: unified bundles built, recovery tests passed with network permission
 
 Worker version: `b2266acf-c86c-48df-ab8f-b790b75ac5f1`.
 Rollback: `c4aa6452-c5ee-4eb8-8a3c-4732df6cdc85` (retains the media-buyer credential pair).
+
+## Access verification after the second system user was granted accounts
+
+The scheduled 15:20 Asia/Tbilisi run began at 15:21 and completed successfully for all 11 active Meta integrations by 15:22:08. Each account wrote 30 daily snapshots; no authorization failures remained in that run. This verifies effective account access, but does not independently identify the token's owner. TOYS Agency remains an unconnected draft.
+
+WeDoProfi's new account returned `EUR` and `Asia/Tbilisi`. The integration discovered these values automatically; the project currency/timezone and the calendar's `periodTimezone` were aligned to them. Existing snapshots and monetary amounts were not converted or rewritten.
+
+Follow-up Worker version: `deacc03b-ebde-46e7-aacd-594253003f4e`.
+Rollback for the calendar change: `b2266acf-c86c-48df-ab8f-b790b75ac5f1`.
+Unified build and recovery tests passed again after the calendar configuration change.
