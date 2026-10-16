@@ -18,6 +18,14 @@ test('a missing ad and a one-cent difference remain visible; offsets across days
  assert.equal(report.daily[0].differences.spend,'0.01');assert.equal(report.daily[1].differences.spend,'-0.01');
  assert.equal(report.daily[2].differences.conversions,'-3');
 });
+test('audit checks purchase value and funnel events independently without double-counting action aliases',async()=>{
+ const ad={...row('2026-10-01','10'),actions:[{action_type:'lead',value:'1'},{action_type:'omni_purchase',value:'2'},{action_type:'purchase',value:'2'},{action_type:'omni_add_to_cart',value:'3'},{action_type:'omni_initiated_checkout',value:'2'}],action_values:[{action_type:'omni_purchase',value:'100.01'},{action_type:'purchase',value:'100.01'}]};
+ const account={...ad,action_values:[{action_type:'omni_purchase',value:'100.02'}]};
+ const result=await reconcileMetaAccount({scope,adRows:[ad],eventKeys:['lead'],fetchPage:async p=>{assert.ok(p.fields.includes('action_values'));return {data:[account]};}});
+ assert.equal(result.status,'mismatch');assert.equal(result.adTotals.purchases,'2');assert.equal(result.adTotals.purchaseValue,'100.01');
+ assert.equal(result.adTotals.leads,'1');assert.equal(result.adTotals.addToCart,'3');assert.equal(result.adTotals.checkout,'2');
+ assert.equal(result.daily[0].differences.purchaseValue,'-0.01');
+});
 test('audit refuses wrong accounts, duplicate days, missing metrics and pagination outside the account',async()=>{
  const base={scope,adRows:[row('2026-10-01','1')],eventKeys:['lead']};
  for(const data of [[{...row('2026-10-01','1'),account_id:'456'}],[row('2026-10-01','1'),row('2026-10-01','1')],[{...row('2026-10-01','1'),clicks:undefined}]])await assert.rejects(reconcileMetaAccount({...base,fetchPage:async()=>({data})}));

@@ -49,11 +49,13 @@ if __name__=='__main__':
                 bindings.append({'name':binding_name,'type':'plain_text','text':'true'})
         registry=json.loads(pathlib.Path('projects.json').read_text())
         for index, option in enumerate(sys.argv):
-            if option != '--publish-project': continue
+            if option not in ('--publish-project', '--enable-private-project'): continue
             project=sys.argv[index+1]
             assert project in registry
+            project_bindings=['MVP_VIEW_PROJECTS','MVP_EDITOR_PROJECTS']
+            if option=='--publish-project':project_bindings+=['MVP_PUBLIC_VIEW_PROJECTS','MVP_PUBLIC_PROJECT_MATERIALS']
             for b in bindings:
-                if b['name'] in ['MVP_VIEW_PROJECTS','MVP_EDITOR_PROJECTS','MVP_PUBLIC_VIEW_PROJECTS','MVP_PUBLIC_PROJECT_MATERIALS']:
+                if b['name'] in project_bindings:
                     values=[v.strip() for v in b['text'].split(',') if v.strip()]
                     if project not in values: values.append(project)
                     b['text']=','.join(values)

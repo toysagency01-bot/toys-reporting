@@ -98,7 +98,10 @@ export default {
     if(publicBoard && projects.has(publicBoard[1]) && request.method==='GET'){
       const slug=publicBoard[1];
       const publicAuth=await authorizeMvp(request,env,slug,'viewer','dashboard');
-      if(!publicAuth.ok)return Response.json({ok:false,error:publicAuth.error},{status:publicAuth.status,headers:{'cache-control':'no-store'}});
+      if(!publicAuth.ok){
+        if(!url.searchParams.has('ui')&&request.headers.get('accept')?.includes('text/html'))return loginRedirect(request,publicAuth);
+        return Response.json({ok:false,error:publicAuth.error},{status:publicAuth.status,headers:{'cache-control':'no-store'}});
+      }
       const resource=url.searchParams.get('ui');
       if(resource!==null){const a=nativeAssets[resource];if(!Object.hasOwn(nativeAssets,resource))return new Response('Not found',{status:404});return new Response(a.body,{headers:{'content-type':a.type,'cache-control':'no-store','x-content-type-options':'nosniff'}});}
       const member=await authorizeMvp(request,env,slug,'viewer');

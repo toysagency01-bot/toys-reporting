@@ -60,6 +60,18 @@ test('entry screen is public, self-contained and does not expose account data; A
   assert.equal((await worker.fetch(request('/api/v2/projects/housevip-cxp7/content-crm?format=json',{role:null}),env)).status,401);
  }finally{db.close();}
 });
+test('private board links send browser visitors to login while API and asset requests remain protected',async()=>{
+ const {env,db}=fixture();env.MVP_VIEW_PROJECTS+=',toys-agency-ctft';env.MVP_EDITOR_PROJECTS+=',toys-agency-ctft';
+ try{
+  const nav=request('/toys-agency-ctft/',{role:null});nav.headers.set('accept','text/html');
+  const response=await worker.fetch(nav,env);assert.equal(response.status,302);assert.equal(response.headers.get('location'),'/login');
+  assert.equal((await worker.fetch(request('/toys-agency-ctft/',{role:null}),env)).status,401);
+  nav.headers.set('accept','text/html');const asset=new Request('https://test.local/toys-agency-ctft/?ui=core/core.js',nav);
+  assert.equal((await worker.fetch(asset,env)).status,401);
+  const signed=await worker.fetch(request('/toys-agency-ctft/'),env);assert.equal(signed.status,200);assert.match(await signed.text(),/window.TOYS_UNIFIED_PROJECT="toys-agency-ctft"/);
+  env.ENVIRONMENT='staging';assert.equal((await worker.fetch(request('/housevip-cxp7/',{role:null}),env)).status,200);
+ }finally{db.close();}
+});
 test('exhausted-quota rollout reports pending setup and resumes additive migration after reset',async t=>{
  const {env,db}=fixture();env.MVP_EDITOR_PROJECTS+=',__master';
  try{
