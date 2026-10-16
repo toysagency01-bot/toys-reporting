@@ -611,3 +611,13 @@ test('returning to a cached campaign search reuses its completed response',async
  await expect.poll(()=>fixture.calls.length).toBe(count+1);
  await page.locator('#platformCampaignBrowser input[type=search]').fill('');await page.clock.fastForward(300);await expect(page.locator('#platformCampaignBrowser')).toContainText('Lazy campaign');expect(fixture.calls.length).toBe(count+1);
 });
+
+test('client lead card exposes original request and full imported comments separately from new note entry',async({page,request})=>{
+ const api='/api/v2/projects/housevip-cxp7/crm';
+ const created=await request.post(api,{headers:{'x-idempotency-key':'imported-notes-ui',origin:'http://127.0.0.1:4173'},data:{name:'Imported comment UI',phone:'+995555019911'}});expect(created.ok()).toBe(true);
+ await page.route('**/housevip-cxp7/crm?*',async route=>{const response=await route.fetch(),data=await response.json();for(const l of [...(data.leads||[]),...(data.columns||[]).flatMap(c=>c.leads)])if(l.name==='Imported comment UI')l.metadata={migration:'test',description:'Old agency note',sourceRequest:{text:'Original request\n<script>never execute</script>',service:'Bodywork'}};await route.fulfill({json:data});});
+ await page.route('**/housevip-cxp7/crm/leads/*',async route=>{if(route.request().method()!=='GET')return route.fallback();await route.fulfill({json:{ok:true,messages:[],events:[{status:'Новый',date:'2026-10-01T08:00:00Z',note:JSON.stringify({migration:true,note:'Original agency note'})},{status:'В работе',date:'2026-10-15T08:00:00Z',note:JSON.stringify({kind:'imported_comment',note:'Updated comment\\nSecond line <img src=x onerror=alert(1)>'})}]}});});
+ await page.goto('/api/v2/projects/housevip-cxp7/content-crm');await page.locator('#search').fill('Imported comment UI');await page.getByRole('button',{name:'Imported comment UI',exact:true}).click();
+ await expect(page.locator('.lead-request')).toContainText('Original request');await expect(page.locator('.lead-request')).toContainText('<script>never execute</script>');await expect(page.locator('#leadComments')).toContainText('Original agency note');
+ const latest=page.locator('#leadComments .history-entry').first();await expect(latest).toContainText('Updated comment');expect(await latest.locator('p').textContent()).toContain('Updated comment\nSecond line');await expect(page.locator('#leadComments img,.lead-request script')).toHaveCount(0);await expect(page.locator('#leadForm [name=note]')).toHaveValue('');await expect(page.locator('#leadHistory')).toContainText('Комментарий из таблицы');
+});
