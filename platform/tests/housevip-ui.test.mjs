@@ -30,7 +30,7 @@ test('Cloudflare HOUSEVIP keeps the complete dashboard navigation and project ta
   assert.match(core, /sourceMetrics\.has\(panel\.code\)/);
   assert.match(core, /Пропуск не считается нулём/);
   assert.ok(core.indexOf("node.textContent = '—'") < core.indexOf('if(unavailable){'));
-  for (const label of ['Обзор', 'Кампании', 'Воронка', 'Лиды', 'Недельные итоги', 'Проект']) {
+  for (const label of ['Обзор', 'Кампании', 'Воронка', 'Лиды', 'Итоги и комментарии', 'Проект']) {
     assert.match(ux, new RegExp(label));
   }
 

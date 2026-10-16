@@ -16,7 +16,7 @@
   if(legacyTabs) legacyTabs.classList.add('ux-legacy-tabs');
   const weeklyPanel=byId('weeklyPanel'),projectView=byId('projectView');
   const navItems=[['overview','Обзор'],['campaigns','Кампании'],['funnel','Воронка']];
-  if(weeklyPanel&&!weeklyPanel.classList.contains('hidden')) navItems.push(['weekly','Недельные итоги']);
+  if(weeklyPanel&&!weeklyPanel.classList.contains('hidden')) navItems.push(['weekly','Итоги и комментарии']);
   if(projectView) navItems.push(['project','Проект']);
   const nav=document.createElement('nav');nav.id='uxNav';nav.className='ux-nav';nav.setAttribute('aria-label','Основные разделы');
   nav.innerHTML=navItems.map(([key,label],index)=>`<button type="button" data-ux-view="${key}"${index===0?' class="active"':''}>${icons[key]}<span>${label}</span></button>`).join('');
@@ -39,7 +39,7 @@
   const funnel=document.createElement('section');funnel.id='uxFunnel';funnel.className='ux-section';funnel.appendChild(heading('ПУТЬ ПОЛЬЗОВАТЕЛЯ','Воронка','Переход от контакта с рекламой к целевому действию.'));
   const funnelGrid=document.createElement('div');funnelGrid.className='ux-funnel-grid';if(ecomFunnelPanel)funnelGrid.appendChild(ecomFunnelPanel);funnelGrid.appendChild(funnelPanel);funnelGrid.appendChild(weekdayPanel);if(channelPanel)funnelGrid.appendChild(channelPanel);funnel.appendChild(funnelGrid);
   const weekly=document.createElement('section');weekly.id='uxWeekly';weekly.className='ux-section';
-  if(weeklyPanel){weekly.appendChild(heading('ИСТОРИЯ РЕШЕНИЙ','Недельные итоги','Что сработало, что изменили и какой план на следующую неделю.','<button class="ux-primary" id="uxWeeklyAdd" type="button">+ Добавить итог</button>'));weekly.appendChild(weeklyPanel);}
+  if(weeklyPanel){weekly.appendChild(heading('ИСТОРИЯ РЕШЕНИЙ','Итоги и комментарии','Что сработало, что изменили и какой план на следующую неделю.','<button class="ux-primary" id="uxWeeklyAdd" type="button">+ Добавить итог</button>'));weekly.appendChild(weeklyPanel);}
   content.appendChild(overview);content.appendChild(campaigns);content.appendChild(funnel);if(weeklyPanel)content.appendChild(weekly);
   if(oldCardsRow&&!oldCardsRow.children.length)oldCardsRow.remove();
 

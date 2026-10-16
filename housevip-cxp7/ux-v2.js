@@ -25,7 +25,7 @@
   nav.setAttribute('aria-label','Основные разделы');
   nav.innerHTML = [
     ['overview','Обзор'],['campaigns','Кампании'],['funnel','Воронка'],
-    ['leads','Лиды'],['weekly','Недельные итоги'],['project','Проект']
+    ['leads','Лиды'],['weekly','Итоги и комментарии'],['project','Проект']
   ].map(([key,label],index)=>`<button type="button" data-ux-view="${key}" class="${index===0?'active':''}">${icon[key]}<span>${label}</span></button>`).join('');
   legacyTabs.parentNode.insertBefore(nav,legacyTabs);
 
@@ -81,7 +81,7 @@
   const weekly = document.createElement('section');
   weekly.id = 'uxWeekly';
   weekly.className = 'ux-section';
-  weekly.appendChild(heading('ИСТОРИЯ РЕШЕНИЙ','Недельные итоги','Что сработало, что изменили и какой план на следующую неделю.','<button class="ux-primary" id="uxWeeklyAdd" type="button">+ Добавить итог</button>'));
+  weekly.appendChild(heading('ИСТОРИЯ РЕШЕНИЙ','Итоги и комментарии','Что сработало, что изменили и какой план на следующую неделю.','<button class="ux-primary" id="uxWeeklyAdd" type="button">+ Добавить итог</button>'));
   weekly.appendChild(weeklyPanel);
 
   content.appendChild(overview);
