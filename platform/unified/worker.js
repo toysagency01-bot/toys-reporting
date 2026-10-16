@@ -36,6 +36,13 @@ const html = (slug,privateMode=true,assetBase=null,role=null,cacheScope=null) =>
 export default {
   async fetch(request, env, ctx) {
     const url=new URL(request.url);
+    // Published material routes historically permit anonymous reads. Logged-in
+    // identities must still obey project assignments on every project endpoint.
+    const signedProject=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)(?:\/|$)/)?.[1]||url.pathname.match(/^\/([^/]+)\/?$/)?.[1];
+    if(env.ENVIRONMENT==='staging'&&signedProject&&(url.pathname.startsWith('/api/v2/projects/')||projects.has(signedProject))&&(request.headers.get('cookie')?.match(/(?:toys_session|CF_Authorization)=/)||request.headers.has('cf-access-jwt-assertion'))){
+      const scope=await authorizeMvp(request,env,signedProject,'viewer');
+      if(!scope.ok){if(!url.pathname.startsWith('/api/')&&!url.searchParams.has('ui')&&request.headers.get('accept')?.includes('text/html'))return loginRedirect(request,scope);return Response.json({ok:false,error:scope.error},{status:scope.status,headers:{'cache-control':'no-store'}});}
+    }
     const entry=await portalRoute(request,env,nativeAssets);if(entry)return entry;
     const access=await accessManagement(request,env);if(access)return access;
     const clientCRM=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/content-crm$/);

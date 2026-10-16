@@ -7,7 +7,7 @@ import {reconcileMetaAccount} from '../imports/meta-reconciliation.js';
 import projectRegistry from '../projects.json' with {type:'json'};
 import {readAdsSnapshot} from '../imports/ads-store.js';
 import {scheduledAds} from '../imports/scheduled-ads.js';
-import {clientGrant,staffIdentity,masterIdentity} from '../portal/access.js';
+import {platformAccess} from '../portal/access.js';
 import {attachMetaPreviews} from '../native/meta-previews.js';
 import {createGoogleReceiverAdapter,registerGoogleSnapshot} from '../native/google-receiver.js';
 import {normalizeOutcomes,enrichMetaOutcomes,safePreview} from '../native/outcomes.js';
@@ -2915,21 +2915,22 @@ export async function accessIdentity(request, env) {
   })();
   verifiedAccessRequests.set(request,{env,verify});return verify;
 }
+const verifiedRoleRequests=new WeakMap();
 async function authorizeAccess(request, env, projectSlug, requiredRole) {
   const identity=await accessIdentity(request,env);if(!identity.ok)return identity;
   const {email,subject}=identity;
-  const staff=staffIdentity(email,env),master=masterIdentity(email,env);
-  let role=master?'editor':staff?(projectSet(env.MVP_EDITOR_PROJECTS).has(projectSlug)?'editor':projectSet(env.MVP_VIEW_PROJECTS).has(projectSlug)?'viewer':null):null;
-  if(!staff&&projectSlug!=='__master'){
-    const grant=await clientGrant(env,email,projectSlug);
-    if(grant)role='viewer';
-    // Preserve the previous explicitly configured clients until they are managed in D1.
-    // An existing D1 account always overrides the legacy mapping, including revocation.
-    else{const managed=await env.TOYS_DB.prepare('SELECT id FROM users WHERE email=?').bind(email).first();const legacy=safeJson(env.MVP_CLIENT_PROJECTS);if(!managed&&Array.isArray(legacy[email])&&legacy[email].includes(projectSlug))role='viewer';}
+  if(verifiedRoleRequests.get(request)?.env!==env)verifiedRoleRequests.set(request,{env,value:platformAccess(env,email)});
+  const access=await verifiedRoleRequests.get(request).value;
+  let role=null;
+  if(access.platformRole==='admin')role='editor';
+  else if(access.platformRole==='team'&&(projectSlug==='__master'||access.projectSlugs.includes(projectSlug)))role='editor';
+  else if(access.platformRole==='client'&&!projectSlug.startsWith('__')){
+    if(access.projectSlugs.includes(projectSlug))role='viewer';
+    else if(!access.userId){const legacy=safeJson(env.MVP_CLIENT_PROJECTS);if(Array.isArray(legacy[email])&&legacy[email].includes(projectSlug))role='viewer';}
   }
   if(!role)return {ok:false,status:403,error:'project_scope_forbidden'};
   if(requiredRole==='editor'&&role!=='editor')return {ok:false,status:403,error:'editor_role_required'};
-  return {ok:true,role,subject,projectSlug};
+  return {ok:true,role,subject,email,projectSlug,...access};
 }
 __name(authorizeAccess, "authorizeAccess");
 async function sha256Text3(value2) {
@@ -2944,6 +2945,9 @@ async function authorizeMvp(request, env, projectSlug, requiredRole = "viewer", 
       if (!["GET", "HEAD"].includes(request.method)) {
         return { ok: false, status: 403, error: "public_method_forbidden" };
       }
+      // A signed-in user cannot fall back to anonymous public access to bypass
+      // a revoked assignment. Anonymous published links retain their behavior.
+      if(request.headers.get('cookie')?.match(/(?:toys_session|CF_Authorization)=/)||request.headers.has('cf-access-jwt-assertion'))return authorizeAccess(request,env,projectSlug,requiredRole);
       if (projectSet(env.MVP_PUBLIC_VIEW_PROJECTS).has(projectSlug)) {
         return { ok: true, role: "public", subject: "public-read", projectSlug };
       }
@@ -2972,9 +2976,9 @@ async function authorizeMvp(request, env, projectSlug, requiredRole = "viewer", 
     scopes = projectSet(env.MVP_VIEW_PROJECTS);
   }
   if (!role) return { ok: false, status: 401, error: "invalid_token" };
-  if (!scopes.has(projectSlug)) return { ok: false, status: 403, error: "project_scope_forbidden" };
+  if (!(projectSlug==='__admin'&&role==='editor'&&scopes.has('__master'))&&!scopes.has(projectSlug)) return { ok: false, status: 403, error: "project_scope_forbidden" };
   if (requiredRole === "editor" && role !== "editor") return { ok: false, status: 403, error: "editor_role_required" };
-  return { ok: true, role, subject: `local-${role}`, projectSlug };
+  return { ok: true, role, subject: `local-${role}`, projectSlug,platformRole:role==='editor'&&scopes.has('__master')?'admin':role==='editor'?'team':'client',projectSlugs:[...scopes],accessVersion:0 };
 }
 __name(authorizeMvp, "authorizeMvp");
 function validDate(value2) {

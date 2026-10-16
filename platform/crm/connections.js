@@ -7,7 +7,7 @@ const base='https://reports.toys-agency.com/api/crm/ingest/';
 export async function connections(request,env,ctx){
  const url=new URL(request.url),m=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/crm\/connections(?:\/(.*))?$/);if(!m)return null;
  try{
- const auth=await authorizeMvp(request,env,'__master','editor');if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
+ const auth=await authorizeMvp(request,env,'__admin','editor');if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  const p=await project(env,m[1]);if(!p)fail('not_found',404);const path=m[2]||'';
  if(request.method==='GET'){
  const cfg=await env.TOYS_DB.prepare('SELECT enabled_at,timezone,dataset_id,capi_enabled,website_key_hash FROM crm_projects WHERE project_id=?').bind(p.id).first();

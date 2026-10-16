@@ -48,15 +48,17 @@ async function session(env,user){
  return replyWithCookie({ok:true,redirect:'/api/v2/portal/session'},cookie(token));
 }
 function replyWithCookie(body,value){const r=reply(body);r.headers.set('set-cookie',value);return r;}
-export async function createInvitation(env,userId,actor){
+export async function createInvitation(env,userId,actor,{guard=null}={}){
  const user=await env.TOYS_DB.prepare("SELECT id FROM users WHERE id=? AND status IN ('invited','active')").bind(userId).first();
  if(!user)fail('account_unavailable',404);
  const token=random(),time=now();
- await env.TOYS_DB.batch([
-  env.TOYS_DB.prepare('DELETE FROM portal_invitations WHERE user_id=?').bind(userId),
-  env.TOYS_DB.prepare('INSERT INTO portal_invitations(token_hash,user_id,expires_at,created_by,created_at) VALUES(?,?,?,?,?)').bind(await hash(token),userId,time+86400,actor,time),
-  env.TOYS_DB.prepare("INSERT INTO audit_log(action,entity_type,entity_id,after_json) VALUES('password_invitation_created','user',?,?)").bind(userId,JSON.stringify({actor}))
+ const condition=guard?.sql||'1=1',args=guard?.params||[];
+ const results=await env.TOYS_DB.batch([
+  env.TOYS_DB.prepare(`DELETE FROM portal_invitations WHERE user_id=? AND (${condition})`).bind(userId,...args),
+  env.TOYS_DB.prepare(`INSERT INTO portal_invitations(token_hash,user_id,expires_at,created_by,created_at) SELECT ?,?,?,?,? WHERE ${condition}`).bind(await hash(token),userId,time+86400,actor,time,...args),
+  env.TOYS_DB.prepare(`INSERT INTO audit_log(action,entity_type,entity_id,after_json) SELECT 'password_invitation_created','user',?,? WHERE ${condition}`).bind(userId,JSON.stringify({actor}),...args)
  ]);
+ if(!results[1].meta?.changes)fail('access_changed',403);
  return {ok:true,activationUrl:`https://reports.toys-agency.com/api/v2/portal/activate#token=${token}`,expiresAt:new Date((time+86400)*1000).toISOString()};
 }
 export async function passwordRoute(request,env){
