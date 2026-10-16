@@ -47,6 +47,13 @@ if __name__=='__main__':
             if option in sys.argv:
                 bindings=[b for b in bindings if b['name']!=binding_name]
                 bindings.append({'name':binding_name,'type':'plain_text','text':'true'})
+        if '--report-attachments-bucket' in sys.argv:
+            bucket=sys.argv[sys.argv.index('--report-attachments-bucket')+1]
+            assert bucket=='toys-report-attachments', 'Unexpected report attachment bucket'
+            existing=next((b for b in bindings if b['name']=='REPORT_ATTACHMENTS'),None)
+            assert not existing or existing.get('bucket_name')==bucket, 'Existing report storage differs'
+            bindings=[b for b in bindings if b['name']!='REPORT_ATTACHMENTS']
+            bindings.append({'name':'REPORT_ATTACHMENTS','type':'r2_bucket','bucket_name':bucket})
         registry=json.loads(pathlib.Path('projects.json').read_text())
         for index, option in enumerate(sys.argv):
             if option not in ('--publish-project', '--enable-private-project'): continue
