@@ -45,3 +45,7 @@ dialog.report-image-viewer[open]{display:grid;grid-template-rows:auto minmax(0,1
 @media(max-width:600px){dialog.report-image-viewer{width:calc(100vw - 16px);height:calc(100dvh - 24px);border-radius:12px}.report-image-heading{padding:10px 12px}.report-image-controls{gap:8px;padding:10px 12px}.report-image-stage{padding:8px}.report-image-controls [data-image-zoom]{font-size:12px;padding:8px}.report-image-heading h2{font-size:16px}}
 
 html body button.report-delete{color:var(--red,#bb334b);border-color:currentColor;background:transparent}html body button.report-delete:disabled{opacity:.5}
+
+/* Report summaries expand independently of legacy one-line weekly previews. */
+.weekly-report .report-summary-text{display:block;min-width:0;max-height:none;white-space:pre-wrap;overflow-wrap:anywhere;overflow:visible;text-overflow:clip;line-height:1.6;margin:12px 0 0}
+.weekly-report:not([open]) .report-summary-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}

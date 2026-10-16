@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test';
+
 async function checkViewer(page,selector,{mobile=false}={}){
  const trigger=page.locator(selector).first(),dialog=page.locator('#reportImageViewer'),url=page.url(),tabs=page.context().pages().length;
  await trigger.click();await expect(dialog).toBeVisible();await expect(dialog.locator('[data-image-close]')).toBeFocused();
@@ -62,4 +63,43 @@ test('report deletion is admin-only, confirmed, durable and allows adding a new 
  page.once('dialog',d=>d.accept());await page.locator('#weeklyForm [data-delete-weekly]').click();await expect(page.locator('#weeklyMessage')).toContainText('Отчёт удалён');await expect(page.locator('[data-weekly-published]')).toHaveCount(0);
  await page.reload();await expect(page.locator('#weeklyContent')).toContainText('Опубликованных итогов пока нет');await page.locator('#uxWeeklyAdd').click();await expect(page.locator('#weeklyForm [name=summary]')).toHaveValue('');
  await page.locator('#weeklyForm [name=channel]').selectOption('smm');await page.locator('#weeklyForm [name=summary]').fill('Новый отчёт после удаления');await page.getByRole('button',{name:'Сохранить и опубликовать',exact:true}).click();await expect(page.locator('#weeklyMessage')).toContainText('Отчёт опубликован');await expect(page.locator('[data-weekly-published]')).toContainText('Новый отчёт после удаления');
+});
+
+test('expanded reports show full multiline text and omit empty sections on desktop and mobile',async({page})=>{
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
+ const base='/api/v2/projects/housevip-cxp7',origin='http://127.0.0.1:4173';
+ const summary='За отчётный месяц получили 644 лида при средней стоимости 144 Kč. '+('Кампанию перезапустили с новыми креативами и проверили результаты. '.repeat(9))+'\n\nСледующий абзац: '+('длиннаяссылка'.repeat(25))+'\nПоследняя строка отчёта.';
+ const payload={periodStart:'2026-09-15',periodEnd:'2026-10-15',channel:'meta',summary,wins:'',issues:'   \n ',changes:'—',nextSteps:'Продолжаем проверку новых креативов.\nСверяем качество лидов.'};
+ await page.request.post(base+'/content/weekly-main/initialize',{headers:{origin},data:{}});
+ const history=await(await page.request.get(base+'/content/weekly-main/revisions')).json();
+ const saved=await page.request.post(base+'/content/weekly-main/save-and-publish',{headers:{origin,'x-idempotency-key':'browser-complete-report-text'},data:{expectedRevision:history.item.latestRevision,expectedPublishedRevisionId:history.item.publishedRevisionId,blocks:[{type:'period_summary',blockKey:'summary',payload}]}});expect(saved.ok()).toBe(true);
+ await page.route('**/weekly-reports',r=>r.fulfill({json:{ok:true,canDelete:true,reports:[{...payload,id:'archive-display-qa',updatedAt:'2026-10-16'}]}}));
+ await page.goto(base+'/content-project#weekly');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('[data-ux-view=weekly]').click();
+ const report=page.locator('[data-weekly-published]'),archive=page.locator('#weeklyArchive details');
+ await expect(report).toBeVisible();await report.locator('summary').click();await archive.locator('summary').click();
+ for(const row of [report,archive]){
+  await expect(row.locator('.report-summary-text')).toHaveText(summary);
+  await expect(row.locator('.report-field')).toHaveCount(1);
+  await expect(row.locator('.report-field h3')).toHaveText('План на следующую неделю');
+ }
+ for(const width of [1440,390]){
+  await page.setViewportSize({width,height:900});
+  for(const row of [report,archive]){
+   const measure=await row.locator('.report-summary-text').evaluate(el=>({height:el.clientHeight,full:el.scrollHeight,width:el.clientWidth,scrollWidth:el.scrollWidth,whiteSpace:getComputedStyle(el).whiteSpace}));
+   expect(measure.height).toBeGreaterThan(40);expect(measure.full).toBeLessThanOrEqual(measure.height+1);expect(measure.scrollWidth).toBeLessThanOrEqual(measure.width+1);expect(measure.whiteSpace).toBe('pre-wrap');
+  }
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:`dist/report-full-text-${width}.png`,fullPage:true});
+ }
+ await page.getByRole('button',{name:'Включить светлую тему',exact:true}).click();
+ await page.screenshot({path:'dist/report-full-text-light-mobile.png',fullPage:true});
+ await page.setViewportSize({width:1440,height:900});await page.screenshot({path:'dist/report-full-text-light-desktop.png',fullPage:true});
+ await report.getByRole('button',{name:'Редактировать',exact:true}).click();
+ await expect(page.locator('#weeklyForm [name=summary]')).toHaveValue(summary);
+ for(const key of ['wins','issues','changes','nextSteps'])await expect(page.locator(`#weeklyForm [name=${key}]`)).toBeVisible();
+ await page.getByRole('button',{name:'История',exact:true}).click();await page.locator('#historyContent [data-revision]').first().click();
+ await expect(page.locator('#historyContent .report-field')).toHaveCount(2);await expect(page.locator('#historyContent .report-field').first()).toContainText('Последняя строка отчёта.');
+ await page.getByRole('button',{name:'Закрыть',exact:true}).click();
+ await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.reload();await report.locator('summary').click();
+ await expect(report.locator('.report-summary-text')).toHaveText(summary);await expect(report.locator('.report-field')).toHaveCount(1);await expect(report.locator('[data-edit-weekly]')).toHaveCount(0);
 });
