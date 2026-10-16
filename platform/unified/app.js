@@ -145,7 +145,7 @@ async function saveWeekly(event){
   form.dataset.busy='true';form.querySelectorAll('button').forEach(b=>b.disabled=true);$('weeklyMessage').textContent='Сохраняем…';
   try{const saved=await write(path,body,weeklyAttempt.key);const detail=await json(`${api}/content/weekly-main/revisions/${saved.revision.id}`);
     if(JSON.stringify(summaryPayload(detail.revision))!==JSON.stringify(values))throw new Error('Проверка сохранённого текста не пройдена');
-    if(publish){const publicView=await json(`${api}/content?logicalKey=weekly-main`);if(publicView.publishedRevision?.id!==saved.revision.id)throw new Error('Публикация пока не подтверждена');}
+    if(publish){const publicView=await json(`${api}/content?logicalKey=weekly-main`),revision=publicView.publishedRevision;if(!revision||revision.revisionNumber!==saved.revision.revisionNumber||JSON.stringify(summaryPayload(revision))!==JSON.stringify(values))throw new Error('Публикация пока не подтверждена');}
     state.dirty=false;weeklyAttempt=null;await loadWeekly(true);$('weeklyMessage').textContent=publish?'Отчёт опубликован. Сохранённая версия проверена.':'Черновик сохранён. Публичный отчёт не изменён.';
   }catch(e){$('weeklyMessage').textContent=explain(e);$('weeklyMessage').classList.add('error');}
   finally{delete form.dataset.busy;form.querySelectorAll('button').forEach(b=>b.disabled=false);}

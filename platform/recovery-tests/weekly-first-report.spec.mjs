@@ -1,6 +1,8 @@
 import {test,expect} from '@playwright/test';
 test('add result opens a first editor and preserves draft, publication and comments',async({page})=>{
  await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
+ // Public material responses omit internal revision ids, even for a signed-in editor.
+ await page.route('**/content?logicalKey=weekly-main',async route=>{const response=await route.fetch(),body=await response.json();if(body.publishedRevision)delete body.publishedRevision.id;await route.fulfill({response,json:body});});
  let initializations=0;page.on('request',r=>{if(r.url().endsWith('/weekly-main/initialize'))initializations++;});
  await page.goto('/api/v2/projects/housevip-cxp7/content-project');
  await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
