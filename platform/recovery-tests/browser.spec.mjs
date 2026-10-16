@@ -146,14 +146,15 @@ test('dashboard and durable weekly workflow',async({page})=>{
  await expect(page.locator('#dateFrom')).toHaveCount(1);
  await page.screenshot({path:'dist/desktop.png',fullPage:true,animations:'disabled'});
  await page.locator('[data-ux-view="project"]').click();await page.locator('#uxProjectChannels [data-channel="meta"],#uxProjectChannels [data-legacy-view="meta"]').first().click();await expect(page.locator('#projectView')).toContainText('Подготовить новые креативы');
- await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyForm')).toBeVisible();
+ await page.locator('[data-ux-view="weekly"]').click();await page.locator('#uxWeeklyAdd').click();await expect(page.locator('#weeklyForm')).toBeVisible();
  await page.locator('[name="channel"]').selectOption('meta');
  await page.locator('[name="summary"]').fill('Проверка сохранения из браузера');
  await page.getByRole('button',{name:'Сохранить черновик',exact:true}).click();
  await expect(page.locator('#weeklyMessage')).toContainText('Черновик сохранён');
- await page.reload();await expect(page.locator('[name="summary"]')).toHaveValue('Проверка сохранения из браузера');
+ await page.reload();await page.locator('#uxWeeklyAdd').click();await expect(page.locator('[name="summary"]')).toHaveValue('Проверка сохранения из браузера');
  await page.getByRole('button',{name:'Сохранить и опубликовать',exact:true}).click();
  await expect(page.locator('#weeklyMessage')).toContainText('Отчёт опубликован');
+ await expect(page.locator('#weeklyForm')).toHaveCount(0);await page.locator('[data-weekly-published] summary').click();await page.getByRole('button',{name:'Редактировать',exact:true}).click();
  await page.locator('#commentForm textarea').fill('Комментарий из браузера');await page.getByRole('button',{name:'Добавить комментарий',exact:true}).click();
  await expect(page.locator('#commentsList')).toContainText('Комментарий из браузера');
  await page.getByRole('button',{name:'История',exact:true}).click();await expect(page.locator('#historyContent')).toContainText('Версия');await page.getByRole('button',{name:'Закрыть',exact:true}).click();
@@ -412,8 +413,8 @@ test('returning to Meta approvals and weekly reports reuses their screens withou
  const meta=page.locator('#uxProjectChannels [data-channel="meta"],#uxProjectChannels [data-legacy-view="meta"]');
  await page.locator('[data-ux-view="project"]').click();await meta.click();await expect(page.locator('#creativeContent')).toContainText('ожидает подключения хранилища');
  const loaded=calls.filter(u=>u.endsWith('/content-project/creatives')).length;await page.locator('[data-ux-view="overview"]').click();await page.locator('[data-ux-view="project"]').click();await meta.click();await expect(page.locator('#creativeContent')).toContainText('ожидает подключения хранилища');expect(calls.filter(u=>u.endsWith('/content-project/creatives'))).toHaveLength(loaded);
- await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyForm')).toBeVisible();await expect(page.locator('#commentsList')).not.toBeEmpty();
- const weeklyCalls=calls.filter(u=>/weekly-main|weekly-reports/.test(u)).length;await page.evaluate(()=>window.auditWeekly=document.getElementById('weeklyForm'));await page.locator('[data-ux-view="overview"]').click();await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyForm')).toBeVisible();expect(await page.evaluate(()=>auditWeekly===document.getElementById('weeklyForm'))).toBe(true);expect(calls.filter(u=>/weekly-main|weekly-reports/.test(u))).toHaveLength(weeklyCalls);
+ await page.locator('[data-ux-view="weekly"]').click();await page.locator('#uxWeeklyAdd').click();await expect(page.locator('#weeklyForm')).toBeVisible();await expect(page.locator('#commentsList')).not.toBeEmpty();
+ const weeklyCalls=calls.filter(u=>/weekly-main|weekly-reports/.test(u)).length;await page.evaluate(()=>window.auditWeekly=document.getElementById('weeklyForm'));await page.locator('[data-ux-view="overview"]').click();await page.locator('[data-ux-view="weekly"]').click();await page.locator('#uxWeeklyAdd').click();await expect(page.locator('#weeklyForm')).toBeVisible();expect(await page.evaluate(()=>auditWeekly===document.getElementById('weeklyForm'))).toBe(true);expect(calls.filter(u=>/weekly-main|weekly-reports/.test(u))).toHaveLength(weeklyCalls);
 });
 
 test('top creative opens full-size media and escaped copy lazily, supports carousel, mobile and cached reopening',async({page})=>{
