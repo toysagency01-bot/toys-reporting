@@ -8,10 +8,14 @@ test('add result opens a first editor and preserves draft, publication and comme
  await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
  await page.locator('[data-ux-view=weekly]').click();await page.locator('#uxWeeklyAdd').click();
  await expect(page.locator('#weeklyForm')).toBeVisible();await expect(page.locator('#weeklyForm [name=summary]')).toBeFocused();expect(initializations).toBe(1);
+ await page.locator('#weeklyForm [name=channel]').selectOption('google');
  await page.locator('#weeklyForm [name=summary]').fill('Первый итог после переноса');
+ await expect(page.locator('#reportScreenshotInput')).toBeEnabled();
+ await page.locator('#reportScreenshotInput').setInputFiles({name:'test.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5VQAAAAASUVORK5CYII=','base64')});
+ await expect(page.locator('#reportScreenshots img')).toHaveCount(1);await expect(page.locator('#screenshotMessage')).toContainText('Скриншоты загружены');
  await page.getByRole('button',{name:'Сохранить черновик',exact:true}).click();await expect(page.locator('#weeklyMessage')).toContainText('Черновик сохранён');
- await page.reload();await expect(page.locator('#weeklyForm [name=summary]')).toHaveValue('Первый итог после переноса');expect(initializations).toBe(1);
+ await page.reload();await expect(page.locator('#weeklyForm [name=summary]')).toHaveValue('Первый итог после переноса');expect(initializations).toBe(1);await expect(page.locator('#weeklyForm [name=channel]')).toHaveValue('google');await expect(page.locator('#reportScreenshots img')).toHaveCount(1);
  await page.getByRole('button',{name:'Сохранить и опубликовать',exact:true}).click();await expect(page.locator('#weeklyMessage')).toContainText('Отчёт опубликован');
  await page.locator('#commentForm textarea').fill('Первый комментарий');await page.getByRole('button',{name:'Добавить комментарий',exact:true}).click();await expect(page.locator('#commentsList')).toContainText('Первый комментарий');
- await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.reload();await expect(page.locator('#weeklyForm')).toHaveCount(0);await expect(page.locator('#weeklyContent')).toContainText('Первый итог после переноса');expect(initializations).toBe(1);
+ await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.reload();await expect(page.locator('#weeklyForm')).toHaveCount(0);await expect(page.locator('#weeklyContent')).toContainText('Первый итог после переноса');expect(initializations).toBe(1);await expect(page.locator('#weeklyContent .report-channel')).toHaveText('Google Ads');await expect(page.locator('#weeklyContent .report-screenshots img')).toHaveCount(1);expect(await page.locator('#weeklyContent .report-screenshots img').evaluate(img=>img.complete&&img.naturalWidth>0)).toBe(true);
 });

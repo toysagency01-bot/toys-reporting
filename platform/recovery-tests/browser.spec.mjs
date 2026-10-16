@@ -147,6 +147,7 @@ test('dashboard and durable weekly workflow',async({page})=>{
  await page.screenshot({path:'dist/desktop.png',fullPage:true,animations:'disabled'});
  await page.locator('[data-ux-view="project"]').click();await page.locator('#uxProjectChannels [data-channel="meta"],#uxProjectChannels [data-legacy-view="meta"]').first().click();await expect(page.locator('#projectView')).toContainText('Подготовить новые креативы');
  await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyForm')).toBeVisible();
+ await page.locator('[name="channel"]').selectOption('meta');
  await page.locator('[name="summary"]').fill('Проверка сохранения из браузера');
  await page.getByRole('button',{name:'Сохранить черновик',exact:true}).click();
  await expect(page.locator('#weeklyMessage')).toContainText('Черновик сохранён');

@@ -1,3 +1,4 @@
+import {reportAttachmentRoute,validateReportAttachments} from '../reports/attachments.js';
 import {leadgenDashboard} from '../native/leadgen-dashboard.js';
 import {passwordIdentity} from '../portal/password-auth.js';
 import {reconcileMetaAccount} from '../imports/meta-reconciliation.js';
@@ -3902,6 +3903,7 @@ async function createRevision(request, env, slug2, logicalKey) {
   let blocks;
   try {
     blocks = validateBlocks(body.blocks);
+    await validateReportAttachments(env,project,blocks);
   } catch (error) {
     return response3({ ok: false, error: error instanceof Error ? error.message : "invalid_blocks" }, 400);
   }
@@ -4052,6 +4054,7 @@ async function saveAndPublishRevision(request, env, slug2, logicalKey) {
   let blocks;
   try {
     blocks = validateBlocks(body.blocks);
+    await validateReportAttachments(env,project,blocks);
   } catch (error) {
     return response3({ ok: false, error: error instanceof Error ? error.message : "invalid_blocks" }, 400);
   }
@@ -4419,6 +4422,7 @@ async function handleMvpApi(request, env) {
   if (request.method === "GET" && adsHierarchyMatch) return adsHierarchy(request, env, adsHierarchyMatch[1], false);
   const adsRefreshMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/(?:content-project\/)?ads\/refresh$/);
   if (request.method === "POST" && adsRefreshMatch) return adsHierarchy(request, env, adsRefreshMatch[1], true);
+  const attachments=await reportAttachmentRoute(request,env,{authorizeMvp,projectRecord,publicProjectMaterialAllowed,sameOriginWrite});if(attachments)return attachments;
   const creativeCollectionMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/(?:content-project\/)?creatives$/);
   if (["GET", "POST"].includes(request.method) && creativeCollectionMatch) {
     return creativeCollection(request, env, creativeCollectionMatch[1]);
