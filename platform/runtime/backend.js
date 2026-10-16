@@ -1,3 +1,4 @@
+import {reportCollection,reportKey} from '../reports/collection.js';
 import {commerceRange} from '../native/commerce-range.js';
 import {reportDeletionRoute} from '../reports/deletions.js';
 import {reportAttachmentRoute,validateReportAttachments} from '../reports/attachments.js';
@@ -3700,21 +3701,22 @@ async function contentItem(env, project, logicalKey) {
   ).bind(project.organizationId, project.id, logicalKey).first();
 }
 __name(contentItem, "contentItem");
-async function initializeWeeklyContent(request, env, slug2) {
+async function initializeWeeklyContent(request, env, slug2, logicalKey="weekly-main") {
+  if(!reportKey(logicalKey))return response3({ok:false,error:"invalid_report_key"},400);
   const auth = await authorizeMvp(request, env, slug2, "editor");
   if (!auth.ok) return response3({ok:false,error:auth.error},auth.status);
   if (!sameOriginWrite(request)) return response3({ok:false,error:"origin_forbidden"},403);
   const project = await projectRecord(env,slug2);
   if (!project) return response3({ok:false,error:"not_found"},404);
-  let item = await contentItem(env,project,"weekly-main");
+  let item = await contentItem(env,project,logicalKey);
   if (!item) {
     // A project may contain imported weekly_reports but no editable content yet.
     // Unique scope makes concurrent first opens idempotent; a fresh id allows recreating a deleted report.
     await env.TOYS_DB.prepare(`INSERT INTO content_items
       (id,organization_id,project_id,channel_key,locale,kind,logical_key,title,period_kind)
-      VALUES (?,?,?,'all','ru','period_summary','weekly-main','Итоги и комментарии','week')
-      ON CONFLICT DO NOTHING`).bind('weekly_main_'+crypto.randomUUID(),project.organizationId,project.id).run();
-    item = await contentItem(env,project,"weekly-main");
+      VALUES (?,?,?,'all','ru','period_summary',?,'Итоги и комментарии','week')
+      ON CONFLICT DO NOTHING`).bind(logicalKey==='weekly-main'?'weekly_main_'+crypto.randomUUID():'report_'+logicalKey,project.organizationId,project.id,logicalKey).run();
+    item = await contentItem(env,project,logicalKey);
   }
   if (!item) return response3({ok:false,error:"content_unavailable"},409);
   return response3({ok:true,item});
@@ -3776,7 +3778,7 @@ async function publishedContent(request, env, slug2) {
   if (!project) return response3({ ok: false, error: "not_found" }, 404);
   const logicalKey = new URL(request.url).searchParams.get("logicalKey");
   if (!logicalKey) return response3({ ok: false, error: "logical_key_required" }, 400);
-  if (publicRead && logicalKey !== "weekly-main") {
+  if (publicRead && !reportKey(logicalKey)) {
     return response3({ ok: false, error: "project_material_forbidden" }, 403);
   }
   const item = await contentItem(env, project, logicalKey);
@@ -4457,10 +4459,12 @@ async function handleMvpApi(request, env) {
   if (["GET", "HEAD"].includes(request.method) && projectTabMatch) return projectTab(request, env, projectTabMatch[1]);
   const weeklyMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/weekly-reports$/);
   if (["GET", "HEAD"].includes(request.method) && weeklyMatch) return weeklyReports(request, env, weeklyMatch[1]);
+  const reportsMatch=url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/content\/reports$/);
+  if(request.method==='GET'&&reportsMatch)return reportCollection(request,env,reportsMatch[1],{authorizeMvp,projectRecord,publicProjectMaterialAllowed,publicWeeklyRevision});
   const contentMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/content$/);
   if (request.method === "GET" && contentMatch) return publishedContent(request, env, contentMatch[1]);
-  const initializeWeeklyMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/content\/weekly-main\/initialize$/);
-  if (request.method === "POST" && initializeWeeklyMatch) return initializeWeeklyContent(request,env,initializeWeeklyMatch[1]);
+  const initializeWeeklyMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/content\/(weekly-[a-z0-9-]+)\/initialize$/);
+  if (request.method === "POST" && initializeWeeklyMatch) return initializeWeeklyContent(request,env,initializeWeeklyMatch[1],initializeWeeklyMatch[2]);
   const commentsMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/content\/([a-z0-9-]+)\/comments$/);
   if (["GET", "POST"].includes(request.method) && commentsMatch) return contentComments(request, env, commentsMatch[1], commentsMatch[2]);
   const historyMatch = url.pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/content\/([a-z0-9-]+)\/revisions$/);

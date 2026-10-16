@@ -159,7 +159,9 @@ async function prepareReportUpload(){
  catch(e){msg.textContent=explain(e);}
 }
 function summaryPayload(revision){return revision?.blocks?.find(b=>b.type==='period_summary')?.payload || {};}
-let weeklyLoading=false,weeklyAttempt=null,weeklyLoadedAt=0,weeklyRange='',weeklyPending=null,weeklyEditing=false;
+let weeklyLoading=false,weeklyAttempt=null,weeklyLoadedAt=0,weeklyRange='',weeklyPending=null,weeklyEditing=false,weeklyOpening=false;
+let weeklyReports=[],weeklyPermissions={canEdit:false,canDelete:false};
+const weeklyPath=()=>'/content/'+state.weekly.key;
 function loadWeekly(force=false){
   if(weeklyPending)return weeklyPending;
   weeklyPending=fetchWeekly(force).finally(()=>weeklyPending=null);return weeklyPending;
@@ -167,21 +169,15 @@ function loadWeekly(force=false){
 async function fetchWeekly(force=false){
   if(weeklyLoading || state.dirty&&!force)return;
   const selectedRange=JSON.stringify(state.range);if(!force&&weeklyRange===selectedRange&&Date.now()-weeklyLoadedAt<60000)return;
-  weeklyLoading=true;if(!weeklyLoadedAt)$('weeklyContent').innerHTML=empty('Загружаем отчёт…');
+  weeklyLoading=true;if(!weeklyLoadedAt)$('weeklyContent').innerHTML=empty('Загружаем отчёты…');
   try{
-    let published;
-    try{published=await json(`${api}/content?logicalKey=weekly-main`);}
-    catch(e){
-      if(e.status!==404||e.message!=='not_found')throw e;
-      if(privateMode&&window.TOYS_ACCESS_ROLE!=='viewer'){
-        await write('/content/weekly-main/initialize',{});
-        published=await json(`${api}/content?logicalKey=weekly-main`);
-      }else published={publishedRevision:null};
-    }
-    if(privateMode&&window.TOYS_ACCESS_ROLE!=='viewer'){const history=await json(`${api}/content/weekly-main/revisions`);let revision=published.publishedRevision;
-      if(history.revisions[0])revision=(await json(`${api}/content/weekly-main/revisions/${history.revisions[0].id}`)).revision;
-      state.weekly={published,history,revision};if(weeklyEditing)renderWeeklyEditor();else renderWeeklySummary();
-    }else{state.weekly={published};renderWeeklySummary();}
+    const collection=await json(`${api}/content/reports`);
+    weeklyPermissions={canEdit:privateMode&&collection.canEdit,canDelete:collection.canDelete};
+    weeklyReports=collection.reports.map(r=>({key:r.logicalKey,published:{publishedRevision:r.publishedRevision},history:r.item?{item:r.item,canDelete:collection.canDelete}:null,revision:r.latestRevision||r.publishedRevision}));
+    if(weeklyEditing&&state.weekly){
+      state.weekly=weeklyReports.find(r=>r.key===state.weekly.key)||(state.weekly.isNew?state.weekly:null);
+      if(state.weekly)renderWeeklyEditor();else{weeklyEditing=false;renderWeeklySummary();}
+    }else renderWeeklySummary();
     weeklyLoadedAt=Date.now();weeklyRange=selectedRange;if(force)archiveLoadedAt=0;
   }catch(e){$('weeklyContent').innerHTML=empty(explain(e))+'<button type="button" class="secondary" id="retryWeekly">Повторить</button>';$('retryWeekly').onclick=()=>loadWeekly(true);}
   finally{weeklyLoading=false;}
@@ -194,8 +190,8 @@ async function loadWeeklyArchive(){
  $('weeklyArchive').querySelectorAll('[data-delete-imported]').forEach(b=>b.onclick=()=>deleteWeeklyReport(d.reports.find(p=>p.id===b.dataset.deleteImported),b));
  archiveLoadedAt=Date.now();}catch(e){$('weeklyArchive').innerHTML=empty(explain(e));}finally{archiveLoading=false;}
 }
-function weeklyDeleteButton(){return privateMode&&state.weekly?.history?.canDelete===true&&state.weekly.history.item.latestRevision>0?'<button type="button" class="quiet report-delete" data-delete-weekly>Удалить отчёт</button>':'';}
-function bindWeeklyDeletion(){const b=$('weeklyContent').querySelector('[data-delete-weekly]');if(b)b.onclick=()=>deleteWeeklyReport(null,b);}
+function weeklyDeleteButton(w=state.weekly){return privateMode&&w?.history?.canDelete===true&&w.history.item.latestRevision>0?`<button type="button" class="quiet report-delete" data-delete-weekly="${h(w.key)}">Удалить отчёт</button>`:'';}
+function bindWeeklyDeletion(){$('weeklyContent').querySelectorAll('[data-delete-weekly]').forEach(b=>b.onclick=()=>{const w=weeklyReports.find(r=>r.key===b.dataset.deleteWeekly)||state.weekly;if(!weeklyEditing)state.weekly=w;deleteWeeklyReport(null,b);});}
 async function deleteWeeklyReport(imported,button){
  if(weeklyDeleting||state.weekly?.uploading||$('weeklyForm')?.dataset.busy)return;
  const w=state.weekly,p=imported||summaryPayload(w?.revision);
@@ -203,7 +199,7 @@ async function deleteWeeklyReport(imported,button){
  if(!confirm(`Удалить отчёт за ${p.periodStart||'выбранный период'} — ${p.periodEnd||''}${reportChannels[p.channel]?' · '+reportChannels[p.channel]:''}? Он исчезнет из дашборда клиента.${extra}${!imported&&state.dirty?' Несохранённые изменения будут потеряны.':''}`))return;
  weeklyDeleting=true;button.disabled=true;const label=button.textContent;button.textContent='Удаляем…';
  try{
-  const path=imported?'/weekly-reports/delete':'/content/weekly-main/delete';
+  const path=imported?'/weekly-reports/delete':weeklyPath()+'/delete';
   const body=imported?{id:imported.id,expectedUpdatedAt:imported.updatedAt}:{id:w.history.item.id,expectedRevision:w.history.item.latestRevision,expectedPublishedRevisionId:w.history.item.publishedRevisionId};
   await write(path,body);
   if(!imported){state.dirty=false;weeklyEditing=false;weeklyAttempt=null;state.weekly=null;await loadWeekly(true);}
@@ -212,34 +208,46 @@ async function deleteWeeklyReport(imported,button){
  }catch(e){const msg=$(imported?'archiveDeleteMessage':'weeklyMessage');if(msg){msg.textContent=explain(e);msg.classList.add('error');}}
  finally{weeklyDeleting=false;if(button.isConnected){button.disabled=false;button.textContent=label;}}
 }
-function weeklyReportRow(revision,{draft=false,editable=false}={}){
+function weeklyReportRow(w,revision,{draft=false,editable=false}={}){
  const p=summaryPayload(revision);
- return `<details class="campaign weekly-report" ${draft?'data-weekly-draft':'data-weekly-published'}><summary><b>${h(p.periodStart||'Период не указан')} — ${h(p.periodEnd||'')}</b>${reportChannels[p.channel]?` <span class="badge report-channel">${reportChannels[p.channel]}</span>`:''}${draft?' <span class="badge">Черновик</span>':''}${reportSummary(p)}</summary><div class="children">${reportFields(p)}${reportScreenshots(p.attachments||[])}${editable?`<div class="actions"><button type="button" class="secondary" data-edit-weekly>${draft?'Продолжить редактирование':'Редактировать'}</button>${weeklyDeleteButton()}</div>`:''}</div></details>`;
+ return `<details class="campaign weekly-report" data-report-key="${h(w.key)}" ${draft?'data-weekly-draft':'data-weekly-published'}><summary><b>${h(p.periodStart||'Период не указан')} — ${h(p.periodEnd||'')}</b>${reportChannels[p.channel]?` <span class="badge report-channel">${reportChannels[p.channel]}</span>`:''}${draft?' <span class="badge">Черновик</span>':''}${reportSummary(p)}</summary><div class="children">${reportFields(p)}${reportScreenshots(p.attachments||[])}${editable?`<div class="actions"><button type="button" class="secondary" data-edit-weekly="${h(w.key)}">${draft?'Продолжить редактирование':'Редактировать'}</button><button type="button" class="quiet" data-weekly-history="${h(w.key)}">История</button>${weeklyDeleteButton(w)}</div>`:''}</div></details>`;
 }
 function renderWeeklySummary(){
- const w=state.weekly,editor=privateMode&&window.TOYS_ACCESS_ROLE!=='viewer',published=w.published.publishedRevision;
- const draft=editor&&w.revision&&w.revision.revisionNumber!==published?.revisionNumber?w.revision:null;
- $('weeklyContent').innerHTML=`<div id="weeklyMessage" class="message" role="status"></div>${editor?'<div class="actions weekly-list-actions"><button id="openHistory" class="quiet" type="button">История</button></div>':''}${draft?weeklyReportRow(draft,{draft:true,editable:true}):''}${published?weeklyReportRow(published,{editable:editor&&!draft}):!draft?empty('Опубликованных итогов пока нет.') : ''}${editor&&!published&&!draft?'<button type="button" class="primary" data-edit-weekly>Добавить итог</button>':''}`;
- $('weeklyContent').querySelectorAll('[data-edit-weekly]').forEach(b=>b.onclick=()=>openWeeklyEditor());
- if(editor)$('openHistory').onclick=openHistory;bindWeeklyDeletion();
+ const editor=weeklyPermissions.canEdit;
+ const rows=weeklyReports.map(w=>{const published=w.published.publishedRevision,draft=editor&&w.revision&&w.revision.revisionNumber!==published?.revisionNumber?w.revision:null;return `${draft?weeklyReportRow(w,draft,{draft:true,editable:true}):''}${published?weeklyReportRow(w,published,{editable:editor&&!draft}):''}`;}).join('');
+ $('weeklyContent').innerHTML=`<div id="weeklyMessage" class="message" role="status"></div>${rows||empty('Опубликованных итогов пока нет.')}${editor&&!rows?'<button type="button" class="primary" data-new-weekly>Добавить итог</button>':''}`;
+ $('weeklyContent').querySelectorAll('[data-edit-weekly]').forEach(b=>b.onclick=()=>openWeeklyEditor(b.dataset.editWeekly));
+ $('weeklyContent').querySelectorAll('[data-weekly-history]').forEach(b=>b.onclick=()=>openHistory(b.dataset.weeklyHistory));
+ $('weeklyContent').querySelector('[data-new-weekly]')?.addEventListener('click',()=>openWeeklyEditor());bindWeeklyDeletion();
 }
-async function openWeeklyEditor(){
- if(weeklyDeleting||!privateMode||window.TOYS_ACCESS_ROLE==='viewer')return;
- await loadWeekly();if(!state.weekly?.history)return;
- if(!$('weeklyForm')){weeklyEditing=true;renderWeeklyEditor();}
- $('weeklyContent')?.scrollIntoView({block:'start'});$('weeklyForm')?.querySelector('[name="summary"]')?.focus({preventScroll:true});
+async function openWeeklyEditor(key=null){
+ if(weeklyOpening||weeklyDeleting||!privateMode||window.TOYS_ACCESS_ROLE==='viewer'||state.weekly?.uploading||$('weeklyForm')?.dataset.busy)return;
+ if(state.dirty&&!confirm('Закрыть текущий отчёт без сохранения изменений?'))return;
+ weeklyOpening=true;
+ try{
+  state.dirty=false;await loadWeekly();
+  if(!weeklyPermissions.canEdit)return;
+  if(key){
+   const w=weeklyReports.find(r=>r.key===key);if(!w)return;
+   state.weekly=w;
+  }else{
+   state.weekly={key:'weekly-'+crypto.randomUUID(),isNew:true,published:{publishedRevision:null},history:{canDelete:weeklyPermissions.canDelete,item:{latestRevision:0,publishedRevisionId:null}},revision:null};
+  }
+  weeklyEditing=true;weeklyAttempt=null;commentAttempt=null;renderWeeklyEditor();
+  $('weeklyContent')?.scrollIntoView({block:'start'});$('weeklyForm')?.querySelector('[name="summary"]')?.focus({preventScroll:true});
+ }catch(e){$('weeklyMessage').textContent=explain(e);}finally{weeklyOpening=false;}
 }
 function renderWeeklyEditor(){
   const w=state.weekly,p=summaryPayload(w.revision),from=p.periodStart||state.range?.from||'',to=p.periodEnd||state.range?.to||'';
   w.attachments=[...(p.attachments||[])];
-  $('weeklyContent').innerHTML=`<div class="panel-title"><span class="badge">${w.revision?.status==='published'?'Опубликованная версия':'Черновик'} · ${w.history.item.latestRevision || 0}</span><button id="openHistory" class="quiet" type="button">История</button></div><form id="weeklyForm"><div class="form-grid" style="margin-top:20px"><label class="field full">Направление отчёта<select name="channel" required><option value="">Выберите направление</option>${Object.entries(reportChannels).map(([key,label])=>`<option value="${key}" ${p.channel===key?'selected':''}>${label}</option>`).join('')}</select></label><label class="field">Начало недели<input type="date" name="periodStart" value="${h(from)}" required></label><label class="field">Конец недели<input type="date" name="periodEnd" value="${h(to)}" required></label>${fields.map(([key,label])=>`<label class="field ${key==='summary'?'full':''}">${label}<textarea name="${key}" rows="${key==='summary'?3:4}" maxlength="8000" ${key==='summary'?'required':''}>${h(p[key] || '')}</textarea></label>`).join('')}</div><section class="report-attachments"><h3>Скриншоты</h3><div id="reportScreenshots"></div><label class="field">Прикрепить скриншоты<input id="reportScreenshotInput" type="file" accept="image/png,image/jpeg,image/webp" multiple disabled></label><p id="screenshotMessage" class="note" role="status">Проверяем доступность загрузки…</p></section><div class="actions"><button class="secondary" type="submit" value="draft">Сохранить черновик</button><button class="primary" type="submit" value="publish">Сохранить и опубликовать</button><button class="quiet" type="button" id="reloadWeekly">Обновить отчёт</button><button class="quiet" type="button" id="closeWeeklyEditor">К списку отчётов</button>${weeklyDeleteButton()}</div><div id="weeklyMessage" class="message" role="status"></div></form><div class="comments"><h2>Комментарии команды</h2><div id="commentsList"></div><form id="commentForm"><label class="field">Новый комментарий<textarea name="body" maxlength="3000" required rows="2"></textarea></label><div class="actions"><button class="secondary">Добавить комментарий</button></div><div id="commentMessage" class="message" role="status"></div></form></div>`;
+  $('weeklyContent').innerHTML=`<div class="panel-title"><span class="badge">${w.isNew?'Новый отчёт':w.revision?.status==='published'?'Опубликованная версия':'Черновик'} · ${w.history.item.latestRevision || 0}</span><button id="openHistory" class="quiet" type="button">История</button></div><form id="weeklyForm"><div class="form-grid" style="margin-top:20px"><label class="field full">Направление отчёта<select name="channel" required><option value="">Выберите направление</option>${Object.entries(reportChannels).map(([key,label])=>`<option value="${key}" ${p.channel===key?'selected':''}>${label}</option>`).join('')}</select></label><label class="field">Начало недели<input type="date" name="periodStart" value="${h(from)}" required></label><label class="field">Конец недели<input type="date" name="periodEnd" value="${h(to)}" required></label>${fields.map(([key,label])=>`<label class="field ${key==='summary'?'full':''}">${label}<textarea name="${key}" rows="${key==='summary'?3:4}" maxlength="8000" ${key==='summary'?'required':''}>${h(p[key] || '')}</textarea></label>`).join('')}</div><section class="report-attachments"><h3>Скриншоты</h3><div id="reportScreenshots"></div><label class="field">Прикрепить скриншоты<input id="reportScreenshotInput" type="file" accept="image/png,image/jpeg,image/webp" multiple disabled></label><p id="screenshotMessage" class="note" role="status">Проверяем доступность загрузки…</p></section><div class="actions"><button class="secondary" type="submit" value="draft">Сохранить черновик</button><button class="primary" type="submit" value="publish">Сохранить и опубликовать</button><button class="quiet" type="button" id="reloadWeekly">Обновить отчёт</button><button class="quiet" type="button" id="closeWeeklyEditor">К списку отчётов</button>${weeklyDeleteButton()}</div><div id="weeklyMessage" class="message" role="status"></div></form><div class="comments"><h2>Комментарии команды</h2><div id="commentsList"></div><form id="commentForm"><label class="field">Новый комментарий<textarea name="body" maxlength="3000" required rows="2"></textarea></label><div class="actions"><button class="secondary">Добавить комментарий</button></div><div id="commentMessage" class="message" role="status"></div></form></div>`;
   $('weeklyForm').addEventListener('input',()=>{state.dirty=true;$('weeklyMessage').textContent='Есть несохранённые изменения';});
   renderReportScreenshots();$('reportScreenshotInput').onchange=uploadReportScreenshots;prepareReportUpload();
   $('weeklyForm').onsubmit=saveWeekly;bindWeeklyDeletion();
   $('closeWeeklyEditor').onclick=()=>{if(state.weekly.uploading||$('weeklyForm').dataset.busy)return;if(state.dirty&&!confirm('Закрыть форму без сохранения изменений?'))return;state.dirty=false;weeklyEditing=false;renderWeeklySummary();};
   $('reloadWeekly').onclick=()=>{if(!state.dirty || confirm('Заменить несохранённый текст версией с сервера?')){state.dirty=false;loadWeekly(true);}};
-  $('openHistory').onclick=openHistory;
-  $('commentForm').onsubmit=saveComment;loadComments();
+  $('openHistory').hidden=w.isNew;$('openHistory').onclick=()=>openHistory(w.key);
+  $('commentForm').onsubmit=saveComment;$('commentForm').closest('.comments').hidden=w.isNew;if(!w.isNew)loadComments();
 }
 async function saveWeekly(event){
   event.preventDefault();const form=event.currentTarget;if(weeklyDeleting||form.dataset.busy||state.weekly.uploading)return;
@@ -248,22 +256,22 @@ async function saveWeekly(event){
   // Preserve non-summary blocks when editing an existing report.
   const others=(w.revision?.blocks || []).filter(b=>b.type!=='period_summary').map(({type,blockKey,payload})=>({type,blockKey,payload}));
   const body={expectedRevision:w.history.item.latestRevision,expectedPublishedRevisionId:w.history.item.publishedRevisionId,reason:publish?'Публикация недельного отчёта':'Сохранение черновика',blocks:[{type:'period_summary',blockKey:'summary',payload:values},...others]};
-  const path=`/content/weekly-main/${publish?'save-and-publish':'revisions'}`;const encoded=JSON.stringify({path,body});
+  const path=`${weeklyPath()}/${publish?'save-and-publish':'revisions'}`;const encoded=JSON.stringify({path,body});
   if(weeklyAttempt?.encoded!==encoded)weeklyAttempt={encoded,key:crypto.randomUUID()};
   form.dataset.busy='true';form.querySelectorAll('button').forEach(b=>b.disabled=true);$('weeklyMessage').textContent='Сохраняем…';
-  try{const saved=await write(path,body,weeklyAttempt.key);const detail=await json(`${api}/content/weekly-main/revisions/${saved.revision.id}`);
+  try{if(w.isNew){const created=await write(weeklyPath()+'/initialize',{});w.history.item=created.item;w.isNew=false;}const saved=await write(path,body,weeklyAttempt.key);const detail=await json(`${api}${weeklyPath()}/revisions/${saved.revision.id}`);
     if(JSON.stringify(summaryPayload(detail.revision))!==JSON.stringify(values))throw new Error('Проверка сохранённого текста не пройдена');
-    if(publish){const publicView=await json(`${api}/content?logicalKey=weekly-main`),revision=publicView.publishedRevision;if(!revision||revision.revisionNumber!==saved.revision.revisionNumber||JSON.stringify(summaryPayload(revision))!==JSON.stringify(values))throw new Error('Публикация пока не подтверждена');}
+    if(publish){const publicView=await json(`${api}/content?logicalKey=${w.key}`),revision=publicView.publishedRevision;if(!revision||revision.revisionNumber!==saved.revision.revisionNumber||JSON.stringify(summaryPayload(revision))!==JSON.stringify(values))throw new Error('Публикация пока не подтверждена');}
     state.dirty=false;weeklyAttempt=null;if(publish)weeklyEditing=false;await loadWeekly(true);$('weeklyMessage').textContent=publish?'Отчёт опубликован. Сохранённая версия проверена.':'Черновик сохранён. Публичный отчёт не изменён.';
   }catch(e){$('weeklyMessage').textContent=explain(e);$('weeklyMessage').classList.add('error');}
   finally{delete form.dataset.busy;form.querySelectorAll('button').forEach(b=>b.disabled=false);}
 }
-async function openHistory(){const dialog=$('history');$('historyContent').innerHTML=empty('Загружаем историю…');dialog.showModal();try{const history=await json(`${api}/content/weekly-main/revisions`);$('historyContent').innerHTML=history.revisions.length?history.revisions.map(r=>`<div class="comment"><b>Версия ${r.revisionNumber}</b> · ${h(r.status==='published'?'Опубликована':'Черновик')}<p>${h(r.reason || '')}</p><small>${h(r.createdAt)}</small><div class="actions"><button class="secondary" data-revision="${h(r.id)}">Посмотреть</button>${r.id!==history.item.publishedRevisionId?`<button class="quiet" data-rollback="${h(r.id)}">Восстановить и опубликовать</button>`:''}</div><div id="revision-${h(r.id)}"></div></div>`).join(''):empty('Сохранённых версий пока нет.');
-    $('historyContent').onclick=async e=>{const view=e.target.closest('[data-revision]'),rollback=e.target.closest('[data-rollback]');if(view){try{const d=await json(`${api}/content/weekly-main/revisions/${view.dataset.revision}`);const p=summaryPayload(d.revision);$('revision-'+view.dataset.revision).innerHTML=reportMedia(p)+reportFields(p,{includeSummary:true});}catch(err){status(explain(err),true);}}if(rollback && confirm('Восстановить выбранную версию и опубликовать её?')){rollback.disabled=true;try{await write(`/content/weekly-main/revisions/${rollback.dataset.rollback}/rollback`,{expectedRevision:history.item.latestRevision,expectedPublishedRevisionId:history.item.publishedRevisionId});state.dirty=false;weeklyEditing=false;dialog.close();await loadWeekly(true);}catch(err){status(explain(err),true);rollback.disabled=false;}}};
+async function openHistory(key=state.weekly?.key){if(!key)return;const reportPath='/content/'+key;const dialog=$('history');$('historyContent').innerHTML=empty('Загружаем историю…');dialog.showModal();try{const history=await json(`${api}${reportPath}/revisions`);$('historyContent').innerHTML=history.revisions.length?history.revisions.map(r=>`<div class="comment"><b>Версия ${r.revisionNumber}</b> · ${h(r.status==='published'?'Опубликована':'Черновик')}<p>${h(r.reason || '')}</p><small>${h(r.createdAt)}</small><div class="actions"><button class="secondary" data-revision="${h(r.id)}">Посмотреть</button>${r.id!==history.item.publishedRevisionId?`<button class="quiet" data-rollback="${h(r.id)}">Восстановить и опубликовать</button>`:''}</div><div id="revision-${h(r.id)}"></div></div>`).join(''):empty('Сохранённых версий пока нет.');
+    $('historyContent').onclick=async e=>{const view=e.target.closest('[data-revision]'),rollback=e.target.closest('[data-rollback]');if(view){try{const d=await json(`${api}${reportPath}/revisions/${view.dataset.revision}`);const p=summaryPayload(d.revision);$('revision-'+view.dataset.revision).innerHTML=reportMedia(p)+reportFields(p,{includeSummary:true});}catch(err){status(explain(err),true);}}if(rollback && confirm('Восстановить выбранную версию и опубликовать её?')){rollback.disabled=true;try{await write(`${reportPath}/revisions/${rollback.dataset.rollback}/rollback`,{expectedRevision:history.item.latestRevision,expectedPublishedRevisionId:history.item.publishedRevisionId});state.dirty=false;weeklyEditing=false;dialog.close();await loadWeekly(true);}catch(err){status(explain(err),true);rollback.disabled=false;}}};
   }catch(e){$('historyContent').innerHTML=empty(explain(e));}}
-async function loadComments(){try{const d=await json(`${api}/content/weekly-main/comments?order=chronological`);$('commentsList').innerHTML=d.comments.length?d.comments.map(c=>`<div class="comment">${h(c.body)}<small>${h(c.createdAt)}</small></div>`).join(''):empty('Комментариев пока нет.');}catch(e){$('commentsList').innerHTML=empty(explain(e));}}
+async function loadComments(){const target=$('commentsList'),path=weeklyPath();try{const d=await json(`${api}${path}/comments?order=chronological`);if(!target.isConnected||target!==$('commentsList'))return;target.innerHTML=d.comments.length?d.comments.map(c=>`<div class="comment">${h(c.body)}<small>${h(c.createdAt)}</small></div>`).join(''):empty('Комментариев пока нет.');}catch(e){if(target.isConnected&&target===$('commentsList'))target.innerHTML=empty(explain(e));}}
 let commentAttempt=null;
-async function saveComment(e){e.preventDefault();const f=e.currentTarget,b=f.querySelector('button');if(b.disabled)return;const body=String(new FormData(f).get('body') || '').trim();if(!body)return;if(commentAttempt?.body!==body)commentAttempt={body,key:crypto.randomUUID()};b.disabled=true;try{await write('/content/weekly-main/comments',{body},commentAttempt.key);commentAttempt=null;f.reset();await loadComments();$('commentMessage').textContent='Комментарий сохранён.';}catch(err){$('commentMessage').textContent=explain(err);}finally{b.disabled=false;}}
+async function saveComment(e){e.preventDefault();const f=e.currentTarget,b=f.querySelector('button');if(b.disabled)return;const body=String(new FormData(f).get('body') || '').trim();if(!body)return;if(commentAttempt?.body!==body)commentAttempt={body,key:crypto.randomUUID()};b.disabled=true;try{await write(weeklyPath()+'/comments',{body},commentAttempt.key);commentAttempt=null;f.reset();await loadComments();$('commentMessage').textContent='Комментарий сохранён.';}catch(err){$('commentMessage').textContent=explain(err);}finally{b.disabled=false;}}
 
 let projectLoading=false,tabSequence=0;
 async function loadProject(){if(state.tabs){renderProjectNav();return;}if(projectLoading)return;projectLoading=true;$('projectContent').innerHTML=empty('Загружаем материалы…');try{const d=await json(`${api}/content/tabs`);state.tabs=d.tabs || [];state.channel=state.tabs[0]?.channel;renderProjectNav();}catch(e){$('projectContent').innerHTML=empty(explain(e));}finally{projectLoading=false;}}

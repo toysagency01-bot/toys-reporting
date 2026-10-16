@@ -43,7 +43,7 @@ export async function reportAttachmentRoute(request,env,{authorizeMvp,projectRec
  if(request.method==='GET'&&!id)return json({ok:true,available:available(env),maxBytes:MAX_BYTES,maxFiles:8});
  if(id){
   if(!editor.ok){
-   const published=await env.TOYS_DB.prepare(`SELECT b.payload_json FROM content_items i JOIN content_blocks b ON b.revision_id=i.published_revision_id AND b.project_id=i.project_id AND b.organization_id=i.organization_id WHERE i.organization_id=? AND i.project_id=? AND i.logical_key='weekly-main' AND i.lifecycle='active' AND b.block_type='period_summary'`).bind(project.organizationId,project.id).all();
+   const published=await env.TOYS_DB.prepare(`SELECT b.payload_json FROM content_items i JOIN content_blocks b ON b.revision_id=i.published_revision_id AND b.project_id=i.project_id AND b.organization_id=i.organization_id WHERE i.organization_id=? AND i.project_id=? AND i.kind='period_summary' AND i.logical_key LIKE 'weekly-%' AND i.lifecycle='active' AND b.block_type='period_summary'`).bind(project.organizationId,project.id).all();
    if(!published.results.some(b=>JSON.parse(b.payload_json).attachments?.includes(id)))return json({ok:false,error:'not_found'},404);
   }
   const row=await env.TOYS_DB.prepare('SELECT media_type FROM report_attachments WHERE organization_id=? AND project_id=? AND id=? AND ready=1').bind(project.organizationId,project.id,id).first();

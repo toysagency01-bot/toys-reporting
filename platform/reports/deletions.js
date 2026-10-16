@@ -1,6 +1,7 @@
+import {reportKey} from './collection.js';
 const json=(body,status=200)=>Response.json(body,{status,headers:{'cache-control':'no-store'}});
 export async function reportDeletionRoute(request,env,{authorizeMvp,projectRecord,sameOriginWrite}){
- const m=new URL(request.url).pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/(content\/weekly-main|weekly-reports)\/delete$/);
+ const m=new URL(request.url).pathname.match(/^\/api\/v2\/projects\/([a-z0-9-]+)\/(content\/weekly-[a-z0-9-]+|weekly-reports)\/delete$/);
  if(!m)return null;
  if(request.method!=='POST')return json({ok:false,error:'method_not_allowed'},405);
  const admin=await authorizeMvp(request,env,'__master','editor');
@@ -21,8 +22,9 @@ export async function reportDeletionRoute(request,env,{authorizeMvp,projectRecor
   if(!r.meta?.changes)return json({ok:false,error:'report_changed'},409);
  }else{
   if(!Number.isInteger(body.expectedRevision)||!Object.hasOwn(body,'expectedPublishedRevisionId')||(body.expectedPublishedRevisionId!==null&&typeof body.expectedPublishedRevisionId!=='string'))return json({ok:false,error:'invalid_report_request'},400);
-  const condition="organization_id=? AND project_id=? AND id=? AND logical_key='weekly-main' AND lifecycle='active' AND latest_revision_number=? AND published_revision_id IS ?";
-  const args=[project.organizationId,project.id,body.id,body.expectedRevision,body.expectedPublishedRevisionId];
+  const logicalKey=m[2].slice('content/'.length);if(!reportKey(logicalKey))return json({ok:false,error:'invalid_report_key'},400);
+  const condition="organization_id=? AND project_id=? AND id=? AND logical_key=? AND lifecycle='active' AND latest_revision_number=? AND published_revision_id IS ?";
+  const args=[project.organizationId,project.id,body.id,logicalKey,body.expectedRevision,body.expectedPublishedRevisionId];
   const batch=await env.TOYS_DB.batch([
    env.TOYS_DB.prepare(`INSERT OR IGNORE INTO report_deletions(organization_id,project_id,report_kind,report_id,actor_ref) SELECT organization_id,project_id,'content',id,? FROM content_items WHERE ${condition}`).bind(admin.subject,...args),
    env.TOYS_DB.prepare(`UPDATE content_items SET lifecycle='archived',logical_key='deleted-weekly-'||id,published_revision_id=NULL,updated_at=datetime('now') WHERE ${condition}`).bind(...args)

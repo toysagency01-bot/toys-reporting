@@ -20,11 +20,11 @@ test('add result opens a first editor and preserves draft, publication and comme
  await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  // Public material responses omit internal revision ids, even for a signed-in editor.
  await page.route('**/content?logicalKey=weekly-main',async route=>{const response=await route.fetch(),body=await response.json();if(body.publishedRevision)delete body.publishedRevision.id;await route.fulfill({response,json:body});});
- let initializations=0;page.on('request',r=>{if(r.url().endsWith('/weekly-main/initialize'))initializations++;});
+ let initializations=0;page.on('request',r=>{if(r.url().endsWith('/initialize'))initializations++;});
  await page.goto('/api/v2/projects/housevip-cxp7/content-project');
  await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
  await page.locator('[data-ux-view=weekly]').click();await page.locator('#uxWeeklyAdd').click();
- await expect(page.locator('#weeklyForm')).toBeVisible();await expect(page.locator('#weeklyForm [name=summary]')).toBeFocused();expect(initializations).toBe(1);
+ await expect(page.locator('#weeklyForm')).toBeVisible();await expect(page.locator('#weeklyForm [name=summary]')).toBeFocused();expect(initializations).toBe(0);
  await page.locator('#weeklyForm [name=channel]').selectOption('google');
  await page.locator('#weeklyForm [name=summary]').fill('Первый итог после переноса');
  await expect(page.locator('#reportScreenshotInput')).toBeEnabled();
@@ -52,17 +52,17 @@ test('report deletion is admin-only, confirmed, durable and allows adding a new 
  await page.request.post(base+'/content/weekly-main/initialize',{headers:{origin},data:{}});
  const history=await(await page.request.get(base+'/content/weekly-main/revisions')).json();
  const saved=await page.request.post(base+'/content/weekly-main/save-and-publish',{headers:{origin,'x-idempotency-key':'browser-delete-report-fixture'},data:{expectedRevision:history.item.latestRevision,expectedPublishedRevisionId:history.item.publishedRevisionId,blocks:[{type:'period_summary',blockKey:'summary',payload:{periodStart:'2026-10-07',periodEnd:'2026-10-13',summary:'Отчёт для проверки удаления',channel:'meta'}}]}});expect(saved.ok()).toBe(true);
- await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.goto(base+'/content-project#weekly');await expect(page.locator('[data-weekly-published]')).toBeVisible();await page.locator('[data-weekly-published] summary').click();await expect(page.locator('[data-delete-weekly]')).toHaveCount(0);
+ await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.goto(base+'/content-project#weekly');await expect(page.locator('[data-weekly-published][data-report-key="weekly-main"]')).toBeVisible();await page.locator('[data-weekly-published][data-report-key="weekly-main"] summary').click();await expect(page.locator('[data-delete-weekly="weekly-main"]')).toHaveCount(0);
  const denied=await page.request.post(base+'/content/weekly-main/delete',{headers:{origin,'x-test-viewer':'true'},data:{id:history.item.id,expectedRevision:history.item.latestRevision+1,expectedPublishedRevisionId:(await saved.json()).revision.id}});expect(denied.status()).toBe(403);
- await page.setExtraHTTPHeaders({});await page.reload();await page.locator('[data-weekly-published] summary').click();await expect(page.locator('[data-delete-weekly]')).toBeVisible();
+ await page.setExtraHTTPHeaders({});await page.reload();await page.locator('[data-weekly-published][data-report-key="weekly-main"] summary').click();await expect(page.locator('[data-delete-weekly="weekly-main"]')).toBeVisible();
  let deletes=0;page.on('request',r=>{if(r.url().endsWith('/weekly-main/delete')&&r.method()==='POST')deletes++;});
- page.once('dialog',d=>d.dismiss());await page.locator('[data-delete-weekly]').click();expect(deletes).toBe(0);await expect(page.locator('[data-weekly-published]')).toContainText('Отчёт для проверки удаления');
- await page.route('**/weekly-main/delete',r=>r.fulfill({status:403,json:{ok:false,error:'admin_role_required'}}));page.once('dialog',d=>d.accept());await page.locator('[data-delete-weekly]').click();await expect(page.locator('#weeklyMessage')).toContainText('только администратор');await expect(page.locator('[data-weekly-published]')).toBeVisible();await page.unroute('**/weekly-main/delete');
+ page.once('dialog',d=>d.dismiss());await page.locator('[data-delete-weekly="weekly-main"]').click();expect(deletes).toBe(0);await expect(page.locator('[data-weekly-published][data-report-key="weekly-main"]')).toContainText('Отчёт для проверки удаления');
+ await page.route('**/weekly-main/delete',r=>r.fulfill({status:403,json:{ok:false,error:'admin_role_required'}}));page.once('dialog',d=>d.accept());await page.locator('[data-delete-weekly="weekly-main"]').click();await expect(page.locator('#weeklyMessage')).toContainText('только администратор');await expect(page.locator('[data-weekly-published][data-report-key="weekly-main"]')).toBeVisible();await page.unroute('**/weekly-main/delete');
  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Редактировать',exact:true}).click();await expect(page.locator('#weeklyForm [data-delete-weekly]')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.locator('#weeklyForm [data-delete-weekly]').scrollIntoViewIfNeeded();await page.screenshot({path:'dist/report-delete-mobile.png'});
- page.once('dialog',d=>d.accept());await page.locator('#weeklyForm [data-delete-weekly]').click();await expect(page.locator('#weeklyMessage')).toContainText('Отчёт удалён');await expect(page.locator('[data-weekly-published]')).toHaveCount(0);
- await page.reload();await expect(page.locator('#weeklyContent')).toContainText('Опубликованных итогов пока нет');await page.locator('#uxWeeklyAdd').click();await expect(page.locator('#weeklyForm [name=summary]')).toHaveValue('');
- await page.locator('#weeklyForm [name=channel]').selectOption('smm');await page.locator('#weeklyForm [name=summary]').fill('Новый отчёт после удаления');await page.getByRole('button',{name:'Сохранить и опубликовать',exact:true}).click();await expect(page.locator('#weeklyMessage')).toContainText('Отчёт опубликован');await expect(page.locator('[data-weekly-published]')).toContainText('Новый отчёт после удаления');
+ page.once('dialog',d=>d.accept());await page.locator('#weeklyForm [data-delete-weekly]').click();await expect(page.locator('#weeklyMessage')).toContainText('Отчёт удалён');await expect(page.locator('[data-weekly-published][data-report-key="weekly-main"]')).toHaveCount(0);
+ await page.reload();await expect(page.locator('[data-report-key="weekly-main"]')).toHaveCount(0);await page.locator('#uxWeeklyAdd').click();await expect(page.locator('#weeklyForm [name=summary]')).toHaveValue('');
+ await page.locator('#weeklyForm [name=channel]').selectOption('smm');await page.locator('#weeklyForm [name=summary]').fill('Новый отчёт после удаления');await page.getByRole('button',{name:'Сохранить и опубликовать',exact:true}).click();await expect(page.locator('#weeklyMessage')).toContainText('Отчёт опубликован');await expect(page.locator('[data-weekly-published]').filter({hasText:'Новый отчёт после удаления'})).toHaveCount(1);
 });
 
 test('expanded reports show full multiline text and omit empty sections on desktop and mobile',async({page})=>{
@@ -75,7 +75,7 @@ test('expanded reports show full multiline text and omit empty sections on deskt
  const saved=await page.request.post(base+'/content/weekly-main/save-and-publish',{headers:{origin,'x-idempotency-key':'browser-complete-report-text'},data:{expectedRevision:history.item.latestRevision,expectedPublishedRevisionId:history.item.publishedRevisionId,blocks:[{type:'period_summary',blockKey:'summary',payload}]}});expect(saved.ok()).toBe(true);
  await page.route('**/weekly-reports',r=>r.fulfill({json:{ok:true,canDelete:true,reports:[{...payload,id:'archive-display-qa',updatedAt:'2026-10-16'}]}}));
  await page.goto(base+'/content-project#weekly');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('[data-ux-view=weekly]').click();
- const report=page.locator('[data-weekly-published]'),archive=page.locator('#weeklyArchive details');
+ const report=page.locator('[data-weekly-published][data-report-key="weekly-main"]'),archive=page.locator('#weeklyArchive details');
  await expect(report).toBeVisible();await report.locator('summary').click();await archive.locator('summary').click();
  for(const row of [report,archive]){
   await expect(row.locator('.report-summary-text')).toHaveText(summary);
@@ -102,4 +102,32 @@ test('expanded reports show full multiline text and omit empty sections on deskt
  await page.getByRole('button',{name:'Закрыть',exact:true}).click();
  await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.reload();await report.locator('summary').click();
  await expect(report.locator('.report-summary-text')).toHaveText(summary);await expect(report.locator('.report-field')).toHaveCount(1);await expect(report.locator('[data-edit-weekly]')).toHaveCount(0);
+});
+
+test('adding SMM and Google creates separate reports; editing and deleting SMM preserve Meta',async({page})=>{
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
+ await page.goto('/api/v2/projects/housevip-cxp7/content-project#weekly');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('[data-ux-view=weekly]').click();
+ const card=text=>page.locator('[data-weekly-published]').filter({hasText:text});
+ async function add(channel,text){
+  await page.locator('#uxWeeklyAdd').click();await expect(page.locator('#weeklyForm [name=summary]')).toHaveValue('');await expect(page.locator('#weeklyForm [name=channel]')).toHaveValue('');await expect(page.locator('#reportScreenshots img')).toHaveCount(0);
+  await page.locator('#weeklyForm [name=channel]').selectOption(channel);await page.locator('#weeklyForm [name=summary]').fill(text);
+  await page.locator('#weeklyForm [name=periodStart]').fill('2026-10-01');await page.locator('#weeklyForm [name=periodEnd]').fill('2026-10-13');
+ }
+ async function publish(){await page.getByRole('button',{name:'Сохранить и опубликовать',exact:true}).click();await expect(page.locator('#weeklyMessage')).toContainText('Отчёт опубликован');}
+ await add('meta','META: этот отчёт должен сохраниться');await publish();const metaKey=await card('META: этот отчёт должен сохраниться').getAttribute('data-report-key');
+ await add('smm','SMM: отдельный отчёт');
+ await page.locator('#reportScreenshotInput').setInputFiles({name:'smm.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5VQAAAAASUVORK5CYII=','base64')});await expect(page.locator('#screenshotMessage')).toContainText('Скриншоты загружены');
+ await page.getByRole('button',{name:'Сохранить черновик',exact:true}).click();await expect(page.locator('#weeklyMessage')).toContainText('Черновик сохранён');
+ await page.locator('#commentForm textarea').fill('Комментарий только для SMM');await page.getByRole('button',{name:'Добавить комментарий',exact:true}).click();await expect(page.locator('#commentsList')).toContainText('Комментарий только для SMM');
+ await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.reload();await expect(card('META: этот отчёт должен сохраниться')).toHaveCount(1);await expect(page.locator('#weeklyContent')).not.toContainText('SMM: отдельный отчёт');
+ await page.setExtraHTTPHeaders({});await page.reload();const draft=page.locator('[data-weekly-draft]').filter({hasText:'SMM: отдельный отчёт'});await draft.locator('summary').click();await draft.locator('[data-edit-weekly]').click();await publish();
+ const smmKey=await card('SMM: отдельный отчёт').getAttribute('data-report-key');expect(smmKey).not.toBe(metaKey);
+ await add('google','GOOGLE: независимый отчёт');await publish();
+ await card('SMM: отдельный отчёт').locator('summary').click();await card('SMM: отдельный отчёт').locator('[data-edit-weekly]').click();await page.locator('#weeklyForm [name=summary]').fill('SMM: обновлён только этот отчёт');await publish();
+ await expect(card('META: этот отчёт должен сохраниться')).toHaveCount(1);await expect(card('GOOGLE: независимый отчёт')).toHaveCount(1);
+ await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.reload();await card('SMM: обновлён только этот отчёт').locator('summary').click();await card('SMM: обновлён только этот отчёт').locator('[data-report-screenshot]').click();await expect(page.locator('#reportImageViewer img')).toBeVisible();await page.keyboard.press('Escape');
+ await page.setExtraHTTPHeaders({});await page.reload();await card('META: этот отчёт должен сохраниться').locator('summary').click();await card('META: этот отчёт должен сохраниться').locator('[data-edit-weekly]').click();await expect(page.locator('#commentsList')).toContainText('Комментариев пока нет');await page.locator('#closeWeeklyEditor').click();
+ await page.setViewportSize({width:390,height:844});await card('SMM: обновлён только этот отчёт').locator('summary').click();page.once('dialog',d=>d.accept());await card('SMM: обновлён только этот отчёт').locator('[data-delete-weekly]').click();await expect(page.locator('#weeklyMessage')).toContainText('Отчёт удалён');
+ await page.reload();await expect(page.locator(`[data-report-key="${smmKey}"]`)).toHaveCount(0);await expect(card('META: этот отчёт должен сохраниться')).toHaveCount(1);await expect(card('GOOGLE: независимый отчёт')).toHaveCount(1);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'dist/independent-reports-mobile.png',fullPage:true});await page.setViewportSize({width:1440,height:900});await page.screenshot({path:'dist/independent-reports-desktop.png',fullPage:true});
 });
