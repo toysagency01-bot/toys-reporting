@@ -96,7 +96,46 @@ function show(view){if(!['overview','campaigns','funnel','weekly','project','cre
 const fields=[['summary','Главный итог'],['wins','Что сработало'],['issues','Риски и вопросы'],['changes','Что изменили'],['nextSteps','План на следующую неделю']];
 const reportChannels={meta:'Meta Ads',google:'Google Ads',smm:'SMM'};
 function reportMedia(p){return `${reportChannels[p.channel]?`<span class="badge report-channel">${reportChannels[p.channel]}</span>`:''}${reportScreenshots(p.attachments||[])}`;}
-function reportScreenshots(ids,editable=false){return `<div class="report-screenshots">${ids.map((id,i)=>`<figure><a href="${api}/content/weekly-main/attachments/${h(id)}" target="_blank" rel="noopener" aria-label="Открыть скриншот ${i+1} в полном размере"><img src="${api}/content/weekly-main/attachments/${h(id)}" alt="Скриншот ${i+1}" loading="lazy"></a><figcaption>Скриншот ${i+1}${editable?`<button type="button" class="quiet" data-remove-screenshot="${h(id)}" aria-label="Убрать скриншот ${i+1}">Убрать</button>`:' · Нажмите, чтобы увеличить'}</figcaption></figure>`).join('')}</div>`;}
+let reportViewerBound=false;
+function bindReportViewer(){
+ if(reportViewerBound)return;reportViewerBound=true;
+ document.addEventListener('click',event=>{
+  const trigger=event.target.closest('[data-report-screenshot]');if(!trigger)return;
+  const gallery=trigger.closest('.report-screenshots');if(!gallery)return;
+  event.preventDefault();
+  const shots=[...gallery.querySelectorAll('[data-report-screenshot]')];
+  openReportViewer(shots.map(b=>b.querySelector('img').src),shots.indexOf(trigger),trigger);
+ });
+}
+function openReportViewer(urls,start,opener){
+ let dialog=$('reportImageViewer');
+ if(!dialog){dialog=document.createElement('dialog');dialog.id='reportImageViewer';dialog.className='report-image-viewer';dialog.setAttribute('aria-labelledby','reportImageTitle');document.body.append(dialog);}
+ if(dialog.open)return;
+ dialog.innerHTML=`<div class="report-image-heading"><h2 id="reportImageTitle">Скриншот</h2><button type="button" data-image-close aria-label="Закрыть просмотр скриншота" autofocus>✕</button></div><div class="report-image-stage"><img alt="" hidden><p class="report-image-status" role="status">Загружаем изображение…</p></div><div class="report-image-controls"><button type="button" data-image-prev aria-label="Предыдущий скриншот">←</button><span data-image-counter aria-live="polite"></span><button type="button" data-image-next aria-label="Следующий скриншот">→</button><button type="button" data-image-zoom aria-pressed="false">Увеличить</button></div>`;
+ const img=dialog.querySelector('img'),stage=dialog.querySelector('.report-image-stage'),message=dialog.querySelector('.report-image-status'),zoom=dialog.querySelector('[data-image-zoom]');let index=start;
+ const setZoom=value=>{stage.classList.toggle('is-zoomed',value);zoom.setAttribute('aria-pressed',String(value));zoom.textContent=value?'По размеру окна':'Увеличить';stage.scrollTo(0,0);};
+ function showImage(){
+  setZoom(false);img.hidden=true;zoom.disabled=true;message.hidden=false;message.textContent='Загружаем изображение…';
+  dialog.querySelector('[data-image-counter]').textContent=`${index+1} / ${urls.length}`;
+  dialog.querySelector('[data-image-prev]').disabled=index===0;dialog.querySelector('[data-image-next]').disabled=index===urls.length-1;
+  img.onload=()=>{img.hidden=false;message.hidden=true;zoom.disabled=false;};
+  img.onerror=()=>{img.hidden=true;message.hidden=false;message.textContent='Не удалось загрузить скриншот. Закройте просмотр и попробуйте снова.';};
+  img.alt=`Скриншот ${index+1}`;img.src=urls[index];
+ }
+ const move=step=>{const next=index+step;if(next<0||next>=urls.length)return;const focused=document.activeElement;index=next;showImage();if(focused?.disabled)dialog.querySelector('[data-image-close]').focus();};
+ dialog.querySelector('[data-image-prev]').onclick=()=>move(-1);dialog.querySelector('[data-image-next]').onclick=()=>move(1);
+ zoom.onclick=()=>setZoom(!stage.classList.contains('is-zoomed'));img.onclick=()=>{if(!zoom.disabled)zoom.click();};
+ dialog.querySelector('[data-image-close]').onclick=()=>dialog.close();
+ let backdropDown=false;
+ const outside=e=>{const r=dialog.getBoundingClientRect();return e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom;};
+ dialog.onpointerdown=e=>{backdropDown=e.target===dialog&&outside(e);};
+ dialog.onclick=e=>{if(backdropDown&&e.target===dialog&&outside(e))dialog.close();backdropDown=false;};
+ dialog.onkeydown=e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();move(e.key==='ArrowRight'?1:-1);}if(e.key==='Tab'){const buttons=[...dialog.querySelectorAll('button:not(:disabled)')],first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}};
+ const overflow=document.body.style.overflow;document.body.style.overflow='hidden';
+ dialog.onclose=()=>{document.body.style.overflow=overflow;img.onload=null;img.onerror=null;img.removeAttribute('src');if(opener.isConnected)opener.focus({preventScroll:true});};
+ dialog.showModal();showImage();
+}
+function reportScreenshots(ids,editable=false){bindReportViewer();return `<div class="report-screenshots">${ids.map((id,i)=>`<figure><button type="button" class="report-screenshot-open" data-report-screenshot="${h(id)}" aria-haspopup="dialog" aria-label="Открыть скриншот ${i+1} в полном размере"><img src="${api}/content/weekly-main/attachments/${h(id)}" alt="Скриншот ${i+1}" loading="lazy"></button><figcaption>Скриншот ${i+1}${editable?`<button type="button" class="quiet" data-remove-screenshot="${h(id)}" aria-label="Убрать скриншот ${i+1}">Убрать</button>`:' · Нажмите, чтобы увеличить'}</figcaption></figure>`).join('')}</div>`;}
 function renderReportScreenshots(){
  $('reportScreenshots').innerHTML=reportScreenshots(state.weekly.attachments,true);
  $('reportScreenshots').onclick=e=>{const b=e.target.closest('[data-remove-screenshot]');if(!b||state.weekly.uploading||$('weeklyForm').dataset.busy)return;state.weekly.attachments=state.weekly.attachments.filter(id=>id!==b.dataset.removeScreenshot);state.dirty=true;renderReportScreenshots();$('weeklyMessage').textContent='Есть несохранённые изменения';};
