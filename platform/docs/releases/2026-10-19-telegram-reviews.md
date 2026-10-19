@@ -129,3 +129,7 @@ the blocked edit job. A separate `2026-10-19:layout-v2:replacement` delivery was
 queued with the new HTML digest, without resetting or replaying the original daily
 send. Explicit Telegram errors now distinguish missing/forbidden edit targets,
 invalid HTML, excessive length and insufficient rights, without storing raw errors.
+
+Telegram acknowledged all three replacement HTML messages (33224–33226) at
+`2026-10-19T12:52:23.446Z`; the replacement job is `sent`, 3/3 parts, no error.
+The new 11-project layout is therefore verified through the actual Telegram API.
