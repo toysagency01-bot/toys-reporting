@@ -6,12 +6,14 @@ import {project,summary,reply,readJSON,crypt} from '../crm/service.js';
 import {discoverPages} from '../crm/connections.js';
 import {dailyReviewResponse} from './review-service.js';
 import {telegramReviewStatus} from './telegram-reviews.js';
+import {auditHistory} from './audit-service.js';
 export async function masterAuth(request,env){return authorizeMvp(request,env,'__master','editor');}
 export async function masterAPI(request,env,ctx){
  const url=new URL(request.url),m=url.pathname.match(/^\/api\/v2\/master(?:\/(.*))?$/);if(!m)return null;
  const auth=await masterAuth(request,env);if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  try{
  const path=m[1]||'';
+ if(path==='audit'){if(auth.platformRole!=='admin')return reply({ok:false,error:'admin_role_required'},403);if(request.method!=='GET')return reply({ok:false,error:'method_not_allowed'},405);return reply(await auditHistory(env.TOYS_DB,url.searchParams));}
  if(path==='daily-review/telegram'&&request.method==='GET'){if(auth.platformRole!=='admin')return reply({ok:false,error:'forbidden'},403);return reply(await telegramReviewStatus(env.TOYS_DB));}
  if(path==='daily-review'&&request.method==='GET'){const review=await dailyReviewResponse(env.TOYS_DB,url.searchParams.get('date'));review.reports=review.reports.filter(r=>projectAllowed(auth,r.project.slug));review.counts=Object.fromEntries(Object.keys(review.counts).map(k=>[k,review.reports.filter(r=>r.priority===k).length]));if(auth.platformRole!=='admin')review.currentRun=null;return reply(review);}
  if(path===''&&request.method==='GET'){

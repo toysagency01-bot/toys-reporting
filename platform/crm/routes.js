@@ -15,7 +15,7 @@ export async function crmRoute(request,env,ctx){
  if(path==='summary'&&!write)return reply({ok:true,...await summary(env,p,url.searchParams.get('from'),url.searchParams.get('to'))});
  if(path===''&&!write)return reply({...await listLeads(env,p,url),canManageBoards:['admin','team'].includes(auth.platformRole)});
  if(path==='enable'&&request.method==='POST'){await enable(env,p);return reply({ok:true});}
- if(path===''&&request.method==='POST'){await enable(env,p);const data=await readJSON(request);return reply({ok:true,lead:await ingest(env,p,data,'manual',request.headers.get('x-idempotency-key'))},201);}
+ if(path===''&&request.method==='POST'){await enable(env,p);const data=await readJSON(request);return reply({ok:true,lead:await ingest(env,p,data,'manual',request.headers.get('x-idempotency-key'),auth.subject)},201);}
  const lead=path.match(/^leads\/([^/]+)$/);
  if(lead&&request.method==='DELETE')return reply(await deleteLead(env,p,lead[1],await readJSON(request),auth.subject,request.headers.get('x-idempotency-key')));
  if(lead&&request.method==='PATCH'){await enable(env,p);return reply(await updateLead(env,p,lead[1],await readJSON(request),auth.subject,request.headers.get('x-idempotency-key')));}

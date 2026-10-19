@@ -78,3 +78,17 @@ test('morning review payload and priority counts exclude unassigned projects',as
   assert.equal((await(await call('admin','/api/v2/master/daily-review')).json()).reports.length,2);
  }finally{db.close();}
 });
+
+test('campaign controls require assigned staff; the change journal is admin-only, including direct API calls',async()=>{
+ const {db,env,call}=setup();try{
+  Object.assign(env,{META_ADS_ACCESS_TOKEN:'synthetic',META_APP_SECRET:'synthetic'});
+  const control=base+'/campaign-control',status=base+'/campaign-browser/'+'a'.repeat(64)+'/status?from=2026-10-07&to=2026-10-07';
+  for(const who of ['admin','team'])assert.deepEqual((await(await call(who,control)).json()).providers,['meta_ads']);
+  assert.equal((await(await call('client',control)).json()).canManage,false);
+  for(const who of ['client','empty','other'])assert.equal((await call(who,status,{status:'PAUSED',expectedStatus:'ACTIVE'})).status,403);
+  for(const who of ['team','client','empty'])assert.equal((await call(who,'/api/v2/master/audit')).status,403);
+  const created=await(await call('team',base+'/crm',{name:'History test',phone:'+12345'})).json();
+  const history=await(await call('admin','/api/v2/master/audit?category=crm')).json();assert.equal(history.ok,true);assert.ok(history.events.some(e=>e.entityId===created.lead.id&&e.actor==='team@example.test'));
+  assert.equal((await call('team','/api/v2/master/audit?event='+encodeURIComponent(history.events[0].id))).status,403);
+ }finally{db.close();}
+});

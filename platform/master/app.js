@@ -11,11 +11,13 @@ import {mountCalendar} from '../native/calendar.js';
 import {memoryCache} from './cache.js';
 import {responseCache,clearDashboardStorage} from '../native/response-cache.js';
 import {mountMasterMobileControls} from '../native/mobile-navigation.js';
+import {mountAudit} from './audit-ui.js';
 import {mountDailyReview} from './daily-review.js';
 export function mountMaster({root=document,client=null,embedded=false,isVisible=()=>true,onChange=()=>{},asset=null}={}){
 const $=id=>root.getElementById(id),prefix='',api=prefix+'/api/v2';
 const cache=memoryCache(),overviewCache=responseCache({prefix:api+'/master/projects/'});
 const state={projects:[],pages:[],summaries:new Map(),slug:'',view:'home',provider:'',offset:0,leads:[],seq:0};
+const auditUI=client?null:mountAudit({host:$('audit'),json,projects:()=>state.projects});
 const dailyReview=client?null:mountDailyReview({host:$('reviews'),json,isVisible:()=>isVisible()&&state.view==='reviews'});
 let statuses=[];const selectedBoards=new Map();
 function selectedBoard(){if(!selectedBoards.has(state.slug)){let saved;try{saved=sessionStorage.getItem('toys-crm-board:'+state.slug);}catch{}selectedBoards.set(state.slug,saved||'default');}return selectedBoards.get(state.slug);}
@@ -41,19 +43,20 @@ mountMasterMobileControls(root);
 function theme(){const light=document.documentElement.dataset.theme==='light',path='assets/'+(light?'toys-black.svg':'toys-logo.svg');if(!embedded)$('brandLogo').src=asset?asset(path):prefix+'/api/ui/reference/'+path;$('theme').textContent=light?'Тёмная тема':'Светлая тема';}
 try{if(!embedded)document.documentElement.dataset.theme=localStorage.getItem('toys-unified-theme')||'dark';}catch{}theme();$('theme').onclick=()=>{document.documentElement.dataset.theme=document.documentElement.dataset.theme==='light'?'dark':'light';try{localStorage.setItem('toys-unified-theme',document.documentElement.dataset.theme);}catch{}theme();};
 function show(view){
- state.view=['crm',...(!client?['access','reviews']:[])].includes(view)?view:'home';
+ state.view=['crm',...(!client?['access','reviews',...(state.platformRole==='admin'?['audit']:[])]:[])].includes(view)?view:'home';
  switchPeriod(state.view==='crm'?'crm':'home');
  const reviews=state.view==='reviews';
  const crm=state.view==='crm';root.querySelector('.master-main').classList.toggle('crm-active',crm);
  $('channels').hidden=crm||reviews;$('periodSeg').hidden=crm||reviews;$('dateFrom').parentElement.hidden=crm||reviews;
- for(const name of ['home','crm','access','reviews'])$(name).hidden=state.view!==name;
- $('projectSelect').closest('.controls').hidden=state.view==='access'||Boolean(client&&crm);
- $('heading').textContent={crm:'CRM',access:'Доступы',reviews:'Утренний обзор',home:state.platformRole==='team'?'Мои проекты':'Все проекты'}[state.view];
+ for(const name of ['home','crm','access','reviews','audit'])$(name).hidden=state.view!==name;
+ $('projectSelect').closest('.controls').hidden=['access','audit'].includes(state.view)||Boolean(client&&crm);
+ $('heading').textContent={audit:'История правок',crm:'CRM',access:'Доступы',reviews:'Утренний обзор',home:state.platformRole==='team'?'Мои проекты':'Все проекты'}[state.view];
  root.querySelectorAll('[data-view]').forEach(b=>{const active=b.dataset.view===state.view;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
  if(state.view==='crm'&&!state.slug){state.slug=state.projects[0]?.slug||'';$('projectSelect').value=state.slug;}
  refresh();
 }
 async function refresh(){
+ if(state.view==='audit')return auditUI?.load();
  if(state.view==='access')return accessUI?.load();
  if(state.view==='reviews'){dailyReview?.setFilter(state.slug,'');return dailyReview?.load();}
  if(!state.projects.length){message('Проекты ещё не назначены. Администратор назначит их в разделе «Доступы».');return;}
@@ -123,7 +126,7 @@ document.addEventListener('click',e=>{if(!e.composedPath().includes(root.querySe
 $('boardOptions').onclick=async e=>{const b=e.target.closest('[data-board]');if(!b)return;closeBoardMenu(true);if(b.dataset.board===selectedBoard())return;setBoard(b.dataset.board);$('statusFilter').value='';$('search').value='';state.leads=[];kanban.render([]);$('crmSummary').replaceChildren();await loadLeads();};
 $('newBoard').onclick=async()=>{closeBoardMenu();try{const path=projectApi(),slug=state.slug,d=await json(path+'/boards');if(slug!==state.slug)return;boardCreator({root,templates:d.templates,current:boardData.pipeline,open,submit,onCreate:async(body,key)=>{const result=await write(path+'/boards',body,'POST',key);$('editor').close();setBoard(result.board.id);$('statusFilter').value='';$('search').value='';await loadLeads();message('Доска создана.');}});}catch(e){message(e.message,true);}};
 $('connections').onclick=settings;
-async function loadMaster(render=true){if(client){state.slug=client.project.slug;state.projects=[client.project];state.pages=[];$('projectSelect').hidden=true;$('connections').hidden=true;$('newLead').hidden=!client.canEdit;root.querySelector('header .sub').textContent=client.project.name;if(!embedded)document.title='TOYS · '+client.project.name+' · CRM';if(render)show('crm');return;}const d=await json(api+'/master');state.platformRole=d.access?.role;state.projects=d.projects;state.pages=d.pages;$('connections').hidden=d.access?.canManageIntegrations===false;state.channels=d.channels||[];$('projectSelect').innerHTML=`<option value="">${state.platformRole==='team'?'Все мои проекты':'Все проекты'}</option>`+state.projects.map(p=>`<option value="${h(p.slug)}">${h(p.name)}</option>`).join('');$('projectSelect').value=state.slug;if(render)show(location.hash.slice(1).split('?')[0]);}
+async function loadMaster(render=true){if(client){state.slug=client.project.slug;state.projects=[client.project];state.pages=[];$('projectSelect').hidden=true;$('connections').hidden=true;$('newLead').hidden=!client.canEdit;root.querySelector('header .sub').textContent=client.project.name;if(!embedded)document.title='TOYS · '+client.project.name+' · CRM';if(render)show('crm');return;}const d=await json(api+'/master');state.platformRole=d.access?.role;$('auditNav').hidden=state.platformRole!=='admin';state.projects=d.projects;state.pages=d.pages;$('connections').hidden=d.access?.canManageIntegrations===false;state.channels=d.channels||[];$('projectSelect').innerHTML=`<option value="">${state.platformRole==='team'?'Все мои проекты':'Все проекты'}</option>`+state.projects.map(p=>`<option value="${h(p.slug)}">${h(p.name)}</option>`).join('');$('projectSelect').value=state.slug;if(render)show(location.hash.slice(1).split('?')[0]);}
 root.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');if(nav&&client&&nav.dataset.view==='home'){location.href=prefix+'/'+encodeURIComponent(client.project.slug)+'/';return;}if(nav){if(!embedded)location.hash=nav.dataset.view;show(nav.dataset.view);}const p=e.target.closest('[data-project]');if(p){state.slug=p.dataset.project;$('projectSelect').value=state.slug;refresh();}const c=e.target.closest('[data-crm]');if(c){state.slug=c.dataset.crm;$('projectSelect').value=state.slug;location.hash='crm';show('crm');}const l=e.target.closest('[data-lead]');if(l)editLead(l.dataset.lead);});
 if(!embedded&&!client)window.addEventListener('hashchange',()=>{const view=location.hash.slice(1).split('?')[0]||'home';if(view!==state.view)show(view);});
 $('projectSelect').onchange=e=>{state.slug=e.target.value;state.offset=0;if(state.view==='crm'&&!state.slug){state.slug=state.projects[0]?.slug||'';e.target.value=state.slug;}refresh();};

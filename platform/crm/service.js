@@ -16,7 +16,7 @@ export async function crypt(env,value,decrypt=false){
 }
 export async function project(env,slug){return env.TOYS_DB.prepare("SELECT id,organization_id AS organizationId,slug,name,timezone,currency,status,settings_json AS settingsJson FROM projects WHERE slug=? AND status IN ('active','draft')").bind(slug).first();}
 export async function enable(env,p){const n=NOW();await env.TOYS_DB.prepare('INSERT INTO crm_projects(project_id,enabled_at,timezone,updated_at) VALUES(?,?,?,?) ON CONFLICT(project_id) DO NOTHING').bind(p.id,n,p.timezone||'Asia/Tbilisi',n).run();}
-export async function ingest(env,p,data,provider,sourceId){
+export async function ingest(env,p,data,provider,sourceId,actor=null){
  if(!sourceId||sourceId.length>180)fail('source_id_required');
  const name=text(data.name,200),email=text(data.email,254).toLowerCase(),phone=text(data.phone,60);
  if(!email&&!phone&&!(['instagram','whatsapp'].includes(provider)&&/^\d+$/.test(data.externalContactId||'')))fail('contact_required');
@@ -47,6 +47,7 @@ export async function ingest(env,p,data,provider,sourceId){
  const enrichment=provider==='meta_lead_ads'?{...(a?{adAttribution:a,sourceAdId:a.adId}:{}),...(metadata.pageId?{pageId:metadata.pageId}:{}),...(metadata.formId?{formId:metadata.formId}:{}),...(metadata.formAnswers?{formAnswers:metadata.formAnswers}:{})}:{};
  const board=await getBoard(env,p,provider==='manual'?data.boardId:null),initialStatus=board.pipeline.stages[0].label;
  await env.TOYS_DB.batch([
+ ...(provider==='manual'&&actor?[env.TOYS_DB.prepare("INSERT INTO audit_log(project_id,action,entity_type,entity_id,after_json,request_id) SELECT ?,'crm.lead.created','lead',?,?,? WHERE NOT EXISTS(SELECT 1 FROM leads WHERE id=?)").bind(p.id,id,JSON.stringify({actor,name,status:initialStatus}),sourceId,id)]:[]),
  env.TOYS_DB.prepare(`INSERT INTO leads(id,project_id,source_provider,external_lead_id,campaign_external_id,created_at,name,phone,email,current_status,metadata_json,updated_at,board_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(project_id,source_provider,external_lead_id) DO UPDATE SET metadata_json=json_patch(leads.metadata_json,?),campaign_external_id=COALESCE(excluded.campaign_external_id,leads.campaign_external_id) WHERE leads.deleted_at IS NULL AND ?!='{}'`).bind(id,p.id,provider,sourceId,a?.campaignId||null,created,name,phone,email,initialStatus,JSON.stringify(metadata),n,boardId(board.id),JSON.stringify(enrichment),JSON.stringify(enrichment)),
  env.TOYS_DB.prepare("INSERT INTO crm_lead_state(lead_id,updated_at) SELECT id,? FROM leads WHERE project_id=? AND source_provider=? AND external_lead_id=? ON CONFLICT(lead_id) DO NOTHING").bind(n,p.id,provider,sourceId)
  ]);
@@ -71,7 +72,7 @@ export async function updateLead(env,p,id,body,actor,key){
  const changes=[
  db.prepare('INSERT INTO crm_lead_state(lead_id,version,updated_at) VALUES(?,0,?) ON CONFLICT(lead_id) DO NOTHING').bind(id,n),
  db.prepare('UPDATE crm_lead_state SET version=version+1,claim_token=?,updated_at=?,owner_label=?,sale_value=COALESCE(?,sale_value),sale_currency=COALESCE(?,sale_currency) WHERE lead_id=? AND version=?').bind(event,n,text(body.owner,120),value,currency,id,body.version),
- db.prepare('INSERT INTO lead_status_events(id,project_id,lead_id,from_status,to_status,changed_at,note) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(event,p.id,id,lead.current_status,desired,n,JSON.stringify({actor,note:text(body.note,2000),...(boardId(board.id)!==lead.board_id?{boardMove:{from:lead.board_id||'default',to:board.id,name:board.name}}:{}),...(value?{sale:{value,currency}}:{})}),id,event),
+ db.prepare('INSERT INTO lead_status_events(id,project_id,lead_id,from_status,to_status,changed_at,note) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(event,p.id,id,lead.current_status,desired,n,JSON.stringify({actor,owner:text(body.owner,120),note:text(body.note,2000),...(boardId(board.id)!==lead.board_id?{boardMove:{from:lead.board_id||'default',to:board.id,name:board.name}}:{}),...(value?{sale:{value,currency}}:{})}),id,event),
  db.prepare('UPDATE leads SET current_status=?,status_updated_at=?,updated_at=?,board_id=? WHERE id=? AND project_id=? AND EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(desired,n,n,boardId(board.id),id,p.id,id,event)
  ];
  for(const kind of milestoneKinds){const milestone='crm_'+await hash(id+':'+kind);changes.push(

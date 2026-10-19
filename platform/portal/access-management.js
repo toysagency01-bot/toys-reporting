@@ -49,7 +49,7 @@ export async function accessManagement(request,env){
  const slugs=role==='admin'?[]:[...new Set(body.projects)].sort();
  if(!admin&&slugs.some(s=>!projectAllowed(auth,s)))fail('project_scope_forbidden',403);
  const assigned=slugs.map(s=>allProjects.find(p=>p.slug===s));if(assigned.some(p=>!p))fail('invalid_projects');
- const user=await db.prepare(`SELECT u.id,u.email,u.status,u.access_version AS version,r.role FROM users u LEFT JOIN platform_user_roles r ON r.user_id=u.id WHERE u.email=?`).bind(email).first();
+ const user=await db.prepare(`SELECT u.id,u.email,u.display_name AS name,u.status,u.access_version AS version,r.role FROM users u LEFT JOIN platform_user_roles r ON r.user_id=u.id WHERE u.email=?`).bind(email).first();
  if(!user&&role==='client'&&!slugs.length)fail('invalid_projects');
  const memberships=user?(await db.prepare(`SELECT p.id,p.slug FROM project_memberships m JOIN projects p ON p.id=m.project_id WHERE m.user_id=? AND p.organization_id='org_toys_agency'`).bind(user.id).all()).results:[];
  if(!admin&&user&&(roleFor(user,env)!=='client'||user.status==='disabled'||!memberships.some(p=>projectAllowed(auth,p.slug))))fail('client_managed_by_admin',403);
@@ -69,7 +69,7 @@ export async function accessManagement(request,env){
  const editable=admin?null:allProjects.filter(p=>projectAllowed(auth,p.slug)).map(p=>p.id);
  changes.push(db.prepare(`DELETE FROM project_memberships WHERE user_id=? AND project_id IN (SELECT id FROM projects WHERE organization_id='org_toys_agency')${admin?'':` AND project_id IN (${editable.map(()=>'?').join(',')||'NULL'})`} AND ${condition}`).bind(id,...editable||[],id,claim));
  for(const p of assigned)changes.push(db.prepare(`INSERT INTO project_memberships(project_id,user_id,role) SELECT ?,?,? WHERE ${condition}`).bind(p.id,id,role==='team'?'buyer':'client_manager',id,claim));
- changes.push(db.prepare(`INSERT INTO audit_log(action,entity_type,entity_id,after_json,request_id) SELECT 'client_access_updated','user',?,?,? WHERE ${condition}`).bind(id,JSON.stringify({actor:auth.subject,email,role,status,projects:slugs,scope:admin?'all':'assigned_projects'}),key,id,claim),db.prepare(`INSERT INTO portal_access_writes(request_key,request_hash,response_json) SELECT ?,?,? WHERE ${condition}`).bind(key,requestHash,JSON.stringify(result),id,claim));
+ changes.push(db.prepare(`INSERT INTO audit_log(action,entity_type,entity_id,before_json,after_json,request_id) SELECT 'client_access_updated','user',?,?,?,? WHERE ${condition}`).bind(id,user?JSON.stringify({name:user.name,email:user.email,role:roleFor(user,env),status:user.status,projects:memberships.map(p=>p.slug)}):null,JSON.stringify({actor:auth.subject,name,email,role,status,projects:[...new Set([...slugs,...(admin?[]:memberships.filter(p=>!projectAllowed(auth,p.slug)).map(p=>p.slug))])],scope:admin?'all':'assigned_projects'}),key,id,claim),db.prepare(`INSERT INTO portal_access_writes(request_key,request_hash,response_json) SELECT ?,?,? WHERE ${condition}`).bind(key,requestHash,JSON.stringify(result),id,claim));
  // Permissions are rechecked on every request. Disable or role changes also end
  // sessions and invalidate unused invitations immediately.
  if(!body.enabled||user&&roleFor(user,env)!==role)changes.push(db.prepare(`DELETE FROM portal_sessions WHERE user_id=? AND ${condition}`).bind(id,id,claim),db.prepare(`DELETE FROM portal_invitations WHERE user_id=? AND ${condition}`).bind(id,id,claim));

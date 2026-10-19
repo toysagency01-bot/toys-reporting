@@ -1,4 +1,9 @@
 .platform-legacy-campaigns{display:none!important}
+.campaign-control-button{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:8px;padding:8px 12px;margin:8px 0 0 34px;min-height:44px;font:500 12px 'Golos Text';cursor:pointer}
+.campaign-control-dialog{position:fixed;inset:0;margin:auto;box-sizing:border-box;width:min(560px,calc(100% - 24px));height:fit-content;max-height:calc(100dvh - 32px);overflow:auto;border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--text);padding:24px}
+.campaign-control-dialog::backdrop{background:#0009}.campaign-control-dialog h2{font-size:21px}.campaign-control-dialog h3{font-size:17px;overflow-wrap:anywhere}.campaign-control-dialog p{font-size:14px;line-height:1.6;overflow-wrap:anywhere}.campaign-control-project{color:var(--muted)}
+.campaign-control-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}.campaign-control-actions button{border:1px solid var(--line);border-radius:9px;padding:11px 13px;background:var(--panel-2,var(--panel2));color:var(--text);font:500 13px 'Golos Text';min-height:44px;cursor:pointer}.campaign-control-actions [data-confirm]{background:var(--accent);color:#081c1a}.campaign-control-actions button:disabled{opacity:.5;cursor:wait}.campaign-control-dialog .error{color:#d44e63}.campaign-control-dialog button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(max-width:760px){.campaign-control-button{margin-left:0}.campaign-control-dialog{padding:18px}.campaign-control-actions button{flex:1}.campaign-control-actions [data-confirm]{flex-basis:100%}}
 #platformCampaignBrowser{min-width:0;scroll-margin-top:16px}
 #platformCampaignBrowser .sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 .campaign-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}
