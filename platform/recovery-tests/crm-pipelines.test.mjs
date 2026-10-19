@@ -7,6 +7,37 @@ const p={id:'prj_housevip_cxp7',slug:'housevip-cxp7',timezone:'Asia/Tbilisi'};
 const expected=['Новый','Не удалось связаться','Связались','Квалифицирован','Подбор объекта','Просмотр назначен','Просмотр проведён','Переговоры','Бронь / задаток','Сделка','Отказ','Отложен','Неактуален'];
 const board=(env,query='')=>listLeads(env,p,new URL('https://test.local/?view=board&'+query));
 
+test('TOYS pipeline preserves existing leads, initializes new ones in Новые and emits qualification only once',async()=>{
+ const {env,db}=fixture();try{
+  await enable(env,p);db.prepare("UPDATE crm_projects SET capi_kinds='qualified'").run();
+  const old=await ingest(env,p,{name:'Existing',phone:'+995555010000'},'meta_lead_ads','123456');
+  db.prepare("UPDATE projects SET settings_json=json_set(settings_json,'$.crmTemplate','toys_agency') WHERE id=?").run(p.id);
+  const labels=['Новые','Первичный контакт','Фолоу ап 1','Фолоу ап 2','Вышел на связь','Квалифицирован','Кикоф митинг','Готовим КП аудит','Презентовали КП','Согласование договора','Отложенные (перспективные)','Отложенные (малоперспективные)','Нет ответа, без номера, мусор','Успешно реализовано','Закрыто, но не реализовано'];
+  let d=await board(env);assert.deepEqual(d.statuses,labels);assert.equal(d.total,1);assert.equal(d.columns[0].leads[0].id,old.id);assert.equal(d.columns[0].leads[0].status,'Новые');
+  assert.equal((await board(env,'status='+encodeURIComponent('Новые'))).total,1);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM crm_milestones').get().n,0);
+  const fresh=await ingest(env,p,{email:'new@example.test'},'manual','new');assert.equal(fresh.status,'Новые');
+  let version=1;
+  for(const status of labels.slice(1,10)){
+   await updateLead(env,p,old.id,{status,version:version++},'owner','toys-'+version);
+   d=await board(env);assert.equal(d.columns.find(c=>c.status===status).total,1);
+   assert.equal(d.summary.qualified,labels.indexOf(status)>=5?1:0);
+  }
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM crm_milestones WHERE kind='qualified'").get().n,1);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM crm_delivery WHERE kind='capi'").get().n,1);
+  await assert.rejects(updateLead(env,p,old.id,{status:'Успешно реализовано',version},'owner','toys-missing-amount'),{code:'sale_value_currency_required'});
+  await updateLead(env,p,old.id,{status:'Успешно реализовано',version:version++,value:'1500',currency:'EUR'},'owner','toys-won');
+  d=await board(env);assert.equal(d.summary.sales,1);assert.equal(d.summary.revenue[0].value,1500);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM crm_delivery WHERE kind='capi'").get().n,1,'TOYS sales are statistics only; qualification CAPI stays deduplicated');
+  await ingest(env,p,{name:'Replayed',phone:'+995555010000'},'meta_lead_ads','123456');
+  assert.equal((await board(env)).summary.sales,1,'provider retries preserve the chosen stage');
+  await updateLead(env,p,old.id,{status:'Закрыто, но не реализовано',version},'owner','toys-lost');
+  assert.deepEqual((await board(env)).summary,{qualified:0,sales:0,revenue:[]});
+  db.prepare("INSERT INTO projects(id,organization_id,slug,name,settings_json) VALUES('other-project','org_toys_agency','other-project','Other','{}')").run();
+  assert.equal((await projectPipeline(env,{id:'other-project'})).key,'general');
+ }finally{db.close();}
+});
+
 test('real-estate niche supplies all requested stages for any project and keeps existing leads visible',async()=>{
  const {env,db}=fixture();try{
   await enable(env,p);const lead=await ingest(env,p,{name:'Existing lead',phone:'+995555010000'},'manual','old');

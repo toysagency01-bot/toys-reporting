@@ -78,7 +78,7 @@ async function loadLeads(){
  try{
   const d=await cached(`${projectApi()}?view=board&status=${encodeURIComponent($('statusFilter').value)}&${leadFilters()}`);if(seq!==state.seq)return;
   statuses=d.statuses;const filter=$('statusFilter'),selected=filter.value;filter.innerHTML='<option value="">Все статусы</option>'+statuses.map(s=>`<option>${h(s)}</option>`).join('');filter.value=statuses.includes(selected)?selected:'';if(selected&&!filter.value)return loadLeads();
-  boardData=d;$('funnelName').textContent=d.pipeline.key==='real_estate'?'Воронка недвижимости':'Воронка лидов';renderLeads();const s=d.summary;
+  boardData=d;$('funnelName').textContent=d.pipeline.key==='real_estate'?'Воронка недвижимости':d.pipeline.key==='toys_agency'?'Воронка TOYS':'Воронка лидов';renderLeads();const s=d.summary;
   $('crmSummary').innerHTML=card('Квалифицированы',fmt(s.qualified))+card('Продажи',fmt(s.sales))+card('Выручка CRM',s.revenue.length?money(s.revenue):fmt(0));
   const range=d.range,day=d=>d.split('-').reverse().join('.');
   $('boardCaption').textContent=(range.from?`Поступили ${day(range.from)} — ${day(range.to)} · Тбилиси`:'Все даты поступления')+' · показатели по текущим статусам и фильтрам';

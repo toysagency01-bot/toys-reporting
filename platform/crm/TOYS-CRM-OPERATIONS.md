@@ -106,3 +106,15 @@ were created. Earliest lead returned was 2026-09-09T07:33:24Z. This verifies
 all data returned by Meta for the requested period, not data Meta may no longer
 retain. Runtime/UI validation: 162 unit/runtime tests and two admin CRM browser
 tests passed before this backfill deployment.
+
+## TOYS sales pipeline
+
+Project setting `crmTemplate=toys_agency` selects the user's 15-stage pipeline
+in `crm/pipelines.js`, without changing any other project's template. Old general
+labels remain visible through aliases (not a rewrite of status history). Newly
+ingested leads use the selected template's first stage, `Новые`. Stages from
+`Квалифицирован` through `Согласование договора` retain qualification and use
+the same deduplicated qualification milestone. `Успешно реализовано` requires
+an amount/currency and counts as a sale. Deferred, junk and lost stages are
+not currently qualified or sold. TOYS remains admin-only and qualification-only
+for CAPI; enabling the template creates no conversion events.
