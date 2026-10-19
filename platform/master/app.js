@@ -29,7 +29,7 @@ const write=async(path,body,method='POST',key=crypto.randomUUID())=>{const d=awa
 const accessUI=client?null:mountClientAccess({root,api,json,write});$('accessNav').hidden=Boolean(client);$('reviewsNav').hidden=Boolean(client);$('masterAccount').href=api+'/portal/session?choose=1';
 const projectApi=()=>api+'/projects/'+encodeURIComponent(state.slug)+'/crm';
 const dates=()=>`from=${$('dateFrom').value}&to=${$('dateTo').value}`;
-const leadFilters=()=>new URLSearchParams({board:selectedBoard(),q:$('search').value,...($('dateFrom').value&&$('dateTo').value?{from:$('dateFrom').value,to:$('dateTo').value}:{})}).toString();
+const leadFilters=()=>new URLSearchParams({board:selectedBoard(),q:$('search').value}).toString();
 const card=(label,value)=>`<article class="card"><div class="label">${h(label)}</div><div class="value">${value}</div></article>`;
 const date=s=>s?new Date(s).toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
 let calendar;
@@ -44,9 +44,10 @@ function show(view){
  state.view=['crm',...(!client?['access','reviews']:[])].includes(view)?view:'home';
  switchPeriod(state.view==='crm'?'crm':'home');
  const reviews=state.view==='reviews';
- $('channels').hidden=state.view==='crm'||reviews;$('periodSeg').hidden=reviews;$('dateFrom').parentElement.hidden=reviews;
+ const crm=state.view==='crm';root.querySelector('.master-main').classList.toggle('crm-active',crm);
+ $('channels').hidden=crm||reviews;$('periodSeg').hidden=crm||reviews;$('dateFrom').parentElement.hidden=crm||reviews;
  for(const name of ['home','crm','access','reviews'])$(name).hidden=state.view!==name;
- $('projectSelect').closest('.controls').hidden=state.view==='access';
+ $('projectSelect').closest('.controls').hidden=state.view==='access'||Boolean(client&&crm);
  $('heading').textContent={crm:'CRM',access:'Доступы',reviews:'Утренний обзор',home:state.platformRole==='team'?'Мои проекты':'Все проекты'}[state.view];
  root.querySelectorAll('[data-view]').forEach(b=>{const active=b.dataset.view===state.view;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
  if(state.view==='crm'&&!state.slug){state.slug=state.projects[0]?.slug||'';$('projectSelect').value=state.slug;}
@@ -77,14 +78,12 @@ async function loadLeads(){
  if(!state.slug)return;
  const canCRM=state.projects.find(p=>p.slug===state.slug)?.canCRM!==false;
  $('newLead').hidden=!canCRM||Boolean(client&&!client.canEdit);$('boardToolbar').hidden=!canCRM;
- if(!canCRM){++state.seq;boardData=null;state.leads=[];kanban.render([]);$('leadCount').textContent='';$('crmSummary').innerHTML='';$('boardCaption').textContent='';message('CRM этого проекта доступна только администраторам.');return;}const seq=++state.seq;$('newLead').disabled=true;$('newBoard').disabled=true;
+ if(!canCRM){++state.seq;boardData=null;state.leads=[];kanban.render([]);$('leadCount').textContent='';$('crmSummary').innerHTML='';message('CRM этого проекта доступна только администраторам.');return;}const seq=++state.seq;$('newLead').disabled=true;$('newBoard').disabled=true;
  try{
   const d=await cached(`${projectApi()}?view=board&status=${encodeURIComponent($('statusFilter').value)}&${leadFilters()}`);if(seq!==state.seq)return;
   statuses=d.statuses;const filter=$('statusFilter'),selected=filter.value;filter.innerHTML='<option value="">Все статусы</option>'+statuses.map(s=>`<option>${h(s)}</option>`).join('');filter.value=statuses.includes(selected)?selected:'';if(selected&&!filter.value)return loadLeads();
-  boardData=d;$('crmBoardSelect').innerHTML=d.boards.map(b=>`<option value="${h(b.id)}">${h(b.name)}</option>`).join('');$('crmBoardSelect').value=d.board.id;$('newBoard').hidden=!d.canManageBoards;$('funnelName').textContent=!d.board.isDefault?d.board.name:d.pipeline.key==='real_estate'?'Воронка недвижимости':d.pipeline.key==='toys_agency'?'Воронка TOYS':'Воронка лидов';renderLeads();const s=d.summary;
-  $('crmSummary').innerHTML=card('Квалифицированы',fmt(s.qualified))+card('Продажи',fmt(s.sales))+card('Выручка CRM',s.revenue.length?money(s.revenue):fmt(0));
-  const range=d.range,day=d=>d.split('-').reverse().join('.');
-  $('boardCaption').textContent=(range.from?`Поступили ${day(range.from)} — ${day(range.to)} · Тбилиси`:'Все даты поступления')+' · показатели по текущим статусам и фильтрам';
+  boardData=d;$('boardOptions').innerHTML=d.boards.map(b=>`<button type="button" role="menuitemradio" aria-checked="${b.id===d.board.id}" data-board="${h(b.id)}">${h(b.name)}</button>`).join('');$('boardTrigger').dataset.board=d.board.id;$('newBoard').hidden=!d.canManageBoards;$('funnelName').textContent=d.board.name;renderLeads();const s=d.summary;
+  $('crmSummary').innerHTML=card('Квалы',fmt(s.qualified))+card('Продажи',fmt(s.sales))+card('Выручка',s.revenue.length?money(s.revenue):fmt(0));
   message('');$('updated').textContent='Обновлено '+date(new Date());
  }catch(e){if(seq===state.seq){if(e.status===404&&selectedBoard()!=='default'){setBoard('default');return loadLeads();}message('Не удалось загрузить лиды: '+e.message,true);}}finally{if(seq===state.seq){$('newLead').disabled=false;$('newBoard').disabled=false;}}
 }
@@ -115,8 +114,14 @@ async function settings(){if(!state.slug)return;try{const d=await json(projectAp
  $('pageList').onclick=async e=>{const b=e.target.closest('[data-page]');if(!b)return;b.disabled=true;try{await write(projectApi()+'/connections/page',{pageId:b.dataset.page,subscribe:false});await loadMaster(false);await settings();}catch(e){$('connectionMessage').textContent=e.message;b.disabled=false;}};
  submit($('capiForm'),async(body,key)=>{await write(projectApi()+'/connections/capi',{...body,enabled:body.enabled==='on',useAgentToken:body.useAgentToken==='on'},'POST',key);await settings();});$('retry').onclick=async()=>{try{await write(projectApi()+'/connections/retry',{});await settings();}catch(e){$('connectionMessage').textContent=e.message;}};
  }catch(e){message(e.message,true);}}
-$('crmBoardSelect').onchange=async e=>{setBoard(e.target.value);$('statusFilter').value='';$('search').value='';state.leads=[];kanban.render([]);$('crmSummary').replaceChildren();await loadLeads();};
-$('newBoard').onclick=async()=>{try{const path=projectApi(),slug=state.slug,d=await json(path+'/boards');if(slug!==state.slug)return;boardCreator({root,templates:d.templates,current:boardData.pipeline,open,submit,onCreate:async(body,key)=>{const result=await write(path+'/boards',body,'POST',key);$('editor').close();setBoard(result.board.id);$('statusFilter').value='';$('search').value='';await loadLeads();message('Доска создана.');}});}catch(e){message(e.message,true);}};
+function closeBoardMenu(focus=false){$('boardMenu').hidden=true;$('boardTrigger').setAttribute('aria-expanded','false');if(focus)$('boardTrigger').focus();}
+function openBoardMenu(){if(!boardData)return;$('boardMenu').hidden=false;$('boardTrigger').setAttribute('aria-expanded','true');($('boardMenu').querySelector('[aria-checked=true]')||$('boardOptions').firstElementChild)?.focus();}
+$('boardTrigger').onclick=()=>{$('boardMenu').hidden?openBoardMenu():closeBoardMenu();};
+$('boardTrigger').onkeydown=e=>{if(e.key==='ArrowDown'){e.preventDefault();openBoardMenu();}};
+$('boardMenu').onkeydown=e=>{const items=[...$('boardMenu').querySelectorAll('button:not([hidden]):not(:disabled)')],i=items.indexOf(e.target);if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closeBoardMenu(true);}else if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();items[e.key==='Home'?0:e.key==='End'?items.length-1:(i+(e.key==='ArrowDown'?1:items.length-1))%items.length]?.focus();}else if(e.key==='Tab')closeBoardMenu();};
+document.addEventListener('click',e=>{if(!e.composedPath().includes(root.querySelector('.crm-board-picker')))closeBoardMenu();});
+$('boardOptions').onclick=async e=>{const b=e.target.closest('[data-board]');if(!b)return;closeBoardMenu(true);if(b.dataset.board===selectedBoard())return;setBoard(b.dataset.board);$('statusFilter').value='';$('search').value='';state.leads=[];kanban.render([]);$('crmSummary').replaceChildren();await loadLeads();};
+$('newBoard').onclick=async()=>{closeBoardMenu();try{const path=projectApi(),slug=state.slug,d=await json(path+'/boards');if(slug!==state.slug)return;boardCreator({root,templates:d.templates,current:boardData.pipeline,open,submit,onCreate:async(body,key)=>{const result=await write(path+'/boards',body,'POST',key);$('editor').close();setBoard(result.board.id);$('statusFilter').value='';$('search').value='';await loadLeads();message('Доска создана.');}});}catch(e){message(e.message,true);}};
 $('connections').onclick=settings;
 async function loadMaster(render=true){if(client){state.slug=client.project.slug;state.projects=[client.project];state.pages=[];$('projectSelect').hidden=true;$('connections').hidden=true;$('newLead').hidden=!client.canEdit;root.querySelector('header .sub').textContent=client.project.name;if(!embedded)document.title='TOYS · '+client.project.name+' · CRM';if(render)show('crm');return;}const d=await json(api+'/master');state.platformRole=d.access?.role;state.projects=d.projects;state.pages=d.pages;$('connections').hidden=d.access?.canManageIntegrations===false;state.channels=d.channels||[];$('projectSelect').innerHTML=`<option value="">${state.platformRole==='team'?'Все мои проекты':'Все проекты'}</option>`+state.projects.map(p=>`<option value="${h(p.slug)}">${h(p.name)}</option>`).join('');$('projectSelect').value=state.slug;if(render)show(location.hash.slice(1).split('?')[0]);}
 root.addEventListener('click',e=>{const nav=e.target.closest('[data-view]');if(nav&&client&&nav.dataset.view==='home'){location.href=prefix+'/'+encodeURIComponent(client.project.slug)+'/';return;}if(nav){if(!embedded)location.hash=nav.dataset.view;show(nav.dataset.view);}const p=e.target.closest('[data-project]');if(p){state.slug=p.dataset.project;$('projectSelect').value=state.slug;refresh();}const c=e.target.closest('[data-crm]');if(c){state.slug=c.dataset.crm;$('projectSelect').value=state.slug;location.hash='crm';show('crm');}const l=e.target.closest('[data-lead]');if(l)editLead(l.dataset.lead);});
@@ -124,6 +129,6 @@ if(!embedded&&!client)window.addEventListener('hashchange',()=>{const view=locat
 $('projectSelect').onchange=e=>{state.slug=e.target.value;state.offset=0;if(state.view==='crm'&&!state.slug){state.slug=state.projects[0]?.slug||'';e.target.value=state.slug;}refresh();};
 $('statusFilter').innerHTML='<option value="">Все статусы</option>'+statuses.map(s=>`<option>${h(s)}</option>`).join('');$('statusFilter').onchange=()=>{state.offset=0;loadLeads();};let searchTimer;$('search').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{state.offset=0;loadLeads();},300);};
 $('channels').onclick=e=>{const b=e.target.closest('[data-provider]');if(!b)return;state.provider=b.dataset.provider;$('channels').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));refresh();};$('periodSeg').onclick=e=>{const b=e.target.closest('[data-days]');if(!b)return;preset(b.dataset.days==='all'?'all':Number(b.dataset.days));$('periodSeg').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));refresh();};
-preset(7);calendar=mountCalendar({root,from:$('dateFrom'),to:$('dateTo'),apply:(from,to)=>{if(from&&to){$('dateFrom').value=from;$('dateTo').value=to;}$('periodSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.days==='1'&&from===to&&from===calendar.today()));refresh();}});const hashProject=new URLSearchParams(location.hash.slice(1)).get('project');if(hashProject)state.slug=hashProject;loadMaster().catch(e=>message('Не удалось открыть кабинет: '+e.message,true));let lastAutoRefresh=Date.now();setInterval(()=>{if(document.hidden||!isVisible()||$('editor').open)return;if(!client&&Date.now()<(state.view==='home'?nextRefreshAt(lastAutoRefresh)+60000:lastAutoRefresh+20*60000))return;lastAutoRefresh=Date.now();refresh();},60000);
+preset(7);calendar=mountCalendar({root,from:$('dateFrom'),to:$('dateTo'),apply:(from,to)=>{if(from&&to){$('dateFrom').value=from;$('dateTo').value=to;}$('periodSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.days==='1'&&from===to&&from===calendar.today()));refresh();}});const hashProject=new URLSearchParams(location.hash.slice(1)).get('project');if(hashProject)state.slug=hashProject;loadMaster().catch(e=>message('Не удалось открыть кабинет: '+e.message,true));let lastAutoRefresh=Date.now();setInterval(()=>{if(document.hidden||!isVisible()||$('editor').open||!$('boardMenu').hidden)return;if(!client&&Date.now()<(state.view==='home'?nextRefreshAt(lastAutoRefresh)+60000:lastAutoRefresh+20*60000))return;lastAutoRefresh=Date.now();refresh();},60000);
 return {resume(){theme();if(!$('editor').open)refresh();}};
 }

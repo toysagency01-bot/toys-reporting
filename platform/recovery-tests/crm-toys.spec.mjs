@@ -3,7 +3,7 @@ const stages=['Новые','Первичный контакт','Фолоу ап 
 test('TOYS stages work in the kanban, filters, editor, qualification and sale flow on desktop and mobile',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1440,height:1000});
  await page.goto('/api/v2/projects/housevip-cxp7/content-crm');
- await expect(page.locator('.stage-heading h3')).toHaveText(stages);await expect(page.locator('#statusFilter option')).toHaveText(['Все статусы',...stages]);await expect(page.locator('#funnelName')).toHaveText('Воронка TOYS');
+ await expect(page.locator('.stage-heading h3')).toHaveText(stages);await expect(page.locator('#statusFilter option')).toHaveText(['Все статусы',...stages]);await expect(page.locator('#funnelName')).toHaveText('Основная');
  await page.locator('#newLead').click();await page.locator('[name=name]').fill('Synthetic TOYS');await page.locator('[name=phone]').fill('+995555010001');await page.locator('#editor button[type=submit]').click();
  const card=page.getByRole('button',{name:'Synthetic TOYS',exact:true}),column=s=>page.locator(`[data-stage="${s}"]`);
  await expect(column('Новые')).toContainText('Synthetic TOYS');await card.dragTo(column('Первичный контакт').locator('.stage-heading'));await expect(column('Первичный контакт')).toContainText('Synthetic TOYS');

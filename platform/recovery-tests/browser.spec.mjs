@@ -42,13 +42,13 @@ test('kanban moves persist, sales need an amount, search and mobile stay usable'
  await page.screenshot({path:'dist/crm-kanban-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.locator('#leadsBoard').evaluate(el=>el.scrollLeft=el.scrollWidth);await expect(card).toBeVisible();await card.click();await expect(page.locator('#leadForm')).toBeVisible();
 });
-test('dense kanban scrolls the page, shows full contacts and preserves date filters and horizontal navigation',async({page,request})=>{
+test('dense kanban scrolls the page, shows full contacts and removes date filters and preserves horizontal navigation',async({page,request})=>{
  const api='/api/v2/projects/housevip-cxp7/crm';
  for(let i=0;i<30;i++){
   const r=await request.post(api,{headers:{'x-idempotency-key':'dense-lead-'+i,origin:'http://127.0.0.1:4173'},data:{name:'Dense contact '+i,phone:'+99555501'+String(i).padStart(4,'0'),email:'dense'+i+'@example.test'}});expect(r.ok(),await r.text()).toBe(true);
  }
  await page.setViewportSize({width:1440,height:1000});await page.goto('/api/v2/projects/housevip-cxp7/content-crm');
- await expect(page.locator('#allDates')).toHaveClass('active');await expect(page.locator('#platformClientCRM #dateFrom')).toHaveValue('');await page.locator('#search').fill('Dense contact');
+ await expect(page.locator('#platformClientCRM #periodSeg')).toBeHidden();await expect(page.locator('#platformClientCRM #dateFrom')).toHaveValue('');await page.locator('#search').fill('Dense contact');
  await expect(page.locator('#leadCount')).toHaveText('30');await expect(page.locator('.lead-card')).toHaveCount(25);
  const column=page.locator('[data-stage="Новый"]'),cards=column.locator('.lead-card');
  expect(await column.locator('.stage-cards').evaluate(e=>e.scrollHeight<=e.clientHeight+1)).toBe(true);
@@ -59,9 +59,7 @@ test('dense kanban scrolls the page, shows full contacts and preserves date filt
  const slider=page.getByRole('slider',{name:'Прокрутка этапов'});await expect(slider).toBeInViewport();await page.evaluate(()=>scrollTo(0,0));await slider.focus();await slider.press('End');await expect(page.locator('[data-stage="Потерян"] .stage-heading')).toBeInViewport();await expect(page.locator('[data-stage="Не подходит"] .stage-heading')).toBeInViewport();
  await page.getByRole('button',{name:'Предыдущие этапы',exact:true}).click();await expect.poll(async()=>Number(await slider.inputValue())).toBeLessThan(1000);
  await slider.focus();await slider.press('Home');await expect(column.locator('.stage-heading')).toBeInViewport();
- await page.getByRole('button',{name:'Сегодня',exact:true}).click();await expect(page.locator('#boardCaption')).toContainText('Поступили');await expect(page.locator('#leadCount')).toHaveText('30');
- await page.locator('#platformClientCRM #platformCalendar').click();await page.locator('[data-date="2026-10-01"]').click();await page.locator('[data-date="2026-10-02"]').click();await page.getByRole('button',{name:'Применить',exact:true}).click();await expect(page.locator('#leadCount')).toHaveText('0');await expect(page.locator('#boardCaption')).toContainText('01.10.2026 — 02.10.2026');
- await page.locator('#allDates').click();await expect(page.locator('#leadCount')).toHaveText('30');await expect(page.locator('#platformClientCRM #platformCalendar')).toHaveText('Выбрать период');
+ await expect(page.locator('#platformClientCRM #platformCalendar')).toBeHidden();await expect(page.locator('#leadCount')).toHaveText('30');
  await page.locator('#theme').click();await page.screenshot({path:'dist/crm-dense-1440.png',animations:'disabled'});
  await page.setViewportSize({width:1920,height:1080});
  expect(await page.locator('#leadsBoard').evaluate(el=>{const r=el.getBoundingClientRect();return r.width>=1690&&r.right>innerWidth-24;})).toBe(true);await expect(page.locator('[data-stage="Потерян"] .stage-heading')).toBeInViewport();
@@ -76,18 +74,19 @@ test('dense kanban scrolls the page, shows full contacts and preserves date filt
  await expect(page.getByRole('slider',{name:'Прокрутка этапов'})).toBeInViewport();
 });
 
-test('kanban counters update for current statuses and sale edits and persist separate master date ranges',async({page})=>{
+test('kanban counters update for current statuses and sale edits and keep dashboard date filters out of CRM',async({page})=>{
  await page.goto('/master/#crm');await page.locator('#newLead').click();await page.locator('[name=name]').fill('Current metrics contact');await page.locator('[name=phone]').fill('+995555019999');await page.getByRole('button',{name:'Добавить',exact:true}).click();
  await expect(page.locator('#editor')).not.toBeVisible();
  await page.locator('#search').fill('Current metrics contact');await expect(page.locator('#leadCount')).toHaveText('1');
  const card=page.getByRole('button',{name:'Current metrics contact',exact:true}),metric=label=>page.locator('#crmSummary .card').filter({has:page.locator('.label',{hasText:label})}).locator('.value');
  const save=()=>page.getByRole('button',{name:'Сохранить',exact:true}).click();
- await card.click();await page.locator('[name=status]').selectOption('Квалифицирован');await save();await expect(metric('Квалифицированы')).toHaveText('1');await expect(metric('Продажи')).toHaveText('0');
- await card.click();await page.locator('[name=status]').selectOption('Продажа');await page.locator('[name=value]').fill('325');await page.locator('[name=currency]').fill('EUR');await save();await expect(metric('Квалифицированы')).toHaveText('0');await expect(metric('Продажи')).toHaveText('1');await expect(metric('Выручка CRM')).toHaveText('325 EUR');
- await card.click();await expect(page.locator('[name=value]')).toHaveValue('325');await page.locator('[name=value]').fill('450');await save();await expect(metric('Выручка CRM')).toHaveText('450 EUR');
- await card.click();await page.locator('[name=status]').selectOption('Потерян');await save();await expect(metric('Продажи')).toHaveText('0');await expect(metric('Выручка CRM')).toHaveText('0');
- await page.locator('#periodSeg [data-days="30"]').click();const from=await page.locator('#dateFrom').inputValue();await page.locator('[data-view=home]').click();await expect(page.locator('#allDates')).toBeHidden();await expect(page.locator('#periodSeg [data-days="7"]')).toHaveClass('active');await page.locator('[data-view=crm]').click();await expect(page.locator('#dateFrom')).toHaveValue(from);await expect(page.locator('#periodSeg [data-days="30"]')).toHaveClass('active');
- await page.reload();await page.locator('#search').fill('Current metrics contact');await expect(page.locator('#leadCount')).toHaveText('1');await expect(metric('Продажи')).toHaveText('0');await expect(metric('Выручка CRM')).toHaveText('0');
+ await card.click();await page.locator('[name=status]').selectOption('Квалифицирован');await save();await expect(metric('Квалы')).toHaveText('1');await expect(metric('Продажи')).toHaveText('0');
+ await card.click();await page.locator('[name=status]').selectOption('Продажа');await page.locator('[name=value]').fill('325');await page.locator('[name=currency]').fill('EUR');await save();await expect(metric('Квалы')).toHaveText('0');await expect(metric('Продажи')).toHaveText('1');await expect(metric('Выручка')).toHaveText('325 EUR');
+ await card.click();await expect(page.locator('[name=value]')).toHaveValue('325');await page.locator('[name=value]').fill('450');await save();await expect(metric('Выручка')).toHaveText('450 EUR');
+ await card.click();await page.locator('[name=status]').selectOption('Потерян');await save();await expect(metric('Продажи')).toHaveText('0');await expect(metric('Выручка')).toHaveText('0');
+ await expect(page.locator('#periodSeg')).toBeHidden();await page.locator('[data-view=home]').click();await expect(page.locator('#periodSeg [data-days="7"]')).toHaveClass('active');await page.locator('#periodSeg [data-days="30"]').click();await page.locator('[data-view=crm]').click();await expect(page.locator('#periodSeg')).toBeHidden();await expect(page.locator('#dateFrom')).toHaveValue('');await expect(page.locator('#leadCount')).toHaveText('1');
+
+ await page.reload();await page.locator('#search').fill('Current metrics contact');await expect(page.locator('#leadCount')).toHaveText('1');await expect(metric('Продажи')).toHaveText('0');await expect(metric('Выручка')).toHaveText('0');
 });
 test('TOYS login is self-contained, branded and usable on mobile',async({page})=>{
  const requests=[],errors=[];page.on('request',r=>requests.push(r.url()));page.on('pageerror',e=>errors.push(e.message));
