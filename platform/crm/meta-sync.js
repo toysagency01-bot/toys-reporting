@@ -97,7 +97,7 @@ export async function runMetaLeadSync(env,at=Date.now()){
 }
 
 export async function metaSyncStatus(env,projectId){
- return (await env.TOYS_DB.prepare(`SELECT s.page_id AS pageId,s.state,s.last_error AS error,s.connected_at AS connectedAt,s.live_since AS liveSince,s.history_from AS historyFrom,s.history_to AS historyTo,s.last_scan_at AS lastScanAt,s.forms_checked_at AS formsCheckedAt,
+ return (await env.TOYS_DB.prepare(`SELECT s.page_id AS pageId,s.app_id AS appId,s.state,s.last_error AS error,s.connected_at AS connectedAt,s.live_since AS liveSince,s.history_from AS historyFrom,s.history_to AS historyTo,s.last_scan_at AS lastScanAt,s.forms_checked_at AS formsCheckedAt,
  (SELECT COUNT(*) FROM crm_meta_forms f WHERE f.page_id=s.page_id) AS forms,
  (SELECT COUNT(*) FROM crm_meta_forms f WHERE f.page_id=s.page_id AND f.history_finished_at IS NOT NULL) AS scannedForms,
  (SELECT COUNT(*) FROM crm_delivery d WHERE d.project_id=s.project_id AND d.kind='meta_lead' AND json_extract(d.payload_json,'$.pageId')=s.page_id AND d.state='sent') AS delivered

@@ -25,12 +25,13 @@ export async function connectDirectMeta(env,p,body){
  if(!secret)fail('app_secret_required');
  const appToken=appId+'|'+secret;
  const app=await meta(env,appId,appToken,{query:{fields:'id,name'}});if(String(app.id)!==appId)fail('app_identity_mismatch');
- let token=body.refreshToken===true?null:(page?.token_cipher?await crypt(env,page.token_cipher,true):null);
- if(!token||body.refreshToken===true){
+ const refreshToken=body.refreshToken===true||Boolean(env.CRM_META_ACCESS_TOKEN);
+ let token=refreshToken?null:(page?.token_cipher?await crypt(env,page.token_cipher,true):null);
+ if(!token){
   // A known Page ID can be resolved directly even when discovery is stale.
   // This is scoped to the selected page; nothing is persisted during a check.
   const agent=await env.TOYS_DB.prepare("SELECT token_cipher FROM crm_agent_credentials WHERE id='toys-media-buyer'").first();
-  const agentToken=env.META_ADS_ACCESS_TOKEN||(agent?.token_cipher?await crypt(env,agent.token_cipher,true):null);
+  const agentToken=env.CRM_META_ACCESS_TOKEN||env.META_ADS_ACCESS_TOKEN||(agent?.token_cipher?await crypt(env,agent.token_cipher,true):null);
   if(!agentToken)fail('meta_token_missing',503);
   const candidate=await meta(env,pageId,agentToken,{query:{fields:'id,name,access_token'}});
   if(String(candidate.id)!==pageId)fail('page_identity_mismatch');

@@ -24,8 +24,10 @@ async function metaLead(env,job,timeoutMs=20000){
  const params=new URLSearchParams({fields:'id,created_time,ad_id,adset_id,campaign_id,form_id,field_data'});
  const r=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(job.source_id)}?${params}`,{headers:{authorization:'Bearer '+token},redirect:'manual',signal:AbortSignal.timeout(timeoutMs)});const d=await r.json();if(!r.ok||d.error)err('meta_'+(d.error?.code||r.status));if(String(d.id)!==job.source_id)err('lead_identity_mismatch');
  if(data.formId&&String(d.form_id)!==data.formId)err('lead_form_mismatch');
- const source=await env.TOYS_DB.prepare('SELECT account_id,live_since FROM crm_meta_sources WHERE page_id=? AND project_id=?').bind(data.pageId,job.project_id).first();
- if(source&&data.sourceMode!=='history'){
+ const source=await env.TOYS_DB.prepare('SELECT account_id,live_since,history_from,history_to FROM crm_meta_sources WHERE page_id=? AND project_id=?').bind(data.pageId,job.project_id).first();
+ // Replayed webhooks can overlap the explicitly requested historical window.
+ const historical=Boolean(source&&Date.parse(d.created_time)>=Date.parse(source.history_from)&&Date.parse(d.created_time)<=Date.parse(source.history_to));
+ if(source&&!historical){
   if(!Number.isFinite(Date.parse(d.created_time)))err('invalid_lead_date');
   if(Date.parse(d.created_time)<Date.parse(source.live_since))err('lead_before_live_start');
  }
@@ -34,13 +36,13 @@ async function metaLead(env,job,timeoutMs=20000){
  if(d.ad_id){try{const a=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(d.ad_id)}?fields=id,account_id`,{headers:{authorization:'Bearer '+(env.META_ADS_ACCESS_TOKEN||token)},redirect:'manual',signal:AbortSignal.timeout(timeoutMs)});const ad=await a.json();if(!a.ok||ad.error)err('meta_'+(ad.error?.code||a.status));if(String(ad.id)!==String(d.ad_id))err('ad_identity_mismatch');attribution={provider:'meta_ads',accountId:ad.account_id,adId:d.ad_id,campaignId:d.campaign_id,adsetId:d.adset_id};}catch(e){attributionError=e;}}
 
  // Live intake is account-scoped; page-history import may contain organic leads.
- if(source&&data.sourceMode!=='history'){
+ if(source&&!historical){
   if(attributionError)throw attributionError;
   if(!attribution||String(attribution.accountId).replace(/^act_/, '')!==source.account_id)err('lead_account_mismatch');
  }
  const p=await env.TOYS_DB.prepare('SELECT id FROM projects WHERE id=?').bind(job.project_id).first();
  const lead=await ingest(env,p,{name:fields.full_name||[fields.first_name,fields.last_name].filter(Boolean).join(' '),email:fields.email,phone:fields.phone_number,createdAt:d.created_time,sourceAdId:d.ad_id,pageId:data.pageId,formId:d.form_id,adAttribution:attribution,formAnswers:d.field_data,budget:fields.budget,contactMethod:fields.contact_method},'meta_lead_ads',d.id);
- if(attributionError)throw attributionError;return lead;
+ if(attributionError&&!historical)throw attributionError;return lead;
 }
 export async function drain(env,{budgetMs=8000}={}){
  const started=Date.now();

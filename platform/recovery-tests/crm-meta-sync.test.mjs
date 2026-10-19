@@ -59,10 +59,10 @@ test('failed reads preserve import progress, sanitize provider errors and apply 
 test('live intake rejects other ad accounts, while historical page leads import without generating CAPI or changing statuses',async()=>{
  const {env,db}=await setup();try{
   const now=new Date().toISOString();
-  db.prepare("UPDATE crm_meta_sources SET live_since='2000-01-01T00:00:00Z'").run();
+  db.prepare("UPDATE crm_meta_sources SET live_since='2026-10-18T20:00:00Z',history_to='2026-10-18T20:00:00Z'").run();
   const queue=(id,mode)=>db.prepare("INSERT INTO crm_delivery(id,project_id,kind,source_id,payload_json,next_attempt_at,created_at) VALUES(?,?,'meta_lead',?,?,?,?)").run(id,p.id,id,JSON.stringify({pageId:'123',formId:'222',sourceMode:mode}),now,now);
   queue('444','reconcile');queue('555','history');
-  env.CRM_FETCH=async raw=>{const u=new URL(raw);if(u.pathname.endsWith('/777'))return Response.json({id:'777',account_id:'999'});const id=u.pathname.split('/').at(-1);return Response.json({id,form_id:'222',created_time:now,ad_id:'777',field_data:[{name:'full_name',values:['Synthetic Name']},{name:'phone_number',values:['+12345']}]});};
+  env.CRM_FETCH=async raw=>{const u=new URL(raw);if(u.pathname.endsWith('/777'))return Response.json({id:'777',account_id:'999'});const id=u.pathname.split('/').at(-1);return Response.json({id,form_id:'222',created_time:id==='555'?'2026-09-01T00:00:00Z':now,ad_id:'777',field_data:[{name:'full_name',values:['Synthetic Name']},{name:'phone_number',values:['+12345']}]});};
   await drain(env);assert.equal(db.prepare("SELECT last_error FROM crm_delivery WHERE id='444'").get().last_error,'lead_account_mismatch');
   assert.equal(db.prepare('SELECT COUNT(*) n FROM leads').get().n,1);const lead=db.prepare('SELECT * FROM leads').get();assert.equal(lead.name,'Synthetic Name');assert.equal(lead.current_status,'Новый');
   assert.equal(db.prepare("SELECT COUNT(*) n FROM crm_delivery WHERE kind='capi'").get().n,0);
@@ -88,13 +88,24 @@ test('CAPI connection cutoff and selected kinds prevent sending old qualificatio
   await drain(env);const errors=db.prepare('SELECT last_error FROM crm_delivery ORDER BY last_error').all().map(x=>x.last_error);assert.deepEqual(errors,['event_before_connection','event_kind_disabled']);
  }finally{db.close();}
 });
+test('qualification-only configuration retains sale statistics without scheduling an unwanted sale event',async()=>{
+ const {env,db}=await setup();try{
+  db.prepare("UPDATE crm_projects SET capi_kinds='qualified'").run();
+  const lead=await ingest(env,p,{email:'synthetic@example.test'},'meta_lead_ads','444');
+  await updateLead(env,p,lead.id,{status:'Квалифицирован',version:1},'synthetic','only-qualified');
+  await updateLead(env,p,lead.id,{status:'Продажа',version:2,value:'10',currency:'EUR'},'synthetic','keep-sale');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM crm_milestones').get().n,2);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM crm_delivery').get().n,1);
+ }finally{db.close();}
+});
 test('explicit page reconnection refreshes a stale cached token from the active app credential',async()=>{
  const {env,db}=await setup();try{
   env.CRM_VERIFY_TOKEN='synthetic-verify';env.META_APP_SECRET='a'.repeat(32);
+  env.CRM_META_ACCESS_TOKEN='synthetic-crm-token';
   let checked=false;
   env.CRM_FETCH=async(raw,options)=>{const u=new URL(raw),path=u.pathname.replace('/v26.0/','');
    if(path==='123456')return Response.json({id:'123456',name:'App'});
-   if(path==='123'){assert.equal(options.headers.authorization,'Bearer synthetic-current-token');return Response.json({id:'123',access_token:'fresh-page'});}
+   if(path==='123'){assert.equal(options.headers.authorization,'Bearer synthetic-crm-token');return Response.json({id:'123',access_token:'fresh-page'});}
    if(path==='debug_token'){assert.equal(u.searchParams.get('input_token'),'fresh-page');checked=true;return Response.json({data:{is_valid:true,app_id:'123456'}});}
    if(path==='me')return Response.json({id:'123',name:'Page'});
    if(path==='123/leadgen_forms')return Response.json({data:[{id:'222'}]});
@@ -104,6 +115,7 @@ test('explicit page reconnection refreshes a stale cached token from the active 
    assert.fail(path);
   };
   const result=await connectDirectMeta(env,p,{pageId:'123',appId:'123456',refreshToken:true,action:'check'});assert.equal(result.leadReadAccess,true);assert.ok(checked);
+  assert.equal(env.META_ADS_ACCESS_TOKEN,'synthetic-current-token');
   assert.equal(await crypt(env,db.prepare('SELECT token_cipher FROM crm_pages').get().token_cipher,true),'synthetic-page');
  }finally{db.close();}
 });
