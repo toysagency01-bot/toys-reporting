@@ -1,7 +1,7 @@
 # Morning reviews in Telegram
 
 The existing morning review is delivered to the explicitly authorized work group
-`-2433853808` through `@agencytoys_bot`. `TELEGRAM_BOT_TOKEN` stays in Worker secrets.
+`-1002433853808` through `@agencytoys_bot`. `TELEGRAM_BOT_TOKEN` stays in Worker secrets.
 No Telegram token, lead contact data, or additional advertising API calls are used
 by the formatter. Only saved project reviews for currently active projects are sent.
 
@@ -83,3 +83,16 @@ an empty delivery queue. The next scheduled verification again returned
 `chat_not_found`; the current configuration remains blocked and the queue empty.
 The bot must be added to the intended group and the Bot API ID confirmed before
 retrying. No code redeployment was needed for this configuration correction.
+
+The user's next screenshot establishes that this is a forum supergroup named
+`TOYS / Project Management`, with Web peer ID `2433853808`; it also shows messages
+from the configured bot in General. The Bot API destination was corrected to
+`-1002433853808`, retaining the same bot and targeting General (no topic override).
+This correction resolves the earlier confusion between Telegram Web peer IDs and
+canonical Bot API supergroup IDs; the scheduled Worker verifies the destination.
+
+Production verification succeeded at `2026-10-19T12:36:20.379Z`: Telegram returned
+the exact canonical ID and title `TOYS / Project Management`. Setup notice 33220
+and all three review parts 33221–33223 were acknowledged, with the review delivery
+marked `sent` at `2026-10-19T12:36:28.694Z`. No error or remaining part is pending.
+The 09:30 Asia/Tbilisi daily schedule remains enabled.

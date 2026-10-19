@@ -21,8 +21,9 @@ if __name__ == '__main__':
         cf.query(pathlib.Path('migrations/0027_telegram_reviews.sql').read_text())
         print(json.dumps({'migration': '0027_telegram_reviews', 'ready': True}))
     elif action == 'enable':
-        # Explicitly authorized by the user in this task. Never guess a -100 prefix.
-        chat, bot = '-2433853808', 'agencytoys_bot'
+        # User's screenshot confirms a forum supergroup, Web peer ID 2433853808.
+        # Bot API uses its canonical supergroup ID; the Worker verifies it before sending.
+        chat, bot = '-1002433853808', 'agencytoys_bot'
         old = query('SELECT chat_id,bot_username FROM agency_telegram_config WHERE organization_id=?', [ORG])
         assert not old or old[0] == {'chat_id': chat, 'bot_username': bot}, 'Destination changed; reconcile before enabling.'
         query("INSERT INTO agency_telegram_config(organization_id,chat_id,bot_username,enabled,state,updated_at) VALUES(?,?,?,1,'pending',strftime('%Y-%m-%dT%H:%M:%fZ','now')) ON CONFLICT(organization_id) DO UPDATE SET enabled=1,state='pending',error_code=NULL,updated_at=excluded.updated_at", [ORG, chat, bot])
