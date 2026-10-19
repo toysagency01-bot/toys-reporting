@@ -18,11 +18,11 @@ export async function capiPayload(env,lead,m,cfg){
  if(/^fb\.\d+\.\d+\./.test(meta.fbc||''))user.fbc=meta.fbc;
  return {event_name:m.kind==='qualified'?cfg.qualified_event:cfg.sale_event,event_time:Math.floor(Date.parse(m.occurred_at)/1000),event_id:m.id,action_source:'system_generated',user_data:user,custom_data:{event_source:'crm',lead_event_source:'TOYS CRM',...(m.kind==='sale'?{value:Number(m.value),currency:m.currency}:{})}};
 }
-async function metaLead(env,job){
+async function metaLead(env,job,timeoutMs=20000){
  const data=parse(job.payload_json),page=await env.TOYS_DB.prepare('SELECT * FROM crm_pages WHERE page_id=? AND project_id=?').bind(data.pageId,job.project_id).first();if(!page?.token_cipher)err('page_token_missing');
  const token=await crypt(env,page.token_cipher,true);
  const params=new URLSearchParams({fields:'id,created_time,ad_id,adset_id,campaign_id,form_id,field_data'});
- const r=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(job.source_id)}?${params}`,{headers:{authorization:'Bearer '+token},redirect:'manual',signal:AbortSignal.timeout(20000)});const d=await r.json();if(!r.ok||d.error)err('meta_'+(d.error?.code||r.status));if(String(d.id)!==job.source_id)err('lead_identity_mismatch');
+ const r=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(job.source_id)}?${params}`,{headers:{authorization:'Bearer '+token},redirect:'manual',signal:AbortSignal.timeout(timeoutMs)});const d=await r.json();if(!r.ok||d.error)err('meta_'+(d.error?.code||r.status));if(String(d.id)!==job.source_id)err('lead_identity_mismatch');
  if(data.formId&&String(d.form_id)!==data.formId)err('lead_form_mismatch');
  const source=await env.TOYS_DB.prepare('SELECT account_id,live_since FROM crm_meta_sources WHERE page_id=? AND project_id=?').bind(data.pageId,job.project_id).first();
  if(source&&data.sourceMode!=='history'){
@@ -31,7 +31,7 @@ async function metaLead(env,job){
  }
  const fields=Object.fromEntries((d.field_data||[]).map(f=>[f.name,Array.isArray(f.values)?f.values[0]:'']));
  let attribution=null,attributionError=null;
- if(d.ad_id){try{const a=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(d.ad_id)}?fields=id,account_id`,{headers:{authorization:'Bearer '+(env.META_ADS_ACCESS_TOKEN||token)},redirect:'manual',signal:AbortSignal.timeout(20000)});const ad=await a.json();if(!a.ok||ad.error)err('meta_'+(ad.error?.code||a.status));if(String(ad.id)!==String(d.ad_id))err('ad_identity_mismatch');attribution={provider:'meta_ads',accountId:ad.account_id,adId:d.ad_id,campaignId:d.campaign_id,adsetId:d.adset_id};}catch(e){attributionError=e;}}
+ if(d.ad_id){try{const a=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(d.ad_id)}?fields=id,account_id`,{headers:{authorization:'Bearer '+(env.META_ADS_ACCESS_TOKEN||token)},redirect:'manual',signal:AbortSignal.timeout(timeoutMs)});const ad=await a.json();if(!a.ok||ad.error)err('meta_'+(ad.error?.code||a.status));if(String(ad.id)!==String(d.ad_id))err('ad_identity_mismatch');attribution={provider:'meta_ads',accountId:ad.account_id,adId:d.ad_id,campaignId:d.campaign_id,adsetId:d.adset_id};}catch(e){attributionError=e;}}
 
  // Live intake is account-scoped; page-history import may contain organic leads.
  if(source&&data.sourceMode!=='history'){
@@ -42,7 +42,7 @@ async function metaLead(env,job){
  const lead=await ingest(env,p,{name:fields.full_name||[fields.first_name,fields.last_name].filter(Boolean).join(' '),email:fields.email,phone:fields.phone_number,createdAt:d.created_time,sourceAdId:d.ad_id,pageId:data.pageId,formId:d.form_id,adAttribution:attribution,formAnswers:d.field_data,budget:fields.budget,contactMethod:fields.contact_method},'meta_lead_ads',d.id);
  if(attributionError)throw attributionError;return lead;
 }
-export async function drain(env,{budgetMs=24000}={}){
+export async function drain(env,{budgetMs=8000}={}){
  const started=Date.now();
  const n=now();const jobs=(await env.TOYS_DB.prepare("SELECT * FROM crm_delivery WHERE (state IN ('pending','error') AND next_attempt_at<=? AND attempts<8) OR (state='processing' AND lease_until<?) ORDER BY CASE WHEN kind='capi' THEN 0 WHEN json_extract(payload_json,'$.sourceMode')='history' THEN 2 ELSE 1 END,created_at LIMIT 15").bind(n,n).all()).results||[];
  for(const job of jobs){
@@ -50,7 +50,7 @@ export async function drain(env,{budgetMs=24000}={}){
  const lease=crypto.randomUUID(),deadline=new Date(Date.now()+120000).toISOString();
  const claim=await env.TOYS_DB.prepare("UPDATE crm_delivery SET state='processing',lease_until=?,attempts=attempts+1,last_error=? WHERE id=? AND ((state IN ('pending','error') AND next_attempt_at<=? AND attempts<8) OR (state='processing' AND lease_until<?))").bind(deadline,lease,job.id,n,n).run();if(!claim.meta?.changes)continue;
  try{
- if(job.kind==='meta_lead')await metaLead(env,job);
+ if(job.kind==='meta_lead')await metaLead(env,job,budgetMs<30000?8000:20000);
  else{
  const cfg=await env.TOYS_DB.prepare('SELECT * FROM crm_projects WHERE project_id=?').bind(job.project_id).first();if(!cfg?.capi_enabled||!cfg.dataset_id||!cfg.capi_token_cipher)err('capi_not_configured');
  const m=await env.TOYS_DB.prepare('SELECT * FROM crm_milestones WHERE id=? AND project_id=?').bind(job.source_id,job.project_id).first();const lead=await env.TOYS_DB.prepare('SELECT * FROM leads WHERE id=? AND project_id=?').bind(job.lead_id,job.project_id).first();if(!m||!lead)err('crm_event_missing');if(lead.deleted_at)err('lead_deleted');

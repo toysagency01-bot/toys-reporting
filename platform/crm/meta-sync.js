@@ -45,6 +45,7 @@ export async function runMetaLeadSync(env,at=Date.now()){
   try{
    let stage='connect';
    try{
+    await configureCapi(env,source,n);
     if(!source.connected_at){
      await connectDirectMeta(env,{id:source.project_id},{pageId:source.page_id,appId:source.app_id,refreshToken:true});
      await env.TOYS_DB.prepare("UPDATE crm_meta_sources SET connected_at=?,state='ready' WHERE page_id=? AND lease_token=?").bind(n,source.page_id,lease).run();
@@ -52,7 +53,6 @@ export async function runMetaLeadSync(env,at=Date.now()){
     const page=await env.TOYS_DB.prepare('SELECT token_cipher,project_id FROM crm_pages WHERE page_id=?').bind(source.page_id).first();
     if(page?.project_id!==source.project_id)fail('page_scope_changed');
     const token=await crypt(env,page.token_cipher,true);
-    await configureCapi(env,source,n);
     if(source.forms_cursor||!source.forms_checked_at||at-Date.parse(source.forms_checked_at)>=6*3600000){
      stage='forms';
      const response=await meta(env,source.page_id+'/leadgen_forms',token,{query:{fields:'id,name,status',limit:'100',...(source.forms_cursor?{after:source.forms_cursor}:{})}});
@@ -89,6 +89,8 @@ export async function runMetaLeadSync(env,at=Date.now()){
    await env.TOYS_DB.prepare("UPDATE crm_meta_sources SET state='ready',last_error=NULL,attempts=0,next_attempt_at=?,last_scan_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE page_id=? AND lease_token=?").bind(iso(at+120000),n,n,source.page_id,lease).run();
   }catch(e){
    const error=(e.syncStage||'sync')+':'+safeError(e)+(Number.isInteger(e.metaSubcode)?':'+e.metaSubcode:'')+(e.metaOperation?'@'+e.metaOperation:'');
+   // Only identifiers and permission names; never provider messages or tokens.
+   if(e.metaDiagnostics)await env.TOYS_DB.prepare('UPDATE projects SET settings_json=json_set(settings_json,\'$.crmMetaDiagnostics\',json(?)) WHERE id=?').bind(JSON.stringify({...e.metaDiagnostics,requiredPermissions:e.metaPermissions||[],checkedAt:n}),source.project_id).run();
    await env.TOYS_DB.prepare("UPDATE crm_meta_sources SET state='error',last_error=?,attempts=attempts+1,next_attempt_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE page_id=? AND lease_token=?").bind(error,iso(at+Math.min(3600000,120000*2**Math.min(source.attempts,5))),n,source.page_id,lease).run();
   }
  }

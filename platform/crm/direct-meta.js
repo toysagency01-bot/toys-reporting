@@ -7,12 +7,13 @@ export async function meta(env,path,token,{query={},body=null}={}){
  if(!['debug_token','me'].includes(path)&&!/^\d+(?:\/(?:subscriptions|subscribed_apps|leadgen_forms|leads))?$/.test(path)&&!/^act_\d+\/adspixels$/.test(path))fail('invalid_graph_path');
  const url=new URL('https://graph.facebook.com/v26.0/'+path);url.search=new URLSearchParams(query).toString();
  const response=await (env.CRM_FETCH||fetch)(url.href,{method:body?'POST':'GET',headers:{authorization:'Bearer '+token,...(body?{'content-type':'application/x-www-form-urlencoded'}:{})},...(body?{body:new URLSearchParams(body)}:{}),redirect:'manual',signal:AbortSignal.timeout(20000)});
- const data=await response.json().catch(()=>({}));if(!response.ok||data.error)throw Object.assign(new Error('Meta request failed'),{code:'meta_'+(data.error?.code||response.status),status:502,metaSubcode:data.error?.error_subcode||null,metaOperation:path.replace(/^(act_)?\d+/, 'object')});return data;
+ const data=await response.json().catch(()=>({}));if(!response.ok||data.error)throw Object.assign(new Error('Meta request failed'),{code:'meta_'+(data.error?.code||response.status),status:502,metaSubcode:data.error?.error_subcode||null,metaOperation:path.replace(/^(act_)?\d+/, 'object'),metaPermissions:['leads_retrieval','pages_read_engagement','pages_manage_metadata','pages_show_list','ads_management','business_management'].filter(p=>String(data.error?.message||'').includes(p))});return data;
 }
 
 // This operates only on a page explicitly selected by a project administrator.
 // An existing callback belonging to another integration is never replaced.
 export async function connectDirectMeta(env,p,body){
+ const diagnostics={};try{
  if(body.action&&!['check','connect'].includes(body.action))fail('invalid_action');
  const pageId=String(body.pageId||'');if(!/^\d{1,30}$/.test(pageId))fail('page_id_required');
  const page=await env.TOYS_DB.prepare('SELECT * FROM crm_pages WHERE page_id=?').bind(pageId).first();
@@ -37,6 +38,7 @@ export async function connectDirectMeta(env,p,body){
   token=candidate.access_token;
  }
  const debug=await meta(env,'debug_token',appToken,{query:{input_token:token}});
+ Object.assign(diagnostics,{appId,pageId,systemUserId:String(debug.data?.user_id||''),scopes:Array.isArray(debug.data?.scopes)?debug.data.scopes.filter(s=>typeof s==='string'):[]});
  if(!debug.data?.is_valid||String(debug.data.app_id)!==appId)fail('page_token_app_mismatch');
  const identity=await meta(env,'me',token,{query:{fields:'id,name'}});if(String(identity.id)!==pageId)fail('page_identity_mismatch');
  const forms=await meta(env,pageId+'/leadgen_forms',token,{query:{fields:'id,name,status',limit:'1'}});
@@ -69,4 +71,5 @@ export async function connectDirectMeta(env,p,body){
   env.TOYS_DB.prepare('DELETE FROM crm_meta_inbox WHERE page_id=? AND leadgen_id=?').bind(pageId,item.leadgen_id)
  ]);
  return {ok:true,pageId,pageName:identity.name,appId,callbackReady:true,pageReady:true,state:'awaiting_lead'};
+ }catch(e){e.metaDiagnostics=diagnostics;throw e;}
 }

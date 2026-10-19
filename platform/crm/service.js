@@ -72,7 +72,7 @@ export async function updateLead(env,p,id,body,actor,key){
  ];
  if(kind){const milestone='crm_'+await hash(id+':'+kind);changes.push(
  db.prepare('INSERT INTO crm_milestones(id,project_id,lead_id,kind,occurred_at,value,currency) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?) ON CONFLICT(lead_id,kind) DO NOTHING').bind(milestone,p.id,id,kind,n,value,currency,id,event),
- db.prepare(`INSERT INTO crm_delivery(id,project_id,lead_id,kind,source_id,payload_json,next_attempt_at,created_at) SELECT ?,?,?,'capi',?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?) ON CONFLICT(project_id,kind,source_id) DO NOTHING`).bind(milestone,p.id,id,milestone,JSON.stringify({milestoneId:milestone}),n,n,id,event));}
+ db.prepare(`INSERT INTO crm_delivery(id,project_id,lead_id,kind,source_id,payload_json,next_attempt_at,created_at) SELECT ?,?,?,'capi',?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?) AND instr(','||COALESCE((SELECT capi_kinds FROM crm_projects WHERE project_id=?),'qualified,sale')||',',','||?||',')>0 ON CONFLICT(project_id,kind,source_id) DO NOTHING`).bind(milestone,p.id,id,milestone,JSON.stringify({milestoneId:milestone}),n,n,id,event,p.id,kind));}
  changes.push(db.prepare('INSERT INTO crm_write_keys(project_id,request_key,request_hash,response_json,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(p.id,key,requestHash,JSON.stringify(response),n,id,event));
  const results=await db.batch(changes);if(!results[1].meta?.changes)fail('version_conflict',409);return response;
 }
