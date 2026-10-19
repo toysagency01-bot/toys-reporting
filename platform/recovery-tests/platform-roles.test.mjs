@@ -22,6 +22,8 @@ test('team master, reports and CRM are limited to assigned projects; clients can
   for(const path of ['/amklinika-k8m2/','/api/v2/master/projects/amklinika-k8m2/summary?from=2026-10-01&to=2026-10-16',...['dashboard','crm','weekly-reports','content/tabs','content?logicalKey=weekly-main','content/weekly-main/attachments/unknown'].map(p=>'/api/v2/projects/amklinika-k8m2/'+p)])assert.equal((await call('team',path)).status,403,path);
   for(const path of [base+'/crm/connections','/api/v2/master/discover-pages'])assert.equal((await call('team',path,path.endsWith('pages')?{}:null)).status,403);
   assert.equal((await call('admin',base+'/crm/connections')).status,200);
+  assert.equal((await call('admin','/api/v2/master/daily-review/telegram')).status,200);
+  for(const who of ['team','empty','client'])assert.equal((await call(who,'/api/v2/master/daily-review/telegram')).status,403);
   const lead=await(await call('team',base+'/crm',{name:'Team lead',phone:'+12345',source:'manual'})).json();assert.ok(lead.lead?.id);
   const listed=await(await call('team',base+'/crm')).json(),leadVersion=listed.leads.find(l=>l.id===lead.lead.id).version;
   const update=await call('team',base+'/crm/leads/'+lead.lead.id,{status:'В работе',version:leadVersion},'PATCH');assert.equal(update.status,200,await update.text());
