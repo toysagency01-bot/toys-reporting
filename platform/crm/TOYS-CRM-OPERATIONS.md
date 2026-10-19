@@ -96,3 +96,13 @@ and signed webhook intake remain intact. Repeating the same start date resumes
 without resetting progress. The scheduled scan processes up to 20 form pages
 within a 60-second budget, then drains up to 50 jobs within 120 seconds. Live
 and CAPI jobs remain ahead of historical jobs. The webhook's short drain is unchanged.
+
+Backfill completed 2026-10-19 after the 09:38 UTC scan: 41/41 forms fully
+paginated, 50 unique Meta lead IDs delivered and present in CRM (49 new cards
+plus one pre-existing live-day card), zero pending/error/blocked deliveries.
+All cards have a name and at least a phone or email. No records precede the
+approved September cutoff, no unmatched delivered IDs, and no CRM milestones
+were created. Earliest lead returned was 2026-09-09T07:33:24Z. This verifies
+all data returned by Meta for the requested period, not data Meta may no longer
+retain. Runtime/UI validation: 162 unit/runtime tests and two admin CRM browser
+tests passed before this backfill deployment.

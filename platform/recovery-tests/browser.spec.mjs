@@ -42,7 +42,7 @@ test('kanban moves persist, sales need an amount, search and mobile stay usable'
  await page.screenshot({path:'dist/crm-kanban-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.locator('#leadsBoard').evaluate(el=>el.scrollLeft=el.scrollWidth);await expect(card).toBeVisible();await card.click();await expect(page.locator('#leadForm')).toBeVisible();
 });
-test('dense kanban shows contacts, filters received dates and reaches final stages using visible navigation',async({page,request})=>{
+test('dense kanban scrolls the page, shows full contacts and preserves date filters and horizontal navigation',async({page,request})=>{
  const api='/api/v2/projects/housevip-cxp7/crm';
  for(let i=0;i<30;i++){
   const r=await request.post(api,{headers:{'x-idempotency-key':'dense-lead-'+i,origin:'http://127.0.0.1:4173'},data:{name:'Dense contact '+i,phone:'+99555501'+String(i).padStart(4,'0'),email:'dense'+i+'@example.test'}});expect(r.ok(),await r.text()).toBe(true);
@@ -51,20 +51,29 @@ test('dense kanban shows contacts, filters received dates and reaches final stag
  await expect(page.locator('#allDates')).toHaveClass('active');await expect(page.locator('#platformClientCRM #dateFrom')).toHaveValue('');await page.locator('#search').fill('Dense contact');
  await expect(page.locator('#leadCount')).toHaveText('30');await expect(page.locator('.lead-card')).toHaveCount(25);
  const column=page.locator('[data-stage="Новый"]'),cards=column.locator('.lead-card');
- expect(await column.locator('.stage-cards').evaluate(e=>e.scrollHeight>e.clientHeight)).toBe(true);
+ expect(await column.locator('.stage-cards').evaluate(e=>e.scrollHeight<=e.clientHeight+1)).toBe(true);
+ await cards.first().hover();await page.mouse.wheel(0,800);await expect.poll(()=>page.evaluate(()=>scrollY)).toBeGreaterThan(400);
+ expect(await column.locator('.stage-cards').evaluate(e=>e.scrollTop)).toBe(0);
  expect(await cards.evaluateAll(cards=>cards.every(c=>{const r=c.getBoundingClientRect(),name=c.querySelector('strong').getBoundingClientRect(),phone=c.querySelector('.lead-phone').getBoundingClientRect();return r.height>110&&name.top>=r.top&&phone.bottom<=r.bottom;}))).toBe(true);
  await cards.last().scrollIntoViewIfNeeded();await expect(cards.last().locator('.lead-phone')).toBeInViewport();await column.getByRole('button',{name:/Показать ещё/}).click();await expect(page.locator('.lead-card')).toHaveCount(30);
- const slider=page.getByRole('slider',{name:'Прокрутка этапов'});await expect(slider).toBeVisible();await slider.focus();await slider.press('End');await expect(page.locator('[data-stage="Потерян"] .stage-heading')).toBeInViewport();await expect(page.locator('[data-stage="Не подходит"] .stage-heading')).toBeInViewport();
+ const slider=page.getByRole('slider',{name:'Прокрутка этапов'});await expect(slider).toBeInViewport();await page.evaluate(()=>scrollTo(0,0));await slider.focus();await slider.press('End');await expect(page.locator('[data-stage="Потерян"] .stage-heading')).toBeInViewport();await expect(page.locator('[data-stage="Не подходит"] .stage-heading')).toBeInViewport();
  await page.getByRole('button',{name:'Предыдущие этапы',exact:true}).click();await expect.poll(async()=>Number(await slider.inputValue())).toBeLessThan(1000);
- await slider.focus();await slider.press('Home');await expect(column.locator('.stage-heading')).toBeInViewport();await column.locator('.stage-cards').evaluate(e=>e.scrollTop=0);
+ await slider.focus();await slider.press('Home');await expect(column.locator('.stage-heading')).toBeInViewport();
  await page.getByRole('button',{name:'Сегодня',exact:true}).click();await expect(page.locator('#boardCaption')).toContainText('Поступили');await expect(page.locator('#leadCount')).toHaveText('30');
  await page.locator('#platformClientCRM #platformCalendar').click();await page.locator('[data-date="2026-10-01"]').click();await page.locator('[data-date="2026-10-02"]').click();await page.getByRole('button',{name:'Применить',exact:true}).click();await expect(page.locator('#leadCount')).toHaveText('0');await expect(page.locator('#boardCaption')).toContainText('01.10.2026 — 02.10.2026');
  await page.locator('#allDates').click();await expect(page.locator('#leadCount')).toHaveText('30');await expect(page.locator('#platformClientCRM #platformCalendar')).toHaveText('Выбрать период');
- await page.locator('#theme').click();await page.screenshot({path:'dist/crm-dense-1440.png',fullPage:true});
+ await page.locator('#theme').click();await page.screenshot({path:'dist/crm-dense-1440.png',animations:'disabled'});
  await page.setViewportSize({width:1920,height:1080});
  expect(await page.locator('#leadsBoard').evaluate(el=>{const r=el.getBoundingClientRect();return r.width>=1690&&r.right>innerWidth-24;})).toBe(true);await expect(page.locator('[data-stage="Потерян"] .stage-heading')).toBeInViewport();
- await page.screenshot({path:'dist/crm-wide-1920.png',fullPage:true});
+ await page.screenshot({path:'dist/crm-wide-1920.png',animations:'disabled'});
  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await slider.focus();await slider.press('End');await expect(page.locator('[data-stage="Потерян"] .stage-heading')).toBeInViewport();
+ await slider.press('Home');await cards.last().scrollIntoViewIfNeeded();expect(await page.evaluate(()=>scrollY)).toBeGreaterThan(1000);
+ expect(await column.locator('.stage-cards').evaluate(e=>e.scrollHeight<=e.clientHeight+1&&e.scrollTop===0)).toBe(true);
+ await expect(slider).toBeInViewport();await page.screenshot({path:'dist/crm-page-scroll-mobile.png',animations:'disabled'});
+ await page.setViewportSize({width:1440,height:1000});await page.goto('/master/#crm');await page.locator('#search').fill('Dense contact');await expect(page.locator('#leadCount')).toHaveText('30');
+ await page.locator('.lead-card').last().scrollIntoViewIfNeeded();expect(await page.evaluate(()=>scrollY)).toBeGreaterThan(1000);
+ expect(await page.locator('[data-stage="Новый"] .stage-cards').evaluate(e=>e.scrollHeight<=e.clientHeight+1&&e.scrollTop===0)).toBe(true);
+ await expect(page.getByRole('slider',{name:'Прокрутка этапов'})).toBeInViewport();
 });
 
 test('kanban counters update for current statuses and sale edits and persist separate master date ranges',async({page})=>{
