@@ -14,7 +14,7 @@ by the formatter. Only saved project reviews for currently active projects are s
 - Activation verifies `getMe` and the exact `getChat` ID/type, then sends one setup
   notice and today's review if available. A prior day's report never substitutes
   for today's missing report. Supergroup prefixes are not guessed.
-- Plain-text messages are split at project boundaries below 4096 UTF-16 units;
+- HTML messages are split at project boundaries below 4096 UTF-16 units;
   Telegram link previews are disabled. Priority, account-local dates, currencies,
   aggregate account metrics, the leading finding's scope/evidence/action, CRM
   milestones and project links are included. Long details remain in the master.
@@ -96,3 +96,29 @@ the exact canonical ID and title `TOYS / Project Management`. Setup notice 33220
 and all three review parts 33221–33223 were acknowledged, with the review delivery
 marked `sent` at `2026-10-19T12:36:28.694Z`. No error or remaining part is pending.
 The 09:30 Asia/Tbilisi daily schedule remains enabled.
+
+## Client-only scope and message layout update
+
+TOYS AGENCY (`prj_toys_agency_ctft` / `toys-agency-ctft`) is excluded by a shared
+review policy before analysis and from historical API responses, Telegram
+formatting and cached browser rendering. Project status, advertising imports,
+CRM and normal dashboard access are unchanged. Priority counts include clients
+only; the current digest contains 11 projects.
+
+Messages use escaped Telegram HTML: bold project names, priorities, key metrics,
+and action headings; italic context; linked dashboard labels; plain separators.
+Project cards contain no decorative emoji. HTML tags/entities remain intact at
+message boundaries, including extreme-length untrusted text. New outbox entries
+record their HTML parse mode; legacy string entries remain plain text.
+
+Explicit edit jobs can update an acknowledged message in the same group and bot
+scope. A target must already exist in a completed delivery's message IDs. These
+jobs use `editMessageText`, handle Telegram's “message is not modified” response,
+and never reset the daily send record. Today's three original messages are the
+targets for the `2026-10-19:layout-v2` job, avoiding a duplicate digest.
+
+Validation: 180 recovery tests passed, plus the two added HTML-boundary and
+owned-message-edit tests (13 delivery tests passed together). Three browser QA
+scenarios passed for desktop, mobile, cache/reload and history, with an old
+payload still containing TOYS AGENCY. A 390px message rendering preview had no
+horizontal overflow; all 11 project links fit into three messages.

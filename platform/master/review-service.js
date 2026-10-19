@@ -1,6 +1,7 @@
 import {readAdsSnapshot,scopeKey} from '../imports/ads-store.js';
 import {analyzeProject,localDay,reviewPeriods,reviewDue,PRIORITY,REVIEW_METHOD} from './review-model.js';
 import {dateShift} from '../unified/model.js';
+import {reviewProjectIncluded} from './review-scope.js';
 
 const ORG='org_toys_agency',iso=at=>new Date(at).toISOString();
 const rows=async(db,sql,...args)=>(await db.prepare(sql).bind(...args).all()).results||[];
@@ -51,7 +52,7 @@ async function loadCRM(db,project,sources,reportDate){
 }
 export async function generateDailyReviews(db,reportDate,now=Date.now()){
  if(!validReviewDate(reportDate))throw Error('Invalid review date');
- const projects=await rows(db,"SELECT id,slug,name,project_type AS type,timezone,currency FROM projects WHERE organization_id=? AND status='active' ORDER BY name",ORG);
+ const projects=(await rows(db,"SELECT id,slug,name,project_type AS type,timezone,currency FROM projects WHERE organization_id=? AND status='active' ORDER BY name",ORG)).filter(reviewProjectIncluded);
  const integrations=await rows(db,"SELECT i.id,i.project_id,i.provider,i.external_account_id,i.config_json FROM integrations i JOIN projects p ON p.id=i.project_id WHERE p.organization_id=? AND p.status='active' AND i.status='active' AND i.provider IN ('meta_ads','google_ads')",ORG);
  const reports=[];
  // Bounded concurrency keeps D1/Worker subrequests below the platform limit.
@@ -96,7 +97,7 @@ export async function dailyReviewResponse(db,date=null,now=Date.now()){
  const history=await rows(db,`SELECT report_date AS date,state,generated_at AS generatedAt FROM agency_daily_reviews WHERE organization_id=? AND generated_at IS NOT NULL ORDER BY report_date DESC LIMIT 30`,ORG);
  const selected=date||history[0]?.date||null;
  const stored=selected?await rows(db,`SELECT r.payload_json FROM agency_project_reviews r JOIN projects p ON p.id=r.project_id WHERE r.organization_id=? AND r.report_date=? AND p.organization_id=? AND p.status='active'`,ORG,selected,ORG):[];
- const reports=stored.map(r=>JSON.parse(r.payload_json)).sort((a,b)=>PRIORITY[a.priority]-PRIORITY[b.priority]||a.project.name.localeCompare(b.project.name));
+ const reports=stored.map(r=>JSON.parse(r.payload_json)).filter(r=>reviewProjectIncluded(r.project)).sort((a,b)=>PRIORITY[a.priority]-PRIORITY[b.priority]||a.project.name.localeCompare(b.project.name));
  const today=localDay(now),slot=today+'T05:30:00.000Z',nextRunAt=now<Date.parse(slot)?slot:dateShift(today,1)+'T05:30:00.000Z';
  const currentRun=await db.prepare('SELECT state,attempts,next_attempt_at AS nextAttemptAt FROM agency_daily_reviews WHERE organization_id=? AND report_date=?').bind(ORG,today).first();
  return {ok:true,method:REVIEW_METHOD,schedule:{time:'09:30',timeZone:'Asia/Tbilisi',nextRunAt},today,reportDate:selected,history,reports,currentRun,counts:Object.fromEntries(Object.keys(PRIORITY).map(key=>[key,reports.filter(r=>r.priority===key).length]))};

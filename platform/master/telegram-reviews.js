@@ -1,46 +1,58 @@
 import {dailyReviewResponse} from './review-service.js';
 import {localDay,PRIORITY} from './review-model.js';
+import {reviewProjectIncluded} from './review-scope.js';
 
 const ORG='org_toys_agency',iso=at=>new Date(at).toISOString();
-const labels={critical:'🔴 Срочно',attention:'🟠 Обратить внимание',healthy:'🟢 Стабильно',insufficient:'⚪ Мало данных'};
+const labels={critical:'СРОЧНО',attention:'ОБРАТИТЬ ВНИМАНИЕ',healthy:'СТАБИЛЬНО',insufficient:'МАЛО ДАННЫХ'};
 const number=value=>typeof value==='number'&&Number.isFinite(value)?new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(value):'—';
 const clip=(value,max)=>{const s=String(value??'');if(s.length<=max)return s;return s.slice(0,max-1).replace(/[\uD800-\uDBFF]$/,'')+'…';};
 const channel=provider=>provider==='meta_ads'?'Meta Ads':provider==='google_ads'?'Google Ads':'Источник';
+const escape=value=>String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// Bound escaped text, never cut a Telegram entity or an HTML tag in half.
+const html=(value,max=500)=>{let out='';for(const c of String(value??'')){const part=escape(c);if(out.length+part.length>max-1)return out+'…';out+=part;}return out;};
+const n=value=>html(number(value),35);
+const day=value=>/^\d{4}-\d{2}-\d{2}$/.test(value||'')?value.split('-').reverse().join('.'):html(value||'дата не подтверждена',40);
+const separator='━━━━━━━━━━━━━━━━';
 
-// Plain text is intentional: account/campaign names cannot inject Telegram markup.
-// Every fragment fits Telegram's limit even when measured in UTF-16 code units.
 export function formatTelegramReview(review){
- const reports=[...review.reports].sort((a,b)=>(PRIORITY[a.priority]??9)-(PRIORITY[b.priority]??9)||a.project.name.localeCompare(b.project.name));
- const counts=Object.keys(labels).map(k=>`${labels[k]}: ${reports.filter(r=>r.priority===k).length}`).join(' · ');
- const generated=review.reports[0]?.generatedAt;
+ const reports=review.reports.filter(r=>reviewProjectIncluded(r.project)).sort((a,b)=>(PRIORITY[a.priority]??9)-(PRIORITY[b.priority]??9)||a.project.name.localeCompare(b.project.name));
+ const generated=reports[0]?.generatedAt;
  const stamp=generated&&Number.isFinite(Date.parse(generated))?new Intl.DateTimeFormat('ru-RU',{timeZone:'Asia/Tbilisi',dateStyle:'short',timeStyle:'short'}).format(new Date(generated))+' · Тбилиси':review.reportDate;
- const header=`TOYS · Утренний обзор · ${review.reportDate}\nПроектов: ${reports.length}\n${counts}\nПоследний закрытый день каждого кабинета; сравнение с предыдущими 7 днями.\n${reports.some(r=>r.incomplete)?'⚠️ Есть неполные данные. Пробелы не считаются нулевыми результатами.\n':''}Сформирован: ${stamp}.`;
- const blocks=[header];
+ const counts=[['critical','Срочно'],['attention','Внимание'],['healthy','Стабильно'],['insufficient','Мало данных']].map(([k,label])=>`${label}: <b>${reports.filter(r=>r.priority===k).length}</b>`).join(' · ');
+ const blocks=[`<b>УТРЕННИЙ ОБЗОР</b>\n${day(review.reportDate)} · <b>${reports.length} проектов</b>\n\n${counts}\n\nПоследний закрытый день каждого кабинета; сравнение с предыдущими 7 днями.\n${reports.some(r=>r.incomplete)?'<b>Есть неполные данные.</b> Пробелы не считаются нулевыми результатами.\n':''}<i>Сформирован: ${html(stamp,100)}</i>`];
  for(const report of reports){
-  const finding=report.findings?.[0];
-  const scope=finding?.level==='ad'?'объявление':finding?.level==='group'?'группа объявлений':finding?.level==='campaign'?'кампания':'кабинет';
-  const lines=[`${labels[report.priority]||labels.insufficient} · ${clip(report.project.name,120)}`,clip(report.headline,220)];
-  if(finding?.provider)lines.push(`Сигнал: ${channel(finding.provider)} · ${scope}`);
+  const finding=report.findings?.[0],scope=finding?.level==='ad'?'объявление':finding?.level==='group'?'группа объявлений':finding?.level==='campaign'?'кампания':'кабинет';
+  const lines=[`<b>${html(report.project.name,120)}</b> · <b>${labels[report.priority]||labels.insufficient}</b>`,`<b>${html(report.headline,240)}</b>`,''];
   for(const account of (report.accounts||[]).slice(0,4)){
-   const prefix=`${channel(account.provider)} · ${account.periods?.day?.to||'дата не подтверждена'} · ${account.currency||'валюта не подтверждена'}`;
-   if(!account.available||!account.day||account.issues?.length){lines.push(`${prefix}: данные неполные — оценка эффективности отложена.`);continue;}
+   lines.push(`<b>${channel(account.provider)}</b> · ${day(account.periods?.day?.to)} · ${html(account.currency||'валюта не подтверждена',45)}`);
+   if(!account.available||!account.day||account.issues?.length){lines.push('данные неполные — оценка эффективности отложена.','');continue;}
    const d=account.day;
-   lines.push(`${prefix} · весь кабинет\nРасход ${number(d.spend)} · Результаты ${number(d.conversions)} · Цена результата ${number(d.cpa)} · CTR ${number(d.ctr)}${d.ctr!=null?'%':''}${report.project.type==='ecommerce'&&d.roas!=null?' · ROAS '+number(d.roas):''}`);
+   lines.push(`Расход: <b>${n(d.spend)}</b> · Результаты: <b>${n(d.conversions)}</b>`,
+    `Цена результата: <b>${n(d.cpa)}</b> · CTR: ${n(d.ctr)}${d.ctr!=null?'%':''}${report.project.type==='ecommerce'&&d.roas!=null?' · ROAS: <b>'+n(d.roas)+'</b>':''}`,'<i>Показатели всего кабинета</i>','');
   }
-  if((report.accounts||[]).length>4)lines.push('Остальные кабинеты — в полном обзоре.');
-  if(finding?.path?.length)lines.push('Где: '+clip(finding.path.map(p=>p.name).join(' → '),260));
-  if(finding?.evidence)lines.push(clip(finding.evidence,500));
-  if(finding?.period)lines.push(`Период сигнала: ${finding.period.from} — ${finding.period.to}`);
-  lines.push('Действие: '+clip(report.recommendation,650));
-  if(report.crm?.available)lines.push(`CRM · ${report.crm.period?.to||'закрытый день'}: первые квалификации ${number(report.crm.qualified)} · продажи ${number(report.crm.sales)}`);
-  if(report.findingCount>1)lines.push(`Ещё сигналов: ${report.findingCount-1} — в полном обзоре.`);
-  blocks.push(clip(lines.join('\n'),3100)+'\nhttps://reports.toys-agency.com/'+encodeURIComponent(report.project.slug)+'/');
+  if((report.accounts||[]).length>4)lines.push('Остальные кабинеты — в полном обзоре.','');
+  if(finding){
+   lines.push(`<b>На что обратить внимание</b>${finding.provider?' · '+channel(finding.provider)+' · '+scope:''}`);
+   if(finding.path?.length)lines.push(html(finding.path.map(p=>p.name).join(' → '),280));
+   if(finding.evidence)lines.push(html(finding.evidence,520));
+   if(finding.period)lines.push(`<i>Период: ${day(finding.period.from)} — ${day(finding.period.to)}</i>`);
+   lines.push('');
+  }
+  lines.push('<b>Что сделать</b>',html(report.recommendation,700));
+  if(report.crm?.available)lines.push('',`<b>CRM</b> · ${day(report.crm.period?.to)}: первые квалификации <b>${n(report.crm.qualified)}</b> · продажи <b>${n(report.crm.sales)}</b>`);
+  if(report.findingCount>1)lines.push(`<i>Ещё сигналов: ${n(report.findingCount-1)} — в полном обзоре.</i>`);
+  lines.push('',`<a href="https://reports.toys-agency.com/${encodeURIComponent(report.project.slug)}/">Открыть дашборд →</a>`);
+  // Normally one intact project block. Extreme-length content continues safely
+  // between complete lines/tags rather than exceeding Telegram's message limit.
+  let block='';
+  for(const line of lines){if(block.length+line.length+1>3300){blocks.push(block);block=`<b>${html(report.project.name,120)} · продолжение</b>\n`;}block+=(block?'\n':'')+line;}
+  if(block)blocks.push(block);
  }
- blocks.push('Полный обзор и история: https://reports.toys-agency.com/master/#reviews\nДанные могут уточняться из-за задержки атрибуции. Рекламные настройки автоматически не меняются.');
- const parts=[];let text='';
- for(const block of blocks){if(text&&text.length+block.length+2>3600){parts.push(text);text='';}text+=(text?'\n\n':'')+block;}
+ blocks.push('<a href="https://reports.toys-agency.com/master/#reviews"><b>Полный обзор и история →</b></a>\n\n<i>Атрибуция может уточняться. Рекламные настройки автоматически не меняются.</i>');
+ const parts=[];let text='';const divider='\n\n'+separator+'\n\n';
+ for(const block of blocks){if(text&&text.length+block.length+divider.length>3700){parts.push(text);text='';}text+=(text?divider:'')+block;}
  if(text)parts.push(text);
- return parts.map((part,i)=>parts.length>1?`[${i+1}/${parts.length}] ${part}`:part);
+ return parts.map((part,i)=>parts.length>1?`<i>${i+1} / ${parts.length}</i>\n\n${part}`:part);
 }
 
 async function telegram(env,method,body,fetcher){
@@ -53,6 +65,7 @@ async function telegram(env,method,body,fetcher){
   let result;try{result=await response.json();}catch{return {ok:false,code:'telegram_response_invalid',uncertain:true};}
   if(response.ok&&result.ok===true)return {ok:true,result:result.result};
   const status=Number(result.error_code||response.status);
+  if(status===400&&method==='editMessageText'&&String(result.description).toLowerCase().includes('message is not modified'))return {ok:true,result:{message_id:body.message_id,chat:{id:body.chat_id}}};
   if(status===429)return {ok:false,code:'rate_limited',retryAfter:Math.max(1,Math.min(86400,Number(result.parameters?.retry_after)||60))};
   if(status===401)return {ok:false,code:'token_invalid'};
   if(status===403)return {ok:false,code:'bot_forbidden'};
@@ -63,7 +76,7 @@ async function telegram(env,method,body,fetcher){
 
 async function enqueue(db,config,key,messages,at){
  return db.prepare(`INSERT OR IGNORE INTO agency_telegram_deliveries(organization_id,delivery_key,chat_id,bot_username,messages_json,created_at) VALUES(?,?,?,?,?,?)`)
-  .bind(ORG,key,config.chat_id,config.bot_username,JSON.stringify(messages),iso(at)).run();
+  .bind(ORG,key,config.chat_id,config.bot_username,JSON.stringify(messages.map(text=>({text,parse_mode:'HTML'}))),iso(at)).run();
 }
 
 export async function runTelegramReviews(env,at=Date.now(),{fetcher=fetch,now=()=>Date.now()}={}){
@@ -110,7 +123,14 @@ export async function runTelegramReviews(env,at=Date.now(),{fetcher=fetch,now=()
    .bind(token,iso(now()+60000),ORG,job.delivery_key,job.next_part).run();
   if(!claimed.meta?.changes)return {state:'busy'};
   const messages=JSON.parse(job.messages_json);
-  const response=await telegram(env,'sendMessage',{chat_id:job.chat_id,text:messages[job.next_part],link_preview_options:{is_disabled:true}},fetcher);
+  const saved=messages[job.next_part],message=typeof saved==='string'?{text:saved}:{text:saved.text,...(saved.parse_mode==='HTML'?{parse_mode:'HTML'}:{})};
+  const editId=typeof saved==='object'?saved.edit_message_id:null;
+  if(editId!=null){
+   // Only edit messages whose previous delivery to this exact group is recorded.
+   const owned=Number.isSafeInteger(editId)&&editId>0&&await db.prepare("SELECT 1 FROM agency_telegram_deliveries d,json_each(d.message_ids_json) m WHERE d.organization_id=? AND d.chat_id=? AND d.bot_username=? AND d.state='sent' AND m.value=? LIMIT 1").bind(ORG,job.chat_id,job.bot_username,editId).first();
+   if(!owned){await db.prepare("UPDATE agency_telegram_deliveries SET state='blocked',error_code='edit_target_unverified',lease_token=NULL,lease_until=NULL WHERE organization_id=? AND delivery_key=? AND lease_token=?").bind(ORG,job.delivery_key,token).run();return {state:'blocked'};}
+  }
+  const response=await telegram(env,editId!=null?'editMessageText':'sendMessage',{chat_id:job.chat_id,...(editId!=null?{message_id:editId}:{}),...message,link_preview_options:{is_disabled:true}},fetcher);
   const confirmed=response.ok&&Number.isSafeInteger(response.result?.message_id)&&String(response.result?.chat?.id)===job.chat_id;
   if(!confirmed){
    const state=response.uncertain||response.ok?'uncertain':response.code==='rate_limited'?'pending':'blocked';

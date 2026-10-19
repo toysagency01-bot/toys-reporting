@@ -486,6 +486,8 @@ async function mockDailyReview(page){
  const reports=['critical','attention','healthy','insufficient'].map((priority,index)=>({
   project:{slug:'synthetic-'+index,name:index===0?'Project <img src=x onerror=alert(1)>':'Project '+index},priority,headline:'Проверка '+priority,recommendation:'Проверить измерение и сохранить бюджет.',accounts:[{provider:'meta_ads',currency:'CZK',timeZone:'Europe/Prague',periods:{day:{from:'2026-10-13',to:'2026-10-13'}},day:{spend:100,conversions:10,cpa:10,roas:null},checkedAt:'2026-10-14T05:20:00Z'}],crm:{available:false},findings:priority==='critical'?[{code:'cpa_up',severity:'critical',provider:'meta_ads',title:'Стоимость результата выросла',path:[{name:'Campaign <script>bad()</script>'},{name:'Group'},{name:'Ad'}],period:{from:'2026-10-13',to:'2026-10-13'},comparison:{from:'2026-10-06',to:'2026-10-12'},evidence:'CPA 20 CZK против 5 CZK.',recommendation:'Проверить целевое событие.',confidence:'medium',checkpoint:'Следующий закрытый день.'}]:[],findingCount:priority==='critical'?1:0,limitations:['Атрибуция может уточняться.']
  }));
+ // Simulate an old cached/API payload containing the agency's own project.
+ reports.push({...reports[0],project:{id:'prj_toys_agency_ctft',slug:'toys-agency-ctft',name:'TOYS AGENCY'}});
  const state={fail:false,calls};
  await page.route('**/api/v2/master/daily-review*',r=>{
   const url=new URL(r.request().url());calls.push(url);

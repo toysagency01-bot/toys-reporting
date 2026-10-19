@@ -1,5 +1,6 @@
 import {escapeHtml as h} from '../unified/model.js';
 import {responseCache} from '../native/response-cache.js';
+import {reviewProjectIncluded} from './review-scope.js';
 
 const labels={critical:'Срочно',attention:'Обратить внимание',healthy:'Стабильно',insufficient:'Мало данных'};
 const confidence={high:'высокая',medium:'средняя',low:'низкая'};
@@ -43,7 +44,7 @@ export function mountDailyReview({host,json,isVisible=()=>true}){
  let data=null,date='',priority='',slug='',filterProvider='',seq=0,lastLoad=0,pending=false,signature='',lastError=false;
  function render(){
   if(!data)return;
-  const projects=data.reports.filter(r=>(!slug||r.project.slug===slug)&&(!filterProvider||r.accounts.some(a=>a.provider===filterProvider)));
+  const projects=data.reports.filter(r=>reviewProjectIncluded(r.project)&&(!slug||r.project.slug===slug)&&(!filterProvider||r.accounts.some(a=>a.provider===filterProvider)));
   const state=data.history.find(d=>d.date===data.reportDate)?.state;
   status.textContent=!data.reports.length?'Обзор ещё не сформирован. Плановый запуск — 09:30 по Тбилиси.':`Обзор от ${day(data.reportDate)} · ${projects.length} проектов · все каналы · последний закрытый день и предыдущие 7 дней.${state==='partial'?' Часть источников требует проверки — предупреждения внутри проектов.':''}${!date&&data.reportDate!==data.today?' Сегодняшний обзор пока не готов; показан предыдущий.':''}`;
   history.innerHTML='<option value="">Последний обзор</option>'+data.history.map(d=>`<option value="${h(d.date)}">${day(d.date)}</option>`).join('');history.value=date;

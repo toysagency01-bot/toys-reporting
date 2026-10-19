@@ -5,9 +5,25 @@ import {fixture,request,testWorker} from './fixture.mjs';
 import {analyzeProject,analyzeNode,reviewPeriods,reviewDue} from '../master/review-model.js';
 import {generateDailyReviews,runDailyReview,dailyReviewResponse} from '../master/review-service.js';
 import {saveAdsSnapshot,dates} from '../imports/ads-store.js';
+import {formatTelegramReview} from '../master/telegram-reviews.js';
 const now=Date.parse('2026-10-14T05:30:00Z'),reportDate='2026-10-14',periods=reviewPeriods(reportDate,'Europe/Prague');
 const observed=value=>({state:'observed',value:String(value)}),range={from:'2026-09-30',to:'2026-10-13'};
 const project={id:'prj_housevip_cxp7',organizationId:'org_toys_agency',slug:'housevip-cxp7',name:'Synthetic project',type:'leadgen'};
+test('agency stays active but is excluded from generation, historical review counts and Telegram',async()=>{
+ const {db,env}=await setup();try{
+  const agency={id:'prj_toys_agency_ctft',slug:'toys-agency-ctft',name:'TOYS AGENCY'};
+  db.prepare("INSERT INTO projects(id,organization_id,slug,name,status) VALUES(?,'org_toys_agency',?,?,'active')").run(agency.id,agency.slug,agency.name);
+  const generated=await generateDailyReviews(env.TOYS_DB,reportDate,now);
+  assert.deepEqual(generated.map(r=>r.project.id),[project.id]);
+  await runDailyReview(env,now,{now:()=>now});
+  const old={...generated[0],project:agency,priority:'critical',incomplete:true};
+  db.prepare('INSERT INTO agency_project_reviews(organization_id,report_date,project_id,priority,generated_at,payload_json) VALUES(?,?,?,?,?,?)').run(project.organizationId,reportDate,agency.id,'critical',new Date(now).toISOString(),JSON.stringify(old));
+  for(const selected of [null,reportDate]){const response=await dailyReviewResponse(env.TOYS_DB,selected,now);assert.deepEqual(response.reports.map(r=>r.project.id),[project.id]);assert.equal(response.counts.critical,0);assert.equal(response.counts.healthy,1);}
+  const text=formatTelegramReview({reportDate,reports:[old,...generated]}).join('');assert.ok(!text.includes(agency.name));assert.ok(!text.includes(agency.slug));assert.ok(text.includes('1 проектов'));assert.ok(!text.includes('Есть неполные данные'));
+  assert.equal(db.prepare('SELECT status FROM projects WHERE id=?').get(agency.id).status,'active');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM agency_project_reviews WHERE project_id=?').get(agency.id).n,1);
+ }finally{db.close();}
+});
 function source(options={}){
  const dailyMetrics=dates(range.from,range.to).map(date=>({date,metrics:Object.fromEntries(Object.entries({spend:100,impressions:10000,clicks:600,conversions:20,...(date===range.to?options.current:{}),...(options.all||{})}).map(([key,value])=>[key,observed(value)]))}));
  const ad={providerId:'3',level:'ad',name:'Synthetic ad',dailyMetrics,children:[],outcomeDaily:options.outcomes||[]};

@@ -21,19 +21,42 @@ test('readable complete project coverage, priority order, safe text, currencies 
  const reports=Array.from({length:40},(_,i)=>({...report,project:{...report.project,name:`Project ${i} <b>&`,slug:'project-'+i},priority:i%2?'healthy':'critical',recommendation:'Действие 😀 '.repeat(500)}));
  const messages=formatTelegramReview({reportDate:date,reports});assert.ok(messages.length>1);assert.ok(messages.every(s=>s.length<4096));
  const text=messages.join('\n');for(let i=0;i<40;i++)assert.ok(text.includes(`https://reports.toys-agency.com/project-${i}/`));
- assert.ok(text.indexOf('Project 0 <b>&')<text.indexOf('Project 1 <b>&'));
- assert.ok(text.includes('Расход 123'));assert.ok(text.includes('CTR 1,5%'));assert.ok(text.includes('CZK'));assert.ok(!text.includes('undefined'));
+ assert.ok(text.indexOf('Project 0 &lt;b&gt;&amp;')<text.indexOf('Project 1 &lt;b&gt;&amp;'));
+ assert.ok(text.includes('Расход: <b>123</b>'));assert.ok(text.includes('CTR: 1,5%'));assert.ok(text.includes('CZK'));assert.ok(!text.includes('undefined'));
  const missing=formatTelegramReview({reportDate:date,reports:[{...report,incomplete:true,accounts:[{...report.accounts[0],issues:['stale']}]}]}).join('');
- assert.ok(missing.includes('данные неполные'));assert.ok(!missing.includes('Расход 123'));
+ assert.ok(missing.includes('данные неполные'));assert.ok(!missing.includes('Расход: <b>123</b>'));
 });
 test('disabled integration never calls Telegram or reads review data',async()=>{
  const f=fixture();try{assert.equal((await runTelegramReviews(f.env,at,{fetcher:()=>{throw Error('Unexpected call');}})).state,'disabled');}finally{f.db.close();}
+});
+test('HTML messages escape untrusted fields and close every tag within each size-bounded part',()=>{
+ const unsafe={...report,project:{...report.project,name:'A <script>bad</script> & "name"'},recommendation:'<&>"😀'.repeat(2000),findings:[{path:[{name:'<&>'.repeat(1000)}],evidence:'<&>'.repeat(2000)}],accounts:Array(4).fill(report.accounts[0])};
+ const parts=formatTelegramReview({reportDate:date,reports:Array(10).fill(unsafe)});
+ for(const part of parts){
+  assert.ok(part.length<4096);assert.ok(!part.includes('<script>'));assert.ok(!/&(?:[^;\s]*$)/.test(part));
+  const stack=[];for(const match of part.matchAll(/<(\/?)([a-z]+)([^>]*)>/g)){assert.ok(['b','i','a'].includes(match[2]));if(match[1])assert.equal(stack.pop(),match[2]);else stack.push(match[2]);}assert.deepEqual(stack,[]);
+ }
+});
+test('explicit edits update only acknowledged bot messages in the configured group',async()=>{
+ for(const variant of ['ok','unchanged','unknown']){
+  const {env,db}=setup(),calls=[];try{
+   db.prepare("INSERT INTO agency_telegram_deliveries(organization_id,delivery_key,chat_id,bot_username,messages_json,message_ids_json,state,next_part,created_at) VALUES(?,?,?,?,?,?,'sent',1,?)").run(org,date,chat,'agencytoys_bot','["Old"]','[77]',new Date(at).toISOString());
+   db.prepare('INSERT INTO agency_telegram_deliveries(organization_id,delivery_key,chat_id,bot_username,messages_json,created_at) VALUES(?,?,?,?,?,?)').run(org,date+':layout',chat,'agencytoys_bot',JSON.stringify([{text:'<b>New</b>',parse_mode:'HTML',edit_message_id:variant==='unknown'?78:77}]),new Date(at).toISOString());
+   const fetcher=async(url,options)=>{calls.push({method:url.split('/').pop(),body:JSON.parse(options.body)});return variant==='unchanged'?Response.json({ok:false,error_code:400,description:'Bad Request: message is not modified'},{status:400}):Response.json({ok:true,result:{message_id:77,chat:{id:Number(chat)}}});};
+   await runTelegramReviews(env,at,{fetcher,now:()=>at});await runTelegramReviews(env,at,{fetcher,now:()=>at});
+   const result=db.prepare('SELECT state FROM agency_telegram_deliveries WHERE delivery_key=?').get(date+':layout');
+   if(variant==='unknown'){assert.equal(calls.length,0);assert.equal(result.state,'blocked');}
+   else{assert.equal(calls.length,1);assert.equal(calls[0].method,'editMessageText');assert.equal(calls[0].body.message_id,77);assert.equal(calls[0].body.parse_mode,'HTML');assert.equal(result.state,'sent');}
+  }finally{db.close();}
+ }
 });
 test('verification checks the exact bot and group, sends setup and current review once',async()=>{
  const {env,db}=setup({state:'pending'}),t=transport();try{
   await runTelegramReviews(env,at,{...t,now:()=>at});await runTelegramReviews(env,at,{...t,now:()=>at});
   assert.deepEqual(t.calls.map(c=>c.method),['getMe','getChat','sendMessage','sendMessage']);
-  assert.ok(t.calls.slice(2).every(c=>c.body.chat_id===chat&&!c.body.parse_mode&&c.body.link_preview_options.is_disabled));
+  assert.ok(t.calls.slice(2).every(c=>c.body.chat_id===chat&&c.body.link_preview_options.is_disabled));
+  assert.equal(t.calls.find(c=>c.body.text?.includes('<b>УТРЕННИЙ ОБЗОР</b>')).body.parse_mode,'HTML');
+  assert.equal(t.calls.find(c=>c.body.text?.startsWith('TOYS · Утренний обзор подключён.')).body.parse_mode,undefined);
   const status=await telegramReviewStatus(env.TOYS_DB);assert.equal(status.config.state,'ready');assert.equal(status.config.chatTitle,'Synthetic work group');assert.ok(status.deliveries.every(d=>d.state==='sent'));
   assert.ok(!JSON.stringify(status).includes(env.TELEGRAM_BOT_TOKEN));
  }finally{db.close();}
