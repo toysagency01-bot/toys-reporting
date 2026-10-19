@@ -24,9 +24,9 @@ async function metaLead(env,job,timeoutMs=20000){
  const params=new URLSearchParams({fields:'id,created_time,ad_id,adset_id,campaign_id,form_id,field_data'});
  const r=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(job.source_id)}?${params}`,{headers:{authorization:'Bearer '+token},redirect:'manual',signal:AbortSignal.timeout(timeoutMs)});const d=await r.json();if(!r.ok||d.error)err('meta_'+(d.error?.code||r.status));if(String(d.id)!==job.source_id)err('lead_identity_mismatch');
  if(data.formId&&String(d.form_id)!==data.formId)err('lead_form_mismatch');
- const source=await env.TOYS_DB.prepare('SELECT account_id,live_since,history_from,history_to FROM crm_meta_sources WHERE page_id=? AND project_id=?').bind(data.pageId,job.project_id).first();
+ const source=await env.TOYS_DB.prepare('SELECT account_id,live_since,history_from,history_to,history_enabled FROM crm_meta_sources WHERE page_id=? AND project_id=?').bind(data.pageId,job.project_id).first();
  // Replayed webhooks can overlap the explicitly requested historical window.
- const historical=Boolean(source&&Date.parse(d.created_time)>=Date.parse(source.history_from)&&Date.parse(d.created_time)<=Date.parse(source.history_to));
+ const historical=Boolean(source?.history_enabled===1&&Date.parse(d.created_time)>=Date.parse(source.history_from)&&Date.parse(d.created_time)<=Date.parse(source.history_to));
  if(source&&!historical){
   if(!Number.isFinite(Date.parse(d.created_time)))err('invalid_lead_date');
   if(Date.parse(d.created_time)<Date.parse(source.live_since))err('lead_before_live_start');

@@ -68,13 +68,16 @@ export async function runMetaLeadSync(env,at=Date.now()){
     const form=await env.TOYS_DB.prepare('SELECT * FROM crm_meta_forms WHERE page_id=? AND next_scan_at<=? ORDER BY next_scan_at,form_id LIMIT 1').bind(source.page_id,n).first();
     if(form){
      stage='leads';
-     const history=!form.history_finished_at;
-     const from=form.scan_from||(history?source.history_from:iso(Math.max(Date.parse(source.live_since),Date.parse(form.last_scan_at||source.live_since)-86400000)));
-     const to=form.scan_to||(history?source.history_to:n);
+     const history=source.history_enabled===1&&!form.history_finished_at;
+     // Do not resume a historical cursor after history has been disabled.
+     const resume=history||Boolean(form.history_finished_at&&Date.parse(form.scan_from)>=Date.parse(source.live_since));
+     const previous=resume?form.cursor:null;
+     const from=(resume&&form.scan_from)||(history?source.history_from:iso(Math.max(Date.parse(source.live_since),Date.parse(form.last_scan_at||source.live_since)-86400000)));
+     const to=(resume&&form.scan_to)||(history?source.history_to:n);
      const filtering=JSON.stringify([{field:'time_created',operator:'GREATER_THAN',value:Math.floor(Date.parse(from)/1000)-1},{field:'time_created',operator:'LESS_THAN',value:Math.ceil(Date.parse(to)/1000)+1}]);
-     const response=await meta(env,form.form_id+'/leads',token,{query:{fields:'id,created_time',limit:'100',filtering,...(form.cursor?{after:form.cursor}:{})}});
+     const response=await meta(env,form.form_id+'/leads',token,{query:{fields:'id,created_time',limit:'100',filtering,...(previous?{after:previous}:{})}});
      if(!Array.isArray(response.data))fail('meta_invalid_leads');
-     const next=cursor(response,form.cursor),statements=[];
+     const next=cursor(response,previous),statements=[];
      for(const lead of response.data){
       if(!/^\d{1,30}$/.test(String(lead.id||''))||!Number.isFinite(Date.parse(lead.created_time)))fail('meta_invalid_lead');
       // Verify the requested window locally as well as passing API filters.
@@ -82,7 +85,7 @@ export async function runMetaLeadSync(env,at=Date.now()){
       statements.push(env.TOYS_DB.prepare("INSERT INTO crm_delivery(id,project_id,kind,source_id,payload_json,next_attempt_at,created_at) VALUES(?,?,'meta_lead',?,?,?,?) ON CONFLICT(project_id,kind,source_id) DO NOTHING").bind('meta_'+await hash(source.project_id+':'+lead.id),source.project_id,String(lead.id),JSON.stringify({pageId:source.page_id,formId:form.form_id,sourceMode:history?'history':'reconcile'}),n,n));
      }
      // Commit progress with queued IDs. A failed batch repeats this page safely.
-     statements.push(env.TOYS_DB.prepare('UPDATE crm_meta_forms SET cursor=?,scan_from=?,scan_to=?,history_finished_at=?,last_scan_at=?,next_scan_at=? WHERE page_id=? AND form_id=?').bind(next,next?from:null,next?to:null,history&&!next?n:form.history_finished_at,next?form.last_scan_at:to,next?n:iso(at+(history?0:600000)),source.page_id,form.form_id));
+     statements.push(env.TOYS_DB.prepare('UPDATE crm_meta_forms SET cursor=?,scan_from=?,scan_to=?,history_finished_at=?,last_scan_at=?,next_scan_at=? WHERE page_id=? AND form_id=?').bind(next,next?from:null,next?to:null,(!history||!next)?(form.history_finished_at||n):null,next?form.last_scan_at:to,next?n:iso(at+(history?0:600000)),source.page_id,form.form_id));
      await env.TOYS_DB.batch(statements);
     }
    }catch(e){e.syncStage=stage;throw e;}
@@ -97,7 +100,7 @@ export async function runMetaLeadSync(env,at=Date.now()){
 }
 
 export async function metaSyncStatus(env,projectId){
- return (await env.TOYS_DB.prepare(`SELECT s.page_id AS pageId,s.app_id AS appId,s.state,s.last_error AS error,s.connected_at AS connectedAt,s.live_since AS liveSince,s.history_from AS historyFrom,s.history_to AS historyTo,s.last_scan_at AS lastScanAt,s.forms_checked_at AS formsCheckedAt,
+ return (await env.TOYS_DB.prepare(`SELECT s.page_id AS pageId,s.app_id AS appId,s.state,s.last_error AS error,s.connected_at AS connectedAt,s.live_since AS liveSince,s.history_enabled AS historyEnabled,s.history_from AS historyFrom,s.history_to AS historyTo,s.last_scan_at AS lastScanAt,s.forms_checked_at AS formsCheckedAt,
  (SELECT COUNT(*) FROM crm_meta_forms f WHERE f.page_id=s.page_id) AS forms,
  (SELECT COUNT(*) FROM crm_meta_forms f WHERE f.page_id=s.page_id AND f.history_finished_at IS NOT NULL) AS scannedForms,
  (SELECT COUNT(*) FROM crm_delivery d WHERE d.project_id=s.project_id AND d.kind='meta_lead' AND json_extract(d.payload_json,'$.pageId')=s.page_id AND d.state='sent') AS delivered

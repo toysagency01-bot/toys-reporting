@@ -14,6 +14,7 @@ async function setup(){
  f.db.prepare('INSERT INTO crm_pages(page_id,name,project_id,token_cipher,discovered_at,updated_at) VALUES(?,?,?,?,?,?)').run('123','Synthetic',p.id,await crypt(f.env,'synthetic-page'),n,n);
  f.db.prepare("INSERT INTO integrations(id,project_id,provider,external_account_id,status) VALUES('meta-source',?,'meta_ads','987','active')").run(p.id);
  f.db.prepare('INSERT INTO crm_meta_sources(page_id,project_id,account_id,app_id,live_since,history_from,history_to,next_attempt_at,connected_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('123',p.id,'987','123456','2026-10-18T20:00:00Z','2025-10-18T20:00:00Z',n,n,n,n,n);
+ f.db.prepare('UPDATE crm_meta_sources SET history_enabled=1').run();
  return f;
 }
 test('admin-only CRM blocks assigned teams and clients on list, detail, writes, summary and shell; neighboring reports remain available',async()=>{
@@ -54,6 +55,38 @@ test('failed reads preserve import progress, sanitize provider errors and apply 
   await runMetaLeadSync(env,at);
   assert.equal(db.prepare('SELECT cursor FROM crm_meta_forms').get().cursor,'saved');
   const s=db.prepare('SELECT * FROM crm_meta_sources').get();assert.equal(s.last_error,'leads:meta_190:463@object/leads');assert.equal(s.state,'error');assert.ok(s.next_attempt_at>n);assert.equal(s.lease_token,null);
+ }finally{db.close();}
+});
+test('live-only reconciliation ignores historical cursors, starts at midnight and resumes its own pages',async()=>{
+ const {env,db}=await setup();try{
+  db.prepare('UPDATE crm_meta_sources SET history_enabled=0,forms_checked_at=?').run(n);
+  db.prepare('INSERT INTO crm_meta_forms(page_id,form_id,name,cursor,scan_from,scan_to,next_scan_at,discovered_at) VALUES(?,?,?,?,?,?,?,?)').run('123','222','Form','historical-cursor','2025-10-18T20:00:00Z',n,n,n);
+  let calls=0;
+  env.CRM_FETCH=async raw=>{const u=new URL(raw),filter=JSON.parse(u.searchParams.get('filtering'));
+   assert.equal(filter[0].value,Date.parse('2026-10-18T20:00:00Z')/1000-1);
+   if(calls++===0){assert.equal(u.searchParams.get('after'),null);return Response.json({data:[{id:'444',created_time:'2026-09-01T00:00:00Z'},{id:'555',created_time:'2026-10-19T01:00:00Z'}],paging:{next:'https://graph.facebook.com/unused',cursors:{after:'live-next'}}});}
+   assert.equal(u.searchParams.get('after'),'live-next');return Response.json({data:[{id:'555',created_time:'2026-10-19T01:00:00Z'},{id:'666',created_time:'2026-10-19T02:00:00Z'}]});
+  };
+  await runMetaLeadSync(env,at);await runMetaLeadSync(env,at+120000);
+  const jobs=db.prepare('SELECT source_id,payload_json FROM crm_delivery ORDER BY source_id').all();assert.deepEqual(jobs.map(x=>x.source_id),['555','666']);assert.ok(jobs.every(x=>JSON.parse(x.payload_json).sourceMode==='reconcile'));
+  assert.equal((await metaSyncStatus(env,p.id))[0].historyEnabled,0);
+ }finally{db.close();}
+});
+test('live-only delivery blocks old queued history and wrong-account leads even inside retained history bounds',async()=>{
+ const {env,db}=await setup();try{
+  db.prepare('UPDATE crm_meta_sources SET history_enabled=0').run();
+  const now=new Date().toISOString();
+  for(const id of ['444','555','666'])db.prepare("INSERT INTO crm_delivery(id,project_id,kind,source_id,payload_json,next_attempt_at,created_at) VALUES(?,?,'meta_lead',?,?,?,?)").run(id,p.id,id,JSON.stringify({pageId:'123',formId:'222',sourceMode:'history'}),now,now);
+  env.CRM_FETCH=async raw=>{const u=new URL(raw),id=u.pathname.split('/').at(-1);
+   if(id==='777'||id==='888')return Response.json({id,account_id:id==='777'?'987':'999'});
+   return Response.json({id,form_id:'222',created_time:id==='444'?'2026-09-01T00:00:00Z':'2026-10-19T01:00:00Z',ad_id:id==='555'?'888':'777',field_data:[{name:'full_name',values:['Synthetic '+id]},{name:'phone_number',values:['+12345']}]});
+  };
+  await drain(env);
+  assert.equal(db.prepare("SELECT last_error FROM crm_delivery WHERE id='444'").get().last_error,'lead_before_live_start');
+  assert.equal(db.prepare("SELECT last_error FROM crm_delivery WHERE id='555'").get().last_error,'lead_account_mismatch');
+  assert.equal(db.prepare("SELECT state FROM crm_delivery WHERE id='666'").get().state,'sent');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM leads').get().n,1);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM crm_milestones').get().n,0);
  }finally{db.close();}
 });
 test('live intake rejects other ad accounts, while historical page leads import without generating CAPI or changing statuses',async()=>{

@@ -9,7 +9,8 @@ Approved mapping on 2026-10-19:
 - Dataset: `1036998279992732`.
 - CRM access: administrators only, enforced by the API as well as navigation.
 - Live start: 2026-10-19 00:00 Asia/Tbilisi.
-- Requested history: 2025-10-19 to initial activation, including the activation day.
+- History deferred by the user: they will provide an export. `history_enabled=0`;
+  no API history import, including delayed webhooks older than live start.
 - CAPI: `QualifiedLead` only. Sales still count in CRM but do not emit CAPI events.
 
 ## Credentials and activation
@@ -40,6 +41,12 @@ cursors with queued IDs in the same D1 batch. Discovery repeats every six hours;
 each form is periodically reconciled with a one-day overlap, independently of
 the advertising refresh schedule. CAPI/live deliveries have priority over the
 historical backlog. Delivery failures remain inspectable and retryable.
+
+Migration `0025_crm_meta_history_opt_in.sql` makes historical retrieval opt-in.
+Disabling history also discards historical scan cursors on the next scan and
+enforces the live cutoff/account on previously queued deliveries. Do not enable
+history for TOYS without renewed authorization. The source was paused while its
+CRM credential was unavailable; resume only with this migration and Worker deployed.
 
 `scannedForms` means the API pagination completed, not that a full year was
 available. Meta retention and source permissions can limit available history;

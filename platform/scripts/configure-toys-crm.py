@@ -3,6 +3,7 @@
 
 Usage: python scripts/configure-toys-crm.py migrate
        python scripts/configure-toys-crm.py activate EXPECTED_WORKER_VERSION
+       python scripts/configure-toys-crm.py resume-live EXPECTED_WORKER_VERSION
        python scripts/configure-toys-crm.py status
 """
 import datetime as dt
@@ -31,7 +32,7 @@ def query(sql,params=[]):
 def status():
     for name,sql in {
         'crm':"SELECT access_mode,timezone,dataset_id,capi_enabled,capi_kinds,capi_from,capi_setup_state,capi_setup_error FROM crm_projects WHERE project_id=?",
-        'source':"SELECT page_id,account_id,app_id,state,last_error,attempts,next_attempt_at,live_since,history_from,history_to,connected_at,forms_checked_at,last_scan_at FROM crm_meta_sources WHERE project_id=?",
+        'source':"SELECT page_id,account_id,app_id,state,last_error,attempts,next_attempt_at,live_since,history_enabled,history_from,history_to,connected_at,forms_checked_at,last_scan_at FROM crm_meta_sources WHERE project_id=?",
         'forms':"SELECT COUNT(*) AS discovered,SUM(history_finished_at IS NOT NULL) AS scanned FROM crm_meta_forms WHERE page_id IN (SELECT page_id FROM crm_meta_sources WHERE project_id=?)",
         'deliveries':"SELECT kind,state,last_error,COUNT(*) AS count FROM crm_delivery WHERE project_id=? GROUP BY kind,state,last_error",
         'leads':"SELECT source_provider,COUNT(*) AS count,MIN(created_at) AS oldest,MAX(created_at) AS newest FROM leads WHERE project_id=? AND deleted_at IS NULL GROUP BY source_provider",
@@ -47,7 +48,19 @@ if action=='migrate':
     cols={c['name'] for c in query("SELECT name FROM pragma_table_info('crm_projects')")}
     assert {'access_mode','capi_from','capi_kinds','capi_setup_state','capi_setup_error'}<=cols
     query('SELECT COUNT(*) FROM crm_meta_sources');query('SELECT COUNT(*) FROM crm_meta_forms')
-    print(json.dumps({'migration':'0024_crm_meta_sync','ready':True}))
+    if not query("SELECT name FROM pragma_table_info('crm_meta_sources') WHERE name='history_enabled'"):
+        result=cf.query(pathlib.Path('migrations/0025_crm_meta_history_opt_in.sql').read_text())
+        assert all(r['success'] for r in result)
+    print(json.dumps({'migration':'0025_crm_meta_history_opt_in','ready':True}))
+elif action=='resume-live':
+    assert len(sys.argv)==3,'Expected active Worker version is required'
+    assert release.current()==[{'version_id':sys.argv[2],'percentage':100}],'Deployment changed'
+    assert query('SELECT access_mode FROM crm_projects WHERE project_id=?',[PROJECT])==[{'access_mode':'admin'}]
+    assert query('SELECT project_id,account_id,app_id FROM crm_meta_sources WHERE page_id=?',[PAGE])==[{'project_id':PROJECT,'account_id':ACCOUNT,'app_id':APP}]
+    now=dt.datetime.now(dt.timezone.utc).isoformat(timespec='milliseconds').replace('+00:00','Z')
+    result=query("UPDATE crm_meta_sources SET history_enabled=0,state='pending',attempts=0,last_error=NULL,next_attempt_at=?,updated_at=? WHERE page_id=? AND project_id=? AND (lease_until IS NULL OR lease_until<?) RETURNING page_id",[now,now,PAGE,PROJECT,now])
+    assert result==[{'page_id':PAGE}],'Source is leased; retry after it completes'
+    status()
 elif action=='activate':
     assert len(sys.argv)==3,'Expected active Worker version is required'
     assert release.current()==[{'version_id':sys.argv[2],'percentage':100}],'Deployment changed'
