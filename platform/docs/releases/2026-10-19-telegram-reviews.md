@@ -122,3 +122,10 @@ owned-message-edit tests (13 delivery tests passed together). Three browser QA
 scenarios passed for desktop, mobile, cache/reload and history, with an old
 payload still containing TOYS AGENCY. A 390px message rendering preview had no
 horizontal overflow; all 11 project links fit into three messages.
+
+Telegram rejected the first in-place update with `message to edit not found`
+(`telegram_edit_not_found`). No edit was acknowledged. The error is retained on
+the blocked edit job. A separate `2026-10-19:layout-v2:replacement` delivery was
+queued with the new HTML digest, without resetting or replaying the original daily
+send. Explicit Telegram errors now distinguish missing/forbidden edit targets,
+invalid HTML, excessive length and insufficient rights, without storing raw errors.

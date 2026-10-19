@@ -69,7 +69,11 @@ async function telegram(env,method,body,fetcher){
   if(status===429)return {ok:false,code:'rate_limited',retryAfter:Math.max(1,Math.min(86400,Number(result.parameters?.retry_after)||60))};
   if(status===401)return {ok:false,code:'token_invalid'};
   if(status===403)return {ok:false,code:'bot_forbidden'};
-  if(status===400)return {ok:false,code:result.parameters?.migrate_to_chat_id?'chat_migrated':String(result.description).toLowerCase().includes('chat not found')?'chat_not_found':'telegram_bad_request'};
+  if(status===400){
+   const description=String(result.description).toLowerCase();
+   const known=[['chat not found','chat_not_found'],['message to edit not found','telegram_edit_not_found'],["message can't be edited",'telegram_edit_forbidden'],['message can not be edited','telegram_edit_forbidden'],["can't parse entities",'telegram_html_invalid'],['message is too long','telegram_message_too_long'],['not enough rights','telegram_write_forbidden']];
+   return {ok:false,code:result.parameters?.migrate_to_chat_id?'chat_migrated':known.find(([match])=>description.includes(match))?.[1]||'telegram_bad_request'};
+  }
   return {ok:false,code:'telegram_response_uncertain',uncertain:true};
  }catch(error){return {ok:false,code:['TimeoutError','AbortError'].includes(error?.name)?'telegram_timeout':'telegram_transport_uncertain',uncertain:true};}
 }
