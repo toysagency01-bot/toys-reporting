@@ -1,7 +1,7 @@
 # Morning reviews in Telegram
 
 The existing morning review is delivered to the explicitly authorized work group
-`-2349758299` through `@agencytoys_bot`. `TELEGRAM_BOT_TOKEN` stays in Worker secrets.
+`-2433853808` through `@agencytoys_bot`. `TELEGRAM_BOT_TOKEN` stays in Worker secrets.
 No Telegram token, lead contact data, or additional advertising API calls are used
 by the formatter. Only saved project reviews for currently active projects are sent.
 
@@ -76,3 +76,10 @@ or silently prepend a supergroup prefix to this destination.
 The additional multipart recovery test also passed: after an explicit rate-limit
 rejection, only the rejected part is retried; already acknowledged parts and the
 original saved digest remain unchanged.
+
+The user subsequently corrected the destination to `-2433853808`. Configuration
+was changed with a compare-and-swap requiring the prior blocked destination and
+an empty delivery queue. The next scheduled verification again returned
+`chat_not_found`; the current configuration remains blocked and the queue empty.
+The bot must be added to the intended group and the Bot API ID confirmed before
+retrying. No code redeployment was needed for this configuration correction.
