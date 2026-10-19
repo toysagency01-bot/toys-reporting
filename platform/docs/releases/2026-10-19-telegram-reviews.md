@@ -63,3 +63,16 @@ rollback. Never reset an uncertain record to pending without checking the actual
   including blocked redirects, malformed responses and invalid token format. This
   catches the Worker limitation that `redirect: 'error'` is unsupported; production
   uses `manual` and explicitly rejects redirects without following them.
+
+## Production activation check
+
+Worker `66b9b117-653b-423e-8b83-512c1a152748` is deployed with migration 0027.
+Telegram accepted the token and confirmed the expected bot username. The next
+`getChat(-2349758299)` returned `chat_not_found`. Configuration is therefore
+`blocked`; no setup notice or review was enqueued or sent. Resolve group membership
+and the actual Bot API chat ID before retrying activation. Do not claim delivery
+or silently prepend a supergroup prefix to this destination.
+
+The additional multipart recovery test also passed: after an explicit rate-limit
+rejection, only the rejected part is retried; already acknowledged parts and the
+original saved digest remain unchanged.
