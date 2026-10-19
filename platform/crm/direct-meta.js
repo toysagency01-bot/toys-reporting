@@ -3,11 +3,11 @@ import {crypt,hash} from './service.js';
 export const META_CALLBACK='https://reports.toys-agency.com/api/crm/meta';
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
 const fields=item=>(item?.fields||item?.subscribed_fields||[]).map(f=>typeof f==='string'?f:f.name).filter(Boolean);
-async function meta(env,path,token,{query={},body=null}={}){
- if(!['debug_token','me'].includes(path)&&!/^\d+(?:\/(?:subscriptions|subscribed_apps|leadgen_forms|leads))?$/.test(path))fail('invalid_graph_path');
+export async function meta(env,path,token,{query={},body=null}={}){
+ if(!['debug_token','me'].includes(path)&&!/^\d+(?:\/(?:subscriptions|subscribed_apps|leadgen_forms|leads))?$/.test(path)&&!/^act_\d+\/adspixels$/.test(path))fail('invalid_graph_path');
  const url=new URL('https://graph.facebook.com/v26.0/'+path);url.search=new URLSearchParams(query).toString();
  const response=await (env.CRM_FETCH||fetch)(url.href,{method:body?'POST':'GET',headers:{authorization:'Bearer '+token,...(body?{'content-type':'application/x-www-form-urlencoded'}:{})},...(body?{body:new URLSearchParams(body)}:{}),redirect:'manual',signal:AbortSignal.timeout(20000)});
- const data=await response.json().catch(()=>({}));if(!response.ok||data.error)fail('meta_'+(data.error?.code||response.status),502);return data;
+ const data=await response.json().catch(()=>({}));if(!response.ok||data.error)throw Object.assign(new Error('Meta request failed'),{code:'meta_'+(data.error?.code||response.status),status:502,metaSubcode:data.error?.error_subcode||null,metaOperation:path.replace(/^(act_)?\d+/, 'object')});return data;
 }
 
 // This operates only on a page explicitly selected by a project administrator.
@@ -24,12 +24,12 @@ export async function connectDirectMeta(env,p,body){
  if(!secret)fail('app_secret_required');
  const appToken=appId+'|'+secret;
  const app=await meta(env,appId,appToken,{query:{fields:'id,name'}});if(String(app.id)!==appId)fail('app_identity_mismatch');
- let token=page?.token_cipher?await crypt(env,page.token_cipher,true):null;
- if(!token){
+ let token=body.refreshToken===true?null:(page?.token_cipher?await crypt(env,page.token_cipher,true):null);
+ if(!token||body.refreshToken===true){
   // A known Page ID can be resolved directly even when discovery is stale.
   // This is scoped to the selected page; nothing is persisted during a check.
   const agent=await env.TOYS_DB.prepare("SELECT token_cipher FROM crm_agent_credentials WHERE id='toys-media-buyer'").first();
-  const agentToken=agent?.token_cipher?await crypt(env,agent.token_cipher,true):env.META_ADS_ACCESS_TOKEN;
+  const agentToken=env.META_ADS_ACCESS_TOKEN||(agent?.token_cipher?await crypt(env,agent.token_cipher,true):null);
   if(!agentToken)fail('meta_token_missing',503);
   const candidate=await meta(env,pageId,agentToken,{query:{fields:'id,name,access_token'}});
   if(String(candidate.id)!==pageId)fail('page_identity_mismatch');

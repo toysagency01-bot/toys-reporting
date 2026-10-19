@@ -10,6 +10,7 @@ export function isClientCRMRoute(path,hash){
 }
 
 export function mountClientNavigation({slug,api,prefix,asset,onChange,initialCRM=false}){
+ if(window.TOYS_CRM_ALLOWED===false)return {active:false};
  const nav=document.getElementById('platformClientNav');
  let app,loading,active=false,homeHash=location.hash||'#overview',homeScroll=0,crmScroll=0;
  const host=document.createElement('section');host.id='platformClientCRM';host.hidden=true;

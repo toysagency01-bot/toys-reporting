@@ -24,17 +24,29 @@ async function metaLead(env,job){
  const params=new URLSearchParams({fields:'id,created_time,ad_id,adset_id,campaign_id,form_id,field_data'});
  const r=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(job.source_id)}?${params}`,{headers:{authorization:'Bearer '+token},redirect:'manual',signal:AbortSignal.timeout(20000)});const d=await r.json();if(!r.ok||d.error)err('meta_'+(d.error?.code||r.status));if(String(d.id)!==job.source_id)err('lead_identity_mismatch');
  if(data.formId&&String(d.form_id)!==data.formId)err('lead_form_mismatch');
+ const source=await env.TOYS_DB.prepare('SELECT account_id,live_since FROM crm_meta_sources WHERE page_id=? AND project_id=?').bind(data.pageId,job.project_id).first();
+ if(source&&data.sourceMode!=='history'){
+  if(!Number.isFinite(Date.parse(d.created_time)))err('invalid_lead_date');
+  if(Date.parse(d.created_time)<Date.parse(source.live_since))err('lead_before_live_start');
+ }
  const fields=Object.fromEntries((d.field_data||[]).map(f=>[f.name,Array.isArray(f.values)?f.values[0]:'']));
  let attribution=null,attributionError=null;
  if(d.ad_id){try{const a=await (env.CRM_FETCH||fetch)(`https://graph.facebook.com/v26.0/${encodeURIComponent(d.ad_id)}?fields=id,account_id`,{headers:{authorization:'Bearer '+(env.META_ADS_ACCESS_TOKEN||token)},redirect:'manual',signal:AbortSignal.timeout(20000)});const ad=await a.json();if(!a.ok||ad.error)err('meta_'+(ad.error?.code||a.status));if(String(ad.id)!==String(d.ad_id))err('ad_identity_mismatch');attribution={provider:'meta_ads',accountId:ad.account_id,adId:d.ad_id,campaignId:d.campaign_id,adsetId:d.adset_id};}catch(e){attributionError=e;}}
 
+ // Live intake is account-scoped; page-history import may contain organic leads.
+ if(source&&data.sourceMode!=='history'){
+  if(attributionError)throw attributionError;
+  if(!attribution||String(attribution.accountId).replace(/^act_/, '')!==source.account_id)err('lead_account_mismatch');
+ }
  const p=await env.TOYS_DB.prepare('SELECT id FROM projects WHERE id=?').bind(job.project_id).first();
  const lead=await ingest(env,p,{name:fields.full_name||[fields.first_name,fields.last_name].filter(Boolean).join(' '),email:fields.email,phone:fields.phone_number,createdAt:d.created_time,sourceAdId:d.ad_id,pageId:data.pageId,formId:d.form_id,adAttribution:attribution,formAnswers:d.field_data,budget:fields.budget,contactMethod:fields.contact_method},'meta_lead_ads',d.id);
  if(attributionError)throw attributionError;return lead;
 }
-export async function drain(env){
- const n=now();const jobs=(await env.TOYS_DB.prepare("SELECT * FROM crm_delivery WHERE (state IN ('pending','error') AND next_attempt_at<=? AND attempts<8) OR (state='processing' AND lease_until<?) ORDER BY created_at LIMIT 15").bind(n,n).all()).results||[];
+export async function drain(env,{budgetMs=24000}={}){
+ const started=Date.now();
+ const n=now();const jobs=(await env.TOYS_DB.prepare("SELECT * FROM crm_delivery WHERE (state IN ('pending','error') AND next_attempt_at<=? AND attempts<8) OR (state='processing' AND lease_until<?) ORDER BY CASE WHEN kind='capi' THEN 0 WHEN json_extract(payload_json,'$.sourceMode')='history' THEN 2 ELSE 1 END,created_at LIMIT 15").bind(n,n).all()).results||[];
  for(const job of jobs){
+ if(Date.now()-started>=budgetMs)break;
  const lease=crypto.randomUUID(),deadline=new Date(Date.now()+120000).toISOString();
  const claim=await env.TOYS_DB.prepare("UPDATE crm_delivery SET state='processing',lease_until=?,attempts=attempts+1,last_error=? WHERE id=? AND ((state IN ('pending','error') AND next_attempt_at<=? AND attempts<8) OR (state='processing' AND lease_until<?))").bind(deadline,lease,job.id,n,n).run();if(!claim.meta?.changes)continue;
  try{
@@ -42,12 +54,14 @@ export async function drain(env){
  else{
  const cfg=await env.TOYS_DB.prepare('SELECT * FROM crm_projects WHERE project_id=?').bind(job.project_id).first();if(!cfg?.capi_enabled||!cfg.dataset_id||!cfg.capi_token_cipher)err('capi_not_configured');
  const m=await env.TOYS_DB.prepare('SELECT * FROM crm_milestones WHERE id=? AND project_id=?').bind(job.source_id,job.project_id).first();const lead=await env.TOYS_DB.prepare('SELECT * FROM leads WHERE id=? AND project_id=?').bind(job.lead_id,job.project_id).first();if(!m||!lead)err('crm_event_missing');if(lead.deleted_at)err('lead_deleted');
+ if(cfg.capi_from&&Date.parse(m.occurred_at)<Date.parse(cfg.capi_from))err('event_before_connection');
+ if(!(cfg.capi_kinds||'qualified,sale').split(',').includes(m.kind))err('event_kind_disabled');
  if(!lead.email&&!lead.phone&&!parse(lead.metadata_json).leadgenId)err('contact_for_matching_missing');
  if(Date.now()-Date.parse(m.occurred_at)>7*86400000)err('event_too_old');
  const payload=await capiPayload(env,lead,m,cfg);const out=await graph(env,cfg.dataset_id+'/events',await crypt(env,cfg.capi_token_cipher,true),{data:JSON.stringify([payload])});if(out.events_received!==1)err('capi_not_acknowledged');
  }
  await env.TOYS_DB.prepare("UPDATE crm_delivery SET state='sent',sent_at=?,last_error=NULL,lease_until=NULL WHERE id=? AND last_error=?").bind(now(),job.id,lease).run();
- }catch(e){const code=/^(meta_\d+|page_token_missing|capi_not_configured|event_too_old|lead_deleted|ad_attribution_unavailable|crm_event_missing|capi_not_acknowledged|contact_for_matching_missing|lead_identity_mismatch|lead_form_mismatch|ad_identity_mismatch|ambiguous_lead_identity|contact_required|invalid_email)$/.test(e.code||'')?e.code:'delivery_failed';const blocked=['page_token_missing','capi_not_configured','event_too_old','lead_deleted','contact_for_matching_missing','ambiguous_lead_identity','lead_form_mismatch','contact_required','invalid_email'].includes(code);await env.TOYS_DB.prepare('UPDATE crm_delivery SET state=?,last_error=?,lease_until=NULL,next_attempt_at=? WHERE id=? AND last_error=?').bind(blocked?'blocked':'error',code,new Date(Date.now()+Math.min(3600000,60000*2**job.attempts)).toISOString(),job.id,lease).run();}
+ }catch(e){const code=/^(meta_\d+|page_token_missing|capi_not_configured|event_too_old|lead_deleted|ad_attribution_unavailable|crm_event_missing|capi_not_acknowledged|contact_for_matching_missing|lead_identity_mismatch|lead_form_mismatch|ad_identity_mismatch|ambiguous_lead_identity|contact_required|invalid_email|invalid_lead_date|lead_before_live_start|lead_account_mismatch|event_before_connection|event_kind_disabled)$/.test(e.code||'')?e.code:'delivery_failed';const blocked=['page_token_missing','capi_not_configured','event_too_old','lead_deleted','contact_for_matching_missing','ambiguous_lead_identity','lead_form_mismatch','contact_required','invalid_email','invalid_lead_date','lead_before_live_start','lead_account_mismatch','event_before_connection','event_kind_disabled'].includes(code);await env.TOYS_DB.prepare('UPDATE crm_delivery SET state=?,last_error=?,lease_until=NULL,next_attempt_at=? WHERE id=? AND last_error=?').bind(blocked?'blocked':'error',code,new Date(Date.now()+Math.min(3600000,60000*2**job.attempts)).toISOString(),job.id,lease).run();}
  }
 }
 export async function webhook(request,env,ctx){
@@ -78,6 +92,6 @@ export async function webhook(request,env,ctx){
  for(const entry of entries){const page=await env.TOYS_DB.prepare('SELECT * FROM crm_pages WHERE page_id=?').bind(String(entry.id)).first();if(!page||(!central&&page.project_id!==p.id))err('page_scope_forbidden',403);
  const secret=page.app_secret_cipher?await crypt(env,page.app_secret_cipher,true):env.META_APP_SECRET;if(!secret||!safeEq(request.headers.get('x-hub-signature-256')||'','sha256='+await signature(secret,raw)))err('invalid_signature',401);
  for(const change of entry.changes||[]){if(change.field!=='leadgen')continue;const id=String(change.value?.leadgen_id||'');if(!/^\d{1,30}$/.test(id))err('invalid_lead_id');if(change.value.page_id&&String(change.value.page_id)!==page.page_id)err('page_scope_forbidden',403);if(!page.project_id){jobs.push(env.TOYS_DB.prepare('INSERT INTO crm_meta_inbox(page_id,leadgen_id,received_at) VALUES(?,?,?) ON CONFLICT(page_id,leadgen_id) DO NOTHING').bind(page.page_id,id,now()));continue;}jobs.push(env.TOYS_DB.prepare("INSERT INTO crm_delivery(id,project_id,kind,source_id,payload_json,next_attempt_at,created_at) VALUES(?,?,'meta_lead',?,?,?,?) ON CONFLICT(project_id,kind,source_id) DO NOTHING").bind('meta_'+await hash(page.project_id+':'+id),page.project_id,id,JSON.stringify({pageId:page.page_id,...(/^\d{1,30}$/.test(String(change.value.form_id||''))?{formId:String(change.value.form_id)}:{})}),now(),now()));}}
- if(jobs.length)await env.TOYS_DB.batch(jobs);ctx?.waitUntil(drain(env));return reply({ok:true});
+ if(jobs.length)await env.TOYS_DB.batch(jobs);ctx?.waitUntil(drain(env,{budgetMs:8000}));return reply({ok:true});
  }catch(e){return reply({ok:false,error:e.code||'ingestion_failed'},e.status||500);}
 }

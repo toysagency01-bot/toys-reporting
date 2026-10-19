@@ -1,3 +1,4 @@
+import {crmAllowed} from '../crm/access.js';
 import {projectAllowed} from '../portal/access.js';
 import {hierarchyRows,total} from '../unified/model.js';
 import {authorizeMvp,onDemandAdsService} from '../runtime/backend.js';
@@ -17,7 +18,7 @@ export async function masterAPI(request,env,ctx){
  const pages=(await env.TOYS_DB.prepare('SELECT page_id AS id,name,project_id AS projectId,subscribed FROM crm_pages ORDER BY name').all()).results||[];
  const imports=env.DIRECT_ADS_IMPORT_ENABLED==='true'?(await env.TOYS_DB.prepare('SELECT project_id AS projectId,provider,state,last_success_at AS lastSuccessAt,last_attempt_at AS lastAttemptAt,last_error_code AS errorCode,range_from AS fromDate,range_to AS toDate FROM ads_import_status').all()).results||[]:[];
  const channels=(await env.TOYS_DB.prepare('SELECT provider,external_id AS id,name,project_id AS projectId FROM crm_channels ORDER BY provider,name').all()).results||[];
- const visible=projects.filter(p=>projectAllowed(auth,p.slug));
+ const visible=await Promise.all(projects.filter(p=>projectAllowed(auth,p.slug)).map(async p=>{const canCRM=await crmAllowed(env,p.slug,auth);return {...p,canCRM,...(!canCRM?{leadCount:null,deliveryIssues:null}:{})};}));
  return reply({ok:true,access:{role:auth.platformRole,canManageIntegrations:auth.platformRole==='admin',canManageTeam:auth.platformRole==='admin'},channels:auth.platformRole==='admin'?channels:[],projects:visible.map(p=>({...p,imports:imports.filter(i=>i.projectId===p.id),integrations:integrations.filter(i=>i.projectId===p.id)})),pages:auth.platformRole==='admin'?pages:[]});
  }
  if(path==='discover-pages'&&request.method==='POST'){
@@ -28,7 +29,7 @@ export async function masterAPI(request,env,ctx){
  const overview=path.match(/^projects\/([^/]+)\/summary$/);
  if(overview&&request.method==='GET'){
  if(!projectAllowed(auth,overview[1]))return reply({ok:false,error:'project_scope_forbidden'},403);
- const p=await project(env,overview[1]);if(!p)return reply({ok:false,error:'not_found'},404);const from=url.searchParams.get('from'),to=url.searchParams.get('to');const crm=await summary(env,p,from,to,url.searchParams.get('provider')||null);
+ const p=await project(env,overview[1]);if(!p)return reply({ok:false,error:'not_found'},404);const from=url.searchParams.get('from'),to=url.searchParams.get('to');const crm=await crmAllowed(env,p.slug,auth)?await summary(env,p,from,to,url.searchParams.get('provider')||null):{available:false,restricted:true};
  const provider=url.searchParams.get('provider');const fallback=(await env.TOYS_DB.prepare(`SELECT provider,currency,SUM(spend) AS spend,SUM(impressions) AS impressions,SUM(clicks) AS clicks,SUM(leads) AS conversions FROM ad_metrics_daily WHERE project_id=? AND metric_date BETWEEN ? AND ? GROUP BY provider,currency`).bind(p.id,from,to).all()).results||[];
  let ads=fallback.map(r=>({...r,freshness:'snapshot'})),liveError=null,refreshing=false;
  if(p.status==='draft')return reply({ok:true,project:p,crm,ads:ads.filter(a=>!provider||a.provider===provider),liveError});

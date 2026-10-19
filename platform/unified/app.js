@@ -112,8 +112,9 @@ function bindReportViewer(){
 }
 function openReportViewer(urls,start,opener){
  let dialog=$('reportImageViewer');
- if(!dialog){dialog=document.createElement('dialog');dialog.id='reportImageViewer';dialog.className='report-image-viewer';dialog.setAttribute('aria-labelledby','reportImageTitle');document.body.append(dialog);}
- if(dialog.open)return;
+ if(dialog?.open)return;
+ if(dialog){dialog._cleanupReport?.();dialog.remove();}
+ dialog=document.createElement('dialog');dialog.id='reportImageViewer';dialog.className='report-image-viewer';dialog.setAttribute('aria-labelledby','reportImageTitle');document.body.append(dialog);
  dialog.innerHTML=`<div class="report-image-heading"><h2 id="reportImageTitle">Скриншот</h2><button type="button" data-image-close aria-label="Закрыть просмотр скриншота" autofocus>✕</button></div><div class="report-image-stage"><img alt="" hidden><p class="report-image-status" role="status">Загружаем изображение…</p></div><div class="report-image-controls"><button type="button" data-image-prev aria-label="Предыдущий скриншот">←</button><span data-image-counter aria-live="polite"></span><button type="button" data-image-next aria-label="Следующий скриншот">→</button><button type="button" data-image-zoom aria-pressed="false">Увеличить</button></div>`;
  const img=dialog.querySelector('img'),stage=dialog.querySelector('.report-image-stage'),message=dialog.querySelector('.report-image-status'),zoom=dialog.querySelector('[data-image-zoom]');let index=start;
  const setZoom=value=>{stage.classList.toggle('is-zoomed',value);zoom.setAttribute('aria-pressed',String(value));zoom.textContent=value?'По размеру окна':'Увеличить';stage.scrollTo(0,0);};
@@ -128,14 +129,16 @@ function openReportViewer(urls,start,opener){
  const move=step=>{const next=index+step;if(next<0||next>=urls.length)return;const focused=document.activeElement;index=next;showImage();if(focused?.disabled)dialog.querySelector('[data-image-close]').focus();};
  dialog.querySelector('[data-image-prev]').onclick=()=>move(-1);dialog.querySelector('[data-image-next]').onclick=()=>move(1);
  zoom.onclick=()=>setZoom(!stage.classList.contains('is-zoomed'));img.onclick=()=>{if(!zoom.disabled)zoom.click();};
- dialog.querySelector('[data-image-close]').onclick=()=>dialog.close();
+ const close=()=>{cleanup();dialog.close();};
+ dialog.querySelector('[data-image-close]').onclick=close;
  let backdropDown=false;
  const outside=e=>{const r=dialog.getBoundingClientRect();return e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom;};
  dialog.onpointerdown=e=>{backdropDown=e.target===dialog&&outside(e);};
- dialog.onclick=e=>{if(backdropDown&&e.target===dialog&&outside(e))dialog.close();backdropDown=false;};
+ dialog.onclick=e=>{if(backdropDown&&e.target===dialog&&outside(e))close();backdropDown=false;};
  dialog.onkeydown=e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();move(e.key==='ArrowRight'?1:-1);}if(e.key==='Tab'){const buttons=[...dialog.querySelectorAll('button:not(:disabled)')],first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}};
  const overflow=document.body.style.overflow;document.body.style.overflow='hidden';
- dialog.onclose=()=>{document.body.style.overflow=overflow;img.onload=null;img.onerror=null;img.removeAttribute('src');if(opener.isConnected)opener.focus({preventScroll:true});};
+ let cleaned=false;const cleanup=()=>{if(cleaned)return;cleaned=true;document.body.style.overflow=overflow;img.onload=null;img.onerror=null;img.removeAttribute('src');if(opener.isConnected)opener.focus({preventScroll:true});};
+ dialog._cleanupReport=cleanup;dialog.onclose=cleanup;dialog.oncancel=()=>{cleanup();};
  dialog.showModal();showImage();
 }
 function reportScreenshots(ids,editable=false){bindReportViewer();return `<div class="report-screenshots">${ids.map((id,i)=>`<figure><button type="button" class="report-screenshot-open" data-report-screenshot="${h(id)}" aria-haspopup="dialog" aria-label="Открыть скриншот ${i+1} в полном размере"><img src="${api}/content/weekly-main/attachments/${h(id)}" alt="Скриншот ${i+1}" loading="lazy"></button><figcaption>Скриншот ${i+1}${editable?`<button type="button" class="quiet" data-remove-screenshot="${h(id)}" aria-label="Убрать скриншот ${i+1}">Убрать</button>`:' · Нажмите, чтобы увеличить'}</figcaption></figure>`).join('')}</div>`;}

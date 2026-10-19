@@ -1,3 +1,4 @@
+import {crmAllowed} from './access.js';
 import {authorizeMvp} from '../runtime/backend.js';
 import {reply,readJSON,project,enable,ingest,updateLead,deleteLead,summary,listLeads} from './service.js';
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
@@ -5,6 +6,7 @@ export async function crmRoute(request,env,ctx){
  const url=new URL(request.url),m=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/crm(?:\/(.*))?$/);if(!m)return null;
  try{
  const write=request.method!=='GET',auth=await authorizeMvp(request,env,m[1],'viewer');if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
+ if(!await crmAllowed(env,m[1],auth))return reply({ok:false,error:'admin_role_required'},403);
  if(write){const origin=request.headers.get('origin');if(origin&&origin!==url.origin&&origin!=='https://reports.toys-agency.com')fail('origin_forbidden',403);if(!request.headers.get('x-idempotency-key'))fail('idempotency_key_required');}
  const p=await project(env,m[1]);if(!p)fail('not_found',404);const path=m[2]||'';
  if(path==='summary'&&!write)return reply({ok:true,...await summary(env,p,url.searchParams.get('from'),url.searchParams.get('to'))});

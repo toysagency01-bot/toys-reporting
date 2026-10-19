@@ -95,6 +95,7 @@ async function refresh(){
 }
 
 async function refreshCRM(){
+ if(window.TOYS_CRM_ALLOWED===false)return;
  if(!privateMode)return;const requested=range();
  try{const d=await readJSON(`${api}/crm/summary?from=${requested.from}&to=${requested.to}`);if(JSON.stringify(range())===JSON.stringify(requested)){crmStats=d;renderCRM();}}catch{}
 }
@@ -102,7 +103,7 @@ function renderCRM(){
  let panel=$('platformCRMStats');if(!panel){const host=$('mainCards')||$('cards')||document.querySelector('#uxOverview .cards');if(!host)return;panel=document.createElement('div');panel.id='platformCRMStats';panel.className='cards';host.after(panel);}
  panel.hidden=!crmStats?.available;if(panel.hidden)return;
  const signature=JSON.stringify(crmStats);if(panel._renderSignature!==signature){panel._renderSignature=signature;panel.innerHTML=[['Квал-лиды CRM',format(crmStats.qualified)],['Продажи CRM',format(crmStats.sales)],['Выручка CRM',(crmStats.revenue||[]).map(r=>format(r.value)+' '+h(r.currency)).join('<br>')||'—']].map(([label,value])=>`<div class="card"><div class="label">${label}</div><div class="value">${value}</div></div>`).join('');}
- if(privateMode&&!$('platformCRMLink')){const link=document.createElement('a');link.id='platformCRMLink';link.href=api+'/content-crm';link.textContent='Открыть CRM';link.className='secondary';panel.after(link);}
+ if(privateMode&&window.TOYS_CRM_ALLOWED!==false&&!$('platformCRMLink')){const link=document.createElement('a');link.id='platformCRMLink';link.href=api+'/content-crm';link.textContent='Открыть CRM';link.className='secondary';panel.after(link);}
 }
 function renderCreatives(){if(!ready)return;const channels=Object.keys(dashboard.advertising?.channels||{}).map(c=>/google/i.test(c)?'google_ads':'meta_ads');renderTopCreatives({rankings:creativeRankings,state:creativeState,activeChannel:document.querySelector('#platformSeg .active')?.dataset.platform||'__all',range:range(),channels:channels.length?[...new Set(channels)]:['meta_ads'],slug});}
 async function refreshCreatives(){
@@ -123,6 +124,7 @@ function mountTools(){
  if(!$('platformClientNav')){const nav=document.createElement('aside');nav.id='platformClientNav';nav.setAttribute('aria-label','Разделы кабинета');nav.innerHTML=`<a id="platformHomeNav" class="active" aria-current="page" href="${prefix}/${encodeURIComponent(slug)}/"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span>Главная</span></a><a id="platformCRMNav" href="${api}/content-crm"><svg viewBox="0 0 24 24"><path d="M3 5h18l-7 8v5l-4 2v-7L3 5Z"/></svg><span>CRM</span></a>`;const account=document.createElement('a');account.id='platformAccountNav';account.href=privateMode?prefix+'/api/v2/portal/session?choose=1':'/login';account.textContent=privateMode?'Аккаунт':'Войти';nav.append(account);document.body.append(nav);document.body.classList.add('platform-client-shell');const style=document.createElement('style');style.textContent=clientShellStyle;document.head.append(style);const mobileAccount=account.cloneNode(false);mobileAccount.id='platformMobileAccount';mobileAccount.setAttribute('aria-label',privateMode?'Мой аккаунт':'Войти в TOYS');mobileAccount.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/></svg>';document.querySelector('body > header')?.append(mobileAccount);mountMobileKeyboard();}
 
 
+ if(window.TOYS_CRM_ALLOWED===false){$('platformCRMNav')?.remove();document.querySelectorAll('[data-ux-view="leads"]').forEach(n=>n.remove());}
  // Replace only the old editing workflow; the native navigation/panels stay in place.
  $('weeklyModal')?.remove();
  const weeklyHost=$('weeklyPanel')||$('weekly')?.closest('.panel');

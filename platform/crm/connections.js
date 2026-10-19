@@ -1,3 +1,4 @@
+import {metaSyncStatus} from './meta-sync.js';
 import {authorizeMvp} from '../runtime/backend.js';
 import {crypt,hash,parse,reply,readJSON,project,enable} from './service.js';
 import {graph,drain} from './delivery.js';
@@ -10,14 +11,14 @@ export async function connections(request,env,ctx){
  const auth=await authorizeMvp(request,env,'__admin','editor');if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  const p=await project(env,m[1]);if(!p)fail('not_found',404);const path=m[2]||'';
  if(request.method==='GET'){
- const cfg=await env.TOYS_DB.prepare('SELECT enabled_at,timezone,dataset_id,capi_enabled,website_key_hash FROM crm_projects WHERE project_id=?').bind(p.id).first();
+ const cfg=await env.TOYS_DB.prepare('SELECT enabled_at,timezone,dataset_id,capi_enabled,capi_setup_state,capi_setup_error,capi_kinds,access_mode,website_key_hash FROM crm_projects WHERE project_id=?').bind(p.id).first();
  const pages=(await env.TOYS_DB.prepare('SELECT page_id AS id,name,app_id AS appId,subscribed FROM crm_pages WHERE project_id=?').bind(p.id).all()).results||[];
  const agent=await env.TOYS_DB.prepare("SELECT id FROM crm_agent_credentials WHERE id='toys-media-buyer'").first();
  const accounts=(await env.TOYS_DB.prepare("SELECT a.pixels_json FROM crm_agent_accounts a JOIN integrations i ON i.external_account_id=a.account_id WHERE i.project_id=? AND i.provider='meta_ads'").bind(p.id).all()).results||[];
  const queue=(await env.TOYS_DB.prepare('SELECT kind,state,last_error AS error,COUNT(*) AS count FROM crm_delivery WHERE project_id=? GROUP BY kind,state,last_error').bind(p.id).all()).results||[];
  const lastLead=await env.TOYS_DB.prepare("SELECT MAX(sent_at) AS deliveredAt FROM crm_delivery WHERE project_id=? AND kind='meta_lead' AND state='sent'").bind(p.id).first();
  const draft=parse(p.settingsJson).directMetaSetup||{},suggestedPageId=/^\d{1,30}$/.test(draft.pageId||'')?String(draft.pageId):null,suggestedAppId=/^\d{5,30}$/.test(draft.appId||'')?String(draft.appId):null;
- return reply({ok:true,directMeta:{appSecretConfigured:!!env.META_APP_SECRET,verifyConfigured:!!env.CRM_VERIFY_TOKEN,lastDeliveredAt:lastLead?.deliveredAt||null,suggestedPageId,suggestedAppId},agentAvailable:!!agent,datasets:accounts.flatMap(a=>JSON.parse(a.pixels_json)),enabled:Boolean(cfg),timezone:cfg?.timezone||p.timezone,datasetId:cfg?.dataset_id,capiEnabled:!!cfg?.capi_enabled,websiteConfigured:!!cfg?.website_key_hash,websiteEndpoint:base+p.slug+'/website',metaLeadEndpoint:base+p.slug+'/meta-lead',metaEndpoint:'https://reports.toys-agency.com/api/crm/meta',verifyToken:env.CRM_VERIFY_TOKEN||null,pages,queue});
+ return reply({ok:true,metaSync:await metaSyncStatus(env,p.id),directMeta:{appSecretConfigured:!!env.META_APP_SECRET,verifyConfigured:!!env.CRM_VERIFY_TOKEN,lastDeliveredAt:lastLead?.deliveredAt||null,suggestedPageId,suggestedAppId},agentAvailable:!!agent,datasets:accounts.flatMap(a=>JSON.parse(a.pixels_json)),enabled:Boolean(cfg),timezone:cfg?.timezone||p.timezone,datasetId:cfg?.dataset_id,capiEnabled:!!cfg?.capi_enabled,capiSetup:cfg?.capi_setup_state||null,capiError:cfg?.capi_setup_error||null,capiKinds:cfg?.capi_kinds||'qualified,sale',adminOnly:cfg?.access_mode==='admin',websiteConfigured:!!cfg?.website_key_hash,websiteEndpoint:base+p.slug+'/website',metaLeadEndpoint:base+p.slug+'/meta-lead',metaEndpoint:'https://reports.toys-agency.com/api/crm/meta',verifyToken:env.CRM_VERIFY_TOKEN||null,pages,queue});
  }
  const origin=request.headers.get('origin');if(origin&&origin!==url.origin&&origin!=='https://reports.toys-agency.com')fail('origin_forbidden',403);
  if(request.method!=='POST'||!request.headers.get('x-idempotency-key'))fail('invalid_request');await enable(env,p);const body=await readJSON(request);
@@ -32,7 +33,7 @@ export async function connections(request,env,ctx){
  }
  if(path==='capi'){
  if(!/^\d{5,30}$/.test(String(body.datasetId||'')))fail('dataset_id_required');
- const existing=await env.TOYS_DB.prepare('SELECT capi_token_cipher FROM crm_projects WHERE project_id=?').bind(p.id).first();const token=String(body.token||'').trim();if(token.length>4096)fail('invalid_token');const agent=body.useAgentToken?await env.TOYS_DB.prepare("SELECT token_cipher FROM crm_agent_credentials WHERE id='toys-media-buyer'").first():null;const cipher=token?await crypt(env,token):agent?.token_cipher||existing?.capi_token_cipher;if(!cipher)fail('capi_token_required');
+ const existing=await env.TOYS_DB.prepare('SELECT capi_token_cipher FROM crm_projects WHERE project_id=?').bind(p.id).first();const token=String(body.token||'').trim();if(token.length>4096)fail('invalid_token');const agent=body.useAgentToken?await env.TOYS_DB.prepare("SELECT token_cipher FROM crm_agent_credentials WHERE id='toys-media-buyer'").first():null;const cipher=token?await crypt(env,token):(body.useAgentToken&&env.META_ADS_ACCESS_TOKEN?await crypt(env,env.META_ADS_ACCESS_TOKEN):agent?.token_cipher)||existing?.capi_token_cipher;if(!cipher)fail('capi_token_required');
  await env.TOYS_DB.prepare('UPDATE crm_projects SET dataset_id=?,capi_token_cipher=?,capi_enabled=?,updated_at=? WHERE project_id=?').bind(String(body.datasetId),cipher,body.enabled?1:0,new Date().toISOString(),p.id).run();
  if(body.enabled)await env.TOYS_DB.prepare("UPDATE crm_delivery SET state='pending',next_attempt_at=?,attempts=0 WHERE project_id=? AND kind='capi' AND state='blocked' AND last_error='capi_not_configured'").bind(new Date().toISOString(),p.id).run();ctx?.waitUntil(drain(env));return reply({ok:true});
  }
@@ -46,7 +47,7 @@ export async function connections(request,env,ctx){
  if(body.subscribe){if(!page.token_cipher)fail('page_token_missing');const result=await graph(env,pageId+'/subscribed_apps',await crypt(env,page.token_cipher,true),{subscribed_fields:'leadgen'});if(!result.success)fail('subscription_not_confirmed');await env.TOYS_DB.prepare('UPDATE crm_pages SET subscribed=1 WHERE page_id=? AND project_id=?').bind(pageId,p.id).run();}
  return reply({ok:true});
  }
- if(path==='retry'){await env.TOYS_DB.prepare("UPDATE crm_delivery SET state='pending',attempts=0,next_attempt_at=? WHERE project_id=? AND state='error'").bind(new Date().toISOString(),p.id).run();ctx?.waitUntil(drain(env));return reply({ok:true});}
+ if(path==='retry'){await env.TOYS_DB.prepare("UPDATE crm_meta_sources SET attempts=0,next_attempt_at=?,last_error=NULL WHERE project_id=? AND state!='paused'").bind(new Date().toISOString(),p.id).run();await env.TOYS_DB.prepare("UPDATE crm_projects SET capi_setup_state='pending',capi_setup_error=NULL WHERE project_id=? AND capi_setup_state='error'").bind(p.id).run();await env.TOYS_DB.prepare("UPDATE crm_delivery SET state='pending',attempts=0,next_attempt_at=? WHERE project_id=? AND state='error'").bind(new Date().toISOString(),p.id).run();ctx?.waitUntil(drain(env));return reply({ok:true});}
  fail('not_found',404);
  }catch(e){return reply({ok:false,error:e.code||'connection_failed'},e.status||500);}
 }
