@@ -1,4 +1,4 @@
-import {projectPipeline,statusExpression} from './pipelines.js';
+import {projectPipeline,statusExpression,isQualifiedStage} from './pipelines.js';
 const NOW=()=>new Date().toISOString();
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
 const text=(v,max=500)=>String(v??'').trim().slice(0,max);
@@ -61,7 +61,8 @@ export async function updateLead(env,p,id,body,actor,key){
  if(!lead)fail('not_found',404);if(lead.version!==body.version)fail('version_conflict',409);
  let value=null,currency=null;
  if(stage.kind==='sale'){value=text(body.value,30);currency=text(body.currency,3).toUpperCase();if(!/^(0|[1-9]\d{0,11})(\.\d{1,2})?$/.test(value)||Number(value)<=0||!/^[A-Z]{3}$/.test(currency))fail('sale_value_currency_required');}
- const n=NOW(),event=crypto.randomUUID(),kind=stage.kind;
+ const n=NOW(),event=crypto.randomUUID();
+ const milestoneKinds=[...new Set([...(isQualifiedStage(stage)?['qualified']:[]),...(stage.kind?[stage.kind]:[])])];
  const response={ok:true,id,status:desired,version:body.version+1};
  const db=env.TOYS_DB;
  // A compare-and-swap claim gates every subsequent statement inside one D1 transaction.
@@ -71,8 +72,8 @@ export async function updateLead(env,p,id,body,actor,key){
  db.prepare('INSERT INTO lead_status_events(id,project_id,lead_id,from_status,to_status,changed_at,note) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(event,p.id,id,lead.current_status,desired,n,JSON.stringify({actor,note:text(body.note,2000),...(value?{sale:{value,currency}}:{})}),id,event),
  db.prepare('UPDATE leads SET current_status=?,status_updated_at=?,updated_at=? WHERE id=? AND project_id=? AND EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(desired,n,n,id,p.id,id,event)
  ];
- if(kind){const milestone='crm_'+await hash(id+':'+kind);changes.push(
- db.prepare('INSERT INTO crm_milestones(id,project_id,lead_id,kind,occurred_at,value,currency) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?) ON CONFLICT(lead_id,kind) DO NOTHING').bind(milestone,p.id,id,kind,n,value,currency,id,event),
+ for(const kind of milestoneKinds){const milestone='crm_'+await hash(id+':'+kind);changes.push(
+ db.prepare('INSERT INTO crm_milestones(id,project_id,lead_id,kind,occurred_at,value,currency) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?) ON CONFLICT(lead_id,kind) DO NOTHING').bind(milestone,p.id,id,kind,n,kind==='sale'?value:null,kind==='sale'?currency:null,id,event),
  db.prepare(`INSERT INTO crm_delivery(id,project_id,lead_id,kind,source_id,payload_json,next_attempt_at,created_at) SELECT ?,?,?,'capi',?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?) AND instr(','||COALESCE((SELECT capi_kinds FROM crm_projects WHERE project_id=?),'qualified,sale')||',',','||?||',')>0 ON CONFLICT(project_id,kind,source_id) DO NOTHING`).bind(milestone,p.id,id,milestone,JSON.stringify({milestoneId:milestone}),n,n,id,event,p.id,kind));}
  changes.push(db.prepare('INSERT INTO crm_write_keys(project_id,request_key,request_hash,response_json,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(p.id,key,requestHash,JSON.stringify(response),n,id,event));
  const results=await db.batch(changes);if(!results[1].meta?.changes)fail('version_conflict',409);return response;
@@ -111,7 +112,7 @@ export async function listLeads(env,p,url){
   ]);
   const leads=result.results.map(({metadataJson,...r})=>({...r,metadata:parse(metadataJson)}));
   const columns=pipeline.stages.filter(s=>!status||s.label===status).map(s=>{const total=counts.results.find(c=>c.status===s.label)?.total||0,rows=leads.filter(l=>l.status===s.label);return {status:s.label,color:s.color,total,leads:rows,hasMore:total>rows.length};});
-  const qualifiedStages=new Set(pipeline.stages.filter(s=>s.kind==='qualified').map(s=>s.label));
+  const qualifiedStages=new Set(pipeline.stages.filter(isQualifiedStage).map(s=>s.label));
   return {ok:true,statuses,pipeline,columns,total:columns.reduce((n,c)=>n+c.total,0),range:{from,to,timeZone:'Asia/Tbilisi',dateBasis:'received_at'},summary:{qualified:counts.results.filter(c=>qualifiedStages.has(c.status)).reduce((n,c)=>n+c.total,0),sales:counts.results.find(c=>c.status===saleStatus)?.total||0,revenue:revenue.results}};
  }
  const result=await env.TOYS_DB.prepare(`SELECT l.id,l.name,l.phone,l.email,l.created_at AS createdAt,l.source_provider AS source,${stageSQL} AS status,l.metadata_json AS metadataJson,COALESCE(s.version,0) AS version,s.owner_label AS owner,s.sale_value AS saleValue,s.sale_currency AS saleCurrency,(SELECT state FROM crm_delivery d WHERE d.lead_id=l.id AND kind='capi' ORDER BY created_at DESC LIMIT 1) AS capiState FROM leads l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE ${where.join(' AND ')} ORDER BY julianday(l.created_at) DESC,l.id LIMIT ? OFFSET ?`).bind(...args,limit+1,offset).all();

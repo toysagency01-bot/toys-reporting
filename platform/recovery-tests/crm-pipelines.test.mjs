@@ -27,7 +27,7 @@ test('TOYS pipeline preserves existing leads, initializes new ones in Новые
   assert.equal(db.prepare("SELECT COUNT(*) n FROM crm_delivery WHERE kind='capi'").get().n,1);
   await assert.rejects(updateLead(env,p,old.id,{status:'Успешно реализовано',version},'owner','toys-missing-amount'),{code:'sale_value_currency_required'});
   await updateLead(env,p,old.id,{status:'Успешно реализовано',version:version++,value:'1500',currency:'EUR'},'owner','toys-won');
-  d=await board(env);assert.equal(d.summary.sales,1);assert.equal(d.summary.revenue[0].value,1500);
+  d=await board(env);assert.equal(d.summary.qualified,1);assert.equal(d.summary.sales,1);assert.equal(d.summary.revenue[0].value,1500);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM crm_delivery WHERE kind='capi'").get().n,1,'TOYS sales are statistics only; qualification CAPI stays deduplicated');
   await ingest(env,p,{name:'Replayed',phone:'+995555010000'},'meta_lead_ads','123456');
   assert.equal((await board(env)).summary.sales,1,'provider retries preserve the chosen stage');
@@ -35,6 +35,53 @@ test('TOYS pipeline preserves existing leads, initializes new ones in Новые
   assert.deepEqual((await board(env)).summary,{qualified:0,sales:0,revenue:[]});
   db.prepare("INSERT INTO projects(id,organization_id,slug,name,settings_json) VALUES('other-project','org_toys_agency','other-project','Other','{}')").run();
   assert.equal((await projectPipeline(env,{id:'other-project'})).key,'general');
+ }finally{db.close();}
+});
+
+test('TOYS qualification allowlist covers direct entry, rejection, re-entry and retry-safe Meta delivery',async()=>{
+ const qualifying=['Квалифицирован','Кикоф митинг','Готовим КП аудит','Презентовали КП','Согласование договора','Успешно реализовано'];
+ const excluded=['Новые','Первичный контакт','Фолоу ап 1','Фолоу ап 2','Вышел на связь','Отложенные (перспективные)','Отложенные (малоперспективные)','Нет ответа, без номера, мусор','Закрыто, но не реализовано'];
+ const {env,db}=fixture();try{
+  await enable(env,p);db.prepare("UPDATE projects SET settings_json=json_set(settings_json,'$.crmTemplate','toys_agency') WHERE id=?").run(p.id);
+  env.CRM_ENCRYPTION_KEY=btoa('x'.repeat(32));
+  db.prepare("UPDATE crm_projects SET capi_kinds='qualified',capi_enabled=1,dataset_id='1036998279992732',capi_token_cipher=?").run(await crypt(env,'synthetic-token'));
+  const sent=[];env.CRM_FETCH=async(url,options)=>{
+   assert.equal(url,'https://graph.facebook.com/v26.0/1036998279992732/events');
+   const [event]=JSON.parse(new URLSearchParams(options.body).get('data'));sent.push(event);
+   return Response.json({events_received:sent.length===1?0:1});
+  };
+  // Each explicit non-qualifying stage can be reached directly without producing an event.
+  for(const [i,status] of excluded.entries()){
+   const lead=await ingest(env,p,{phone:'+995555010010'},'meta_lead_ads',String(10000+i));
+   await updateLead(env,p,lead.id,{status,version:1},'owner','exclude-'+i);
+   assert.equal((await board(env)).summary.qualified,0,status);
+   assert.equal(db.prepare('SELECT count(*) n FROM crm_milestones').get().n,0,status);
+  }
+  for(const [i,status] of qualifying.entries()){
+   const lead=await ingest(env,p,{phone:'+995555010020'},'meta_lead_ads',String(20000+i));
+   let version=1;
+   const move=async(status)=>updateLead(env,p,lead.id,{status,version:version++,...(status==='Успешно реализовано'?{value:'500',currency:'EUR'}:{})},'owner','qual-'+i+'-'+version);
+   await move(status);
+   assert.equal((await board(env)).summary.qualified,i+1,'direct entry '+status);
+   const filtered=await board(env,'status='+encodeURIComponent(status));assert.equal(filtered.summary.qualified,1);
+   const milestone=db.prepare("SELECT id,occurred_at FROM crm_milestones WHERE lead_id=? AND kind='qualified'").get(lead.id);
+   assert.ok(milestone);
+   for(const other of excluded){
+    await move(other);assert.equal((await board(env)).summary.qualified,i,'leave to '+other);
+    await move(status);assert.equal((await board(env)).summary.qualified,i+1,'return from '+other);
+   }
+   assert.deepEqual(db.prepare("SELECT id,occurred_at FROM crm_milestones WHERE lead_id=? AND kind='qualified'").get(lead.id),milestone);
+   assert.equal(db.prepare("SELECT count(*) n FROM crm_delivery WHERE lead_id=? AND kind='capi'").get(lead.id).n,1);
+  }
+  assert.equal((await board(env)).summary.sales,1);
+  await drain(env);
+  assert.equal(sent.length,6);assert.ok(sent.every(e=>e.event_name==='QualifiedLead'&&e.user_data.lead_id&&e.custom_data.value===undefined));
+  assert.equal(db.prepare("SELECT count(*) n FROM crm_delivery WHERE state='error'").get().n,1);
+  db.prepare("UPDATE crm_delivery SET next_attempt_at='2000-01-01T00:00:00Z' WHERE state='error'").run();await drain(env);
+  assert.equal(sent.length,7);assert.deepEqual(sent[6],sent[0],'retry preserves event identity, time and lead');
+  await drain(env);assert.equal(sent.length,7,'acknowledged events are not resent');
+  assert.equal(db.prepare("SELECT count(*) n FROM crm_delivery WHERE state='sent'").get().n,6);
+  const totals=await summary(env,p,'2026-01-01','2099-01-01');assert.equal(totals.qualified,6);assert.equal(totals.sales,1);
  }finally{db.close();}
 });
 

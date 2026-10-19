@@ -12,7 +12,7 @@ Approved mapping on 2026-10-19:
 - History was initially deferred. The user subsequently authorized Page history
   from **2026-09-01 00:00 Asia/Tbilisi** to the start of this backfill.
   The earlier full-year request remains deferred; do not extend this window.
-- CAPI: `QualifiedLead` only. Sales still count in CRM but do not emit CAPI events.
+- CAPI: `QualifiedLead` only. Sales also qualify, but do not emit a separate sale CAPI event.
 
 ## Credentials and activation
 
@@ -115,6 +115,14 @@ labels remain visible through aliases (not a rewrite of status history). Newly
 ingested leads use the selected template's first stage, `Новые`. Stages from
 `Квалифицирован` through `Согласование договора` retain qualification and use
 the same deduplicated qualification milestone. `Успешно реализовано` requires
-an amount/currency and counts as a sale. Deferred, junk and lost stages are
+an amount/currency and counts as both qualified and sold. Direct entry into any
+qualifying stage creates the first qualification milestone; revisiting these
+stages never creates a second qualification event. Deferred, junk and lost stages are
 not currently qualified or sold. TOYS remains admin-only and qualification-only
 for CAPI; enabling the template creates no conversion events.
+
+Qualification is an explicit allowlist, not a stage-index threshold. Before-contact,
+deferred, junk and lost stages do not create qualification milestones and are
+excluded from current board qualification counts. Moving out of qualification
+does not retract the historical first-qualification event already sent to Meta;
+the dated dashboard milestone metrics retain that historical event.

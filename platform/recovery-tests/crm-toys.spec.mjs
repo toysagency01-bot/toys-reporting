@@ -11,10 +11,17 @@ test('TOYS stages work in the kanban, filters, editor, qualification and sale fl
  const move=async status=>{await page.locator('#leadForm [name=status]').selectOption(status);await page.locator('#leadForm button[type=submit]').click();};
  await move('Квалифицирован');await expect(page.locator('#crmSummary .value').first()).toHaveText('1');await card.click();await move('Кикоф митинг');await expect(page.locator('#crmSummary .value').first()).toHaveText('1');
  await card.click();await move('Успешно реализовано');await expect(page.locator('#leadForm [role=status]')).toContainText('сумму');await page.locator('#leadForm [name=value]').fill('1500');await page.locator('#leadForm [name=currency]').fill('EUR');await page.locator('#leadForm button[type=submit]').click();await expect(page.locator('#editor')).toBeHidden();
- await expect(page.locator('#crmSummary .value').nth(1)).toHaveText('1');await expect(page.locator('#crmSummary .value').nth(2)).toContainText('EUR');
+ await expect(page.locator('#crmSummary .value').first()).toHaveText('1');await expect(page.locator('#crmSummary .value').nth(1)).toHaveText('1');await expect(page.locator('#crmSummary .value').nth(2)).toContainText('EUR');
+ // Deferred, junk and lost columns must not qualify merely because they are further right.
+ for(const status of ['Отложенные (перспективные)','Отложенные (малоперспективные)','Нет ответа, без номера, мусор','Закрыто, но не реализовано']){
+  await card.click();await move(status);await expect(page.locator('#crmSummary .value').first()).toHaveText('0');await expect(page.locator('#crmSummary .value').nth(1)).toHaveText('0');
+  await card.click();await move('Кикоф митинг');await expect(page.locator('#crmSummary .value').first()).toHaveText('1');
+ }
+ await card.click();await move('Успешно реализовано');await expect(page.locator('#crmSummary .value').first()).toHaveText('1');
  await page.locator('#statusFilter').selectOption('Успешно реализовано');await expect(page.locator('.kanban-column')).toHaveCount(1);await expect(card).toBeVisible();
  await page.locator('#statusFilter').selectOption('');const slider=page.getByRole('slider',{name:'Прокрутка этапов'});await slider.focus();await slider.press('End');await expect(column('Закрыто, но не реализовано').locator('.stage-heading')).toBeInViewport();
- await page.screenshot({path:'dist/crm-toys-desktop.png',animations:'disabled'});
+ await expect(page.locator('#crmSummary .card').first()).toHaveCSS('opacity','1');
+ await page.screenshot({path:'dist/crm-toys-desktop.png'});
  await page.setViewportSize({width:390,height:844});await slider.focus();await slider.press('End');await expect(column('Закрыто, но не реализовано').locator('.stage-heading')).toBeInViewport();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'dist/crm-toys-mobile.png',animations:'disabled'});
  await page.reload();await page.locator('#statusFilter').selectOption('Успешно реализовано');await expect(card).toBeVisible();expect(errors).toEqual([]);
 });

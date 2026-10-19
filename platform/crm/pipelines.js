@@ -11,7 +11,7 @@ export const PIPELINES={
   stage('Готовим КП аудит','#859fe4','qualified'),stage('Презентовали КП','#b39bd5','qualified'),
   stage('Согласование договора','#d7b86b','qualified'),
   stage('Отложенные (перспективные)','#b5a182'),stage('Отложенные (малоперспективные)','#a39a91'),
-  stage('Нет ответа, без номера, мусор','#96939e'),stage('Успешно реализовано','#79c981','sale'),
+  stage('Нет ответа, без номера, мусор','#96939e'),{...stage('Успешно реализовано','#79c981','sale'),countsAsQualified:true},
   stage('Закрыто, но не реализовано','#c28c91')
  ]},
  real_estate:{key:'real_estate',label:'Недвижимость',aliases:{'В работе':'Связались','Продажа':'Сделка','Не подходит':'Отказ','Потерян':'Неактуален'},stages:[
@@ -30,6 +30,8 @@ export const PIPELINES={
   stage('Отложен','#b5a182'),stage('Неактуален','#96939e')
  ]}
 };
+// Qualification is explicit, never inferred from a stage's position in the funnel.
+export const isQualifiedStage=stage=>stage.kind==='qualified'||stage.countsAsQualified===true;
 // Read older stage labels consistently without rewriting user changes or conversion history.
 export function statusExpression(pipeline){
  const quote=s=>"'"+s.replaceAll("'","''")+"'";
