@@ -71,3 +71,17 @@ Observed initial blocker: the existing ad token has `ads_read`, `ads_management`
 Page read access and other scopes, but lacks `leads_retrieval` and
 `pages_manage_metadata`. Meta returns code 200 on reading form leads. CRM privacy
 and CAPI configuration can be enabled while intake waits for the CRM credential.
+
+## Live activation verified 2026-10-19
+
+Worker `adee1d40-4bbd-40ec-971b-98ed35f3f75d`, source code `618502a`.
+After the administrator granted Page management access to the system user,
+Meta confirmed both the app callback and the Page `leadgen` subscription.
+`connected_at=2026-10-19T09:22:17.000Z`, source state `ready`, no source error,
+Page `subscribed=1`, `history_enabled=0`, CRM access `admin`. Discovery found
+41 forms. Reconciliation is incremental; this is not a claim that all forms
+have been scanned or that a webhook lead has already arrived. At activation
+there were no delivered lead jobs and no imported TOYS leads. Verify the first
+real/test lead through Meta's Lead Ads testing tool, without creating a fake
+production CAPI qualification. Older stored diagnostics are timestamped failures
+from before the Page permission was fixed, not the current connection state.
