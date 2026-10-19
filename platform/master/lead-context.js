@@ -20,6 +20,6 @@ export function leadComments(events,formatDate){
  return notes.map(e=>`<div class="history-entry"><small>${h(formatDate(e.date))}</small><p style="white-space:pre-wrap;overflow-wrap:anywhere">${h(eventNote(e))}</p></div>`).join('')||'<p class="note">Комментариев пока нет.</p>';
 }
 export function eventLabel(event){
- try{if(JSON.parse(event.note)?.kind==='imported_comment')return 'Комментарий из таблицы';}catch{}
+ try{const note=JSON.parse(event.note);if(note?.kind==='imported_comment')return 'Комментарий из таблицы';if(note?.boardMove)return 'Перенос в «'+note.boardMove.name+'» · '+event.status;}catch{}
  return event.status;
 }

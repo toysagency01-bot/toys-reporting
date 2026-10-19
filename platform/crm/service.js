@@ -1,4 +1,5 @@
-import {projectPipeline,statusExpression,isQualifiedStage} from './pipelines.js';
+import {getBoard,listBoards,boardId} from './boards.js';
+import {statusExpression,isQualifiedStage} from './pipelines.js';
 const NOW=()=>new Date().toISOString();
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
 const text=(v,max=500)=>String(v??'').trim().slice(0,max);
@@ -44,33 +45,34 @@ export async function ingest(env,p,data,provider,sourceId){
  }
  // Immutable source identity deduplicates provider retries, without merging unrelated contacts.
  const enrichment=provider==='meta_lead_ads'?{...(a?{adAttribution:a,sourceAdId:a.adId}:{}),...(metadata.pageId?{pageId:metadata.pageId}:{}),...(metadata.formId?{formId:metadata.formId}:{}),...(metadata.formAnswers?{formAnswers:metadata.formAnswers}:{})}:{};
- const initialStatus=(await projectPipeline(env,p)).stages[0].label;
+ const board=await getBoard(env,p,provider==='manual'?data.boardId:null),initialStatus=board.pipeline.stages[0].label;
  await env.TOYS_DB.batch([
- env.TOYS_DB.prepare(`INSERT INTO leads(id,project_id,source_provider,external_lead_id,campaign_external_id,created_at,name,phone,email,current_status,metadata_json,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(project_id,source_provider,external_lead_id) DO UPDATE SET metadata_json=json_patch(leads.metadata_json,?),campaign_external_id=COALESCE(excluded.campaign_external_id,leads.campaign_external_id) WHERE leads.deleted_at IS NULL AND ?!='{}'`).bind(id,p.id,provider,sourceId,a?.campaignId||null,created,name,phone,email,initialStatus,JSON.stringify(metadata),n,JSON.stringify(enrichment),JSON.stringify(enrichment)),
+ env.TOYS_DB.prepare(`INSERT INTO leads(id,project_id,source_provider,external_lead_id,campaign_external_id,created_at,name,phone,email,current_status,metadata_json,updated_at,board_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(project_id,source_provider,external_lead_id) DO UPDATE SET metadata_json=json_patch(leads.metadata_json,?),campaign_external_id=COALESCE(excluded.campaign_external_id,leads.campaign_external_id) WHERE leads.deleted_at IS NULL AND ?!='{}'`).bind(id,p.id,provider,sourceId,a?.campaignId||null,created,name,phone,email,initialStatus,JSON.stringify(metadata),n,boardId(board.id),JSON.stringify(enrichment),JSON.stringify(enrichment)),
  env.TOYS_DB.prepare("INSERT INTO crm_lead_state(lead_id,updated_at) SELECT id,? FROM leads WHERE project_id=? AND source_provider=? AND external_lead_id=? ON CONFLICT(lead_id) DO NOTHING").bind(n,p.id,provider,sourceId)
  ]);
  return env.TOYS_DB.prepare('SELECT id,current_status AS status,deleted_at AS deletedAt FROM leads WHERE project_id=? AND source_provider=? AND external_lead_id=?').bind(p.id,provider,sourceId).first();
 }
 export async function updateLead(env,p,id,body,actor,key){
  if(!key||key.length>150)fail('idempotency_key_required');
- const pipeline=await projectPipeline(env,p),desired=text(body.status,80),stage=pipeline.stages.find(s=>s.label===desired);if(!stage||!Number.isInteger(body.version))fail('invalid_status_or_version');
+ const desired=text(body.status,80);if(!Number.isInteger(body.version))fail('invalid_status_or_version');
  const requestHash=await hash(JSON.stringify({id,...body}));
  const previous=await env.TOYS_DB.prepare('SELECT request_hash,response_json FROM crm_write_keys WHERE project_id=? AND request_key=?').bind(p.id,key).first();
  if(previous){if(previous.request_hash!==requestHash)fail('idempotency_conflict',409);return parse(previous.response_json);}
  const lead=await env.TOYS_DB.prepare('SELECT l.*,COALESCE(s.version,0) AS version FROM leads l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE l.id=? AND l.project_id=? AND l.deleted_at IS NULL').bind(id,p.id).first();
  if(!lead)fail('not_found',404);if(lead.version!==body.version)fail('version_conflict',409);
+ const board=await getBoard(env,p,Object.hasOwn(body,'boardId')?body.boardId:lead.board_id),pipeline=board.pipeline,stage=pipeline.stages.find(s=>s.label===desired);if(!stage)fail('invalid_status_or_version');
  let value=null,currency=null;
  if(stage.kind==='sale'){value=text(body.value,30);currency=text(body.currency,3).toUpperCase();if(!/^(0|[1-9]\d{0,11})(\.\d{1,2})?$/.test(value)||Number(value)<=0||!/^[A-Z]{3}$/.test(currency))fail('sale_value_currency_required');}
  const n=NOW(),event=crypto.randomUUID();
  const milestoneKinds=[...new Set([...(isQualifiedStage(stage)?['qualified']:[]),...(stage.kind?[stage.kind]:[])])];
- const response={ok:true,id,status:desired,version:body.version+1};
+ const response={ok:true,id,status:desired,boardId:board.id,version:body.version+1};
  const db=env.TOYS_DB;
  // A compare-and-swap claim gates every subsequent statement inside one D1 transaction.
  const changes=[
  db.prepare('INSERT INTO crm_lead_state(lead_id,version,updated_at) VALUES(?,0,?) ON CONFLICT(lead_id) DO NOTHING').bind(id,n),
  db.prepare('UPDATE crm_lead_state SET version=version+1,claim_token=?,updated_at=?,owner_label=?,sale_value=COALESCE(?,sale_value),sale_currency=COALESCE(?,sale_currency) WHERE lead_id=? AND version=?').bind(event,n,text(body.owner,120),value,currency,id,body.version),
- db.prepare('INSERT INTO lead_status_events(id,project_id,lead_id,from_status,to_status,changed_at,note) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(event,p.id,id,lead.current_status,desired,n,JSON.stringify({actor,note:text(body.note,2000),...(value?{sale:{value,currency}}:{})}),id,event),
- db.prepare('UPDATE leads SET current_status=?,status_updated_at=?,updated_at=? WHERE id=? AND project_id=? AND EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(desired,n,n,id,p.id,id,event)
+ db.prepare('INSERT INTO lead_status_events(id,project_id,lead_id,from_status,to_status,changed_at,note) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(event,p.id,id,lead.current_status,desired,n,JSON.stringify({actor,note:text(body.note,2000),...(boardId(board.id)!==lead.board_id?{boardMove:{from:lead.board_id||'default',to:board.id,name:board.name}}:{}),...(value?{sale:{value,currency}}:{})}),id,event),
+ db.prepare('UPDATE leads SET current_status=?,status_updated_at=?,updated_at=?,board_id=? WHERE id=? AND project_id=? AND EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?)').bind(desired,n,n,boardId(board.id),id,p.id,id,event)
  ];
  for(const kind of milestoneKinds){const milestone='crm_'+await hash(id+':'+kind);changes.push(
  db.prepare('INSERT INTO crm_milestones(id,project_id,lead_id,kind,occurred_at,value,currency) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM crm_lead_state WHERE lead_id=? AND claim_token=?) ON CONFLICT(lead_id,kind) DO NOTHING').bind(milestone,p.id,id,kind,n,kind==='sale'?value:null,kind==='sale'?currency:null,id,event),
@@ -91,9 +93,9 @@ export async function summary(env,p,from,to,provider=null){
  res.revenue=[...money].map(([currency,cents])=>({currency,value:cents/100}));res.byAd=[...ads.values()];return res;
 }
 export async function listLeads(env,p,url){
- const pipeline=await projectPipeline(env,p),statuses=pipeline.stages.map(s=>s.label),saleStatus=pipeline.stages.find(s=>s.kind==='sale').label,stageSQL=statusExpression(pipeline);
+ const board=await getBoard(env,p,url.searchParams.get('board')),pipeline=board.pipeline,statuses=pipeline.stages.map(s=>s.label),saleStatus=pipeline.stages.find(s=>s.kind==='sale').label,stageSQL=statusExpression(pipeline);
  const limit=50,offset=Math.max(0,Math.min(100000,Number(url.searchParams.get('offset'))||0)),status=url.searchParams.get('status'),q=text(url.searchParams.get('q'),100);
- const where=['l.project_id=?','l.deleted_at IS NULL'];const args=[p.id];if(status){where.push(`(${stageSQL})=?`);args.push(status);}if(q){where.push("(l.name LIKE ? ESCAPE '\\' OR l.phone LIKE ? ESCAPE '\\' OR l.email LIKE ? ESCAPE '\\')");const escaped=q.replace(/[\\%_]/g,'\\$&');args.push(...Array(3).fill('%'+escaped+'%'));}
+ const where=['l.project_id=?','l.deleted_at IS NULL','l.board_id IS ?'];const args=[p.id,boardId(board.id)];if(status){where.push(`(${stageSQL})=?`);args.push(status);}if(q){where.push("(l.name LIKE ? ESCAPE '\\' OR l.phone LIKE ? ESCAPE '\\' OR l.email LIKE ? ESCAPE '\\')");const escaped=q.replace(/[\\%_]/g,'\\$&');args.push(...Array(3).fill('%'+escaped+'%'));}
  const from=url.searchParams.get('from'),to=url.searchParams.get('to');
  if(from||to){
   const valid=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'')&&Number.isFinite(Date.parse(d+'T00:00:00Z'))&&new Date(d+'T00:00:00Z').toISOString().slice(0,10)===d;
@@ -107,15 +109,15 @@ export async function listLeads(env,p,url){
   const perColumn=25;
   const [counts,result,revenue]=await Promise.all([
    env.TOYS_DB.prepare(`SELECT ${stageSQL} AS status,COUNT(*) AS total FROM leads l WHERE ${where.join(' AND ')} GROUP BY ${stageSQL}`).bind(...args).all(),
-   env.TOYS_DB.prepare(`WITH ranked AS (SELECT l.*,ROW_NUMBER() OVER(PARTITION BY ${stageSQL} ORDER BY julianday(l.created_at) DESC,l.id) AS position FROM leads l WHERE ${where.join(' AND ')}) SELECT l.id,l.name,l.phone,l.email,l.created_at AS createdAt,l.source_provider AS source,${stageSQL} AS status,l.metadata_json AS metadataJson,COALESCE(s.version,0) AS version,s.owner_label AS owner,s.sale_value AS saleValue,s.sale_currency AS saleCurrency FROM ranked l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE l.position<=? ORDER BY julianday(l.created_at) DESC,l.id`).bind(...args,perColumn).all(),
+   env.TOYS_DB.prepare(`WITH ranked AS (SELECT l.*,ROW_NUMBER() OVER(PARTITION BY ${stageSQL} ORDER BY julianday(l.created_at) DESC,l.id) AS position FROM leads l WHERE ${where.join(' AND ')}) SELECT l.id,l.name,l.phone,l.email,l.created_at AS createdAt,l.source_provider AS source,COALESCE(l.board_id,'default') AS boardId,${stageSQL} AS status,l.metadata_json AS metadataJson,COALESCE(s.version,0) AS version,s.owner_label AS owner,s.sale_value AS saleValue,s.sale_currency AS saleCurrency FROM ranked l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE l.position<=? ORDER BY julianday(l.created_at) DESC,l.id`).bind(...args,perColumn).all(),
    env.TOYS_DB.prepare(`SELECT s.sale_currency AS currency,SUM(ROUND(CAST(s.sale_value AS REAL)*100))/100.0 AS value FROM leads l JOIN crm_lead_state s ON s.lead_id=l.id WHERE ${where.join(' AND ')} AND (${stageSQL})=? AND s.sale_value IS NOT NULL AND s.sale_currency IS NOT NULL GROUP BY s.sale_currency ORDER BY s.sale_currency`).bind(...args,saleStatus).all()
   ]);
   const leads=result.results.map(({metadataJson,...r})=>({...r,metadata:parse(metadataJson)}));
   const columns=pipeline.stages.filter(s=>!status||s.label===status).map(s=>{const total=counts.results.find(c=>c.status===s.label)?.total||0,rows=leads.filter(l=>l.status===s.label);return {status:s.label,color:s.color,total,leads:rows,hasMore:total>rows.length};});
   const qualifiedStages=new Set(pipeline.stages.filter(isQualifiedStage).map(s=>s.label));
-  return {ok:true,statuses,pipeline,columns,total:columns.reduce((n,c)=>n+c.total,0),range:{from,to,timeZone:'Asia/Tbilisi',dateBasis:'received_at'},summary:{qualified:counts.results.filter(c=>qualifiedStages.has(c.status)).reduce((n,c)=>n+c.total,0),sales:counts.results.find(c=>c.status===saleStatus)?.total||0,revenue:revenue.results}};
+  return {ok:true,board,boards:await listBoards(env,p),statuses,pipeline,columns,total:columns.reduce((n,c)=>n+c.total,0),range:{from,to,timeZone:'Asia/Tbilisi',dateBasis:'received_at'},summary:{qualified:counts.results.filter(c=>qualifiedStages.has(c.status)).reduce((n,c)=>n+c.total,0),sales:counts.results.find(c=>c.status===saleStatus)?.total||0,revenue:revenue.results}};
  }
- const result=await env.TOYS_DB.prepare(`SELECT l.id,l.name,l.phone,l.email,l.created_at AS createdAt,l.source_provider AS source,${stageSQL} AS status,l.metadata_json AS metadataJson,COALESCE(s.version,0) AS version,s.owner_label AS owner,s.sale_value AS saleValue,s.sale_currency AS saleCurrency,(SELECT state FROM crm_delivery d WHERE d.lead_id=l.id AND kind='capi' ORDER BY created_at DESC LIMIT 1) AS capiState FROM leads l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE ${where.join(' AND ')} ORDER BY julianday(l.created_at) DESC,l.id LIMIT ? OFFSET ?`).bind(...args,limit+1,offset).all();
+ const result=await env.TOYS_DB.prepare(`SELECT l.id,l.name,l.phone,l.email,l.created_at AS createdAt,l.source_provider AS source,COALESCE(l.board_id,'default') AS boardId,${stageSQL} AS status,l.metadata_json AS metadataJson,COALESCE(s.version,0) AS version,s.owner_label AS owner,s.sale_value AS saleValue,s.sale_currency AS saleCurrency,(SELECT state FROM crm_delivery d WHERE d.lead_id=l.id AND kind='capi' ORDER BY created_at DESC LIMIT 1) AS capiState FROM leads l LEFT JOIN crm_lead_state s ON s.lead_id=l.id WHERE ${where.join(' AND ')} ORDER BY julianday(l.created_at) DESC,l.id LIMIT ? OFFSET ?`).bind(...args,limit+1,offset).all();
  const rows=result.results||[];return {ok:true,statuses,pipeline,hasMore:rows.length>limit,offset,leads:rows.slice(0,limit).map(({metadataJson,...r})=>({...r,metadata:parse(metadataJson)}))};
 }
 

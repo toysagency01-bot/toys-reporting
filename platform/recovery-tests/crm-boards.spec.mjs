@@ -1,0 +1,26 @@
+import {test,expect} from '@playwright/test';
+test('create independent funnels, transfer leads, preserve board on reload and use mobile controls',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1440,height:1000});
+ await page.goto('/housevip-cxp7/');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('#platformCRMNav').click();
+ const crm=page.locator('#platformClientCRM'),select=crm.locator('#crmBoardSelect');await expect(select).toHaveValue('default');
+ const addLead=async name=>{await crm.locator('#newLead').click();await crm.locator('#newLeadForm [name=name]').fill(name);await crm.locator('#newLeadForm [name=phone]').fill('+995555010001');await crm.locator('#newLeadForm [type=submit]').click();await expect(crm.locator('#editor')).toBeHidden();};
+ await addLead('Основная заявка');
+ await crm.locator('#newBoard').click();await crm.locator('#boardForm [name=name]').fill('Отдел B2B');await crm.locator('#boardTemplate').selectOption('general');
+ await crm.getByRole('textbox',{name:'Название этапа 1',exact:true}).fill('Новая B2B');
+ await crm.getByRole('combobox',{name:'Тип этапа 4',exact:true}).selectOption('sale-qualified');
+ await crm.locator('#boardForm [type=submit]').click();await expect(crm.locator('#editor')).toBeHidden();await expect(crm.locator('#funnelName')).toHaveText('Отдел B2B');
+ const b2b=await select.inputValue();expect(b2b).not.toBe('default');await expect(crm.locator('#leadCount')).toHaveText('0');await expect(crm.locator('[data-stage="Новая B2B"]')).toBeVisible();await expect(crm.getByRole('button',{name:'Основная заявка',exact:true})).toHaveCount(0);
+ await addLead('Клиент B2B');const card=crm.getByRole('button',{name:'Клиент B2B',exact:true});await card.click();await crm.locator('#leadForm [name=status]').selectOption('Квалифицирован');await crm.locator('#leadForm [type=submit]').click();await expect(crm.locator('#crmSummary .value').first()).toHaveText('1');
+ await select.selectOption('default');await expect(crm.locator('#crmSummary .value').first()).toHaveText('0');await expect(crm.getByRole('button',{name:'Основная заявка',exact:true})).toBeVisible();await expect(card).toHaveCount(0);
+ await select.selectOption(b2b);await card.click();await crm.locator('#leadForm [name=boardId]').selectOption('default');await expect(crm.locator('#leadForm [name=status]')).toHaveValue('Новые');await crm.locator('#leadForm [name=status]').selectOption('Кикоф митинг');await crm.locator('#leadForm [type=submit]').click();await expect(crm.locator('#leadCount')).toHaveText('0');
+ await select.selectOption('default');await expect(crm.locator('#leadCount')).toHaveText('2');await expect(crm.locator('#crmSummary .value').first()).toHaveText('1');await card.click();await expect(crm.locator('#leadHistory')).toContainText('Перенос в «Основная»');await crm.locator('#editor .dialog-close').click();
+ await select.selectOption(b2b);await page.reload();await expect(select).toHaveValue(b2b);await expect(crm.locator('#leadCount')).toHaveText('0');
+ await crm.locator('#newBoard').click();await crm.locator('#boardForm [name=name]').fill('Отдел B2B');await crm.locator('#boardForm [type=submit]').click();await expect(crm.locator('#boardForm [role=status]')).toContainText('уже существует');await crm.locator('#cancelBoard').click();
+ await page.setViewportSize({width:390,height:844});await crm.locator('#newBoard').click();await crm.locator('#boardForm [name=name]').fill('Партнёры');await crm.locator('#boardTemplate').selectOption('general');
+ await crm.locator('#addBoardStage').click();await crm.getByRole('textbox',{name:'Название этапа 7',exact:true}).fill('Отложен');await crm.getByRole('button',{name:'Поднять этап 7',exact:true}).click();await expect(crm.getByRole('textbox',{name:'Название этапа 6',exact:true})).toHaveValue('Отложен');
+ expect(await crm.locator('#editor').evaluate(e=>e.scrollWidth<=e.clientWidth)).toBe(true);await page.screenshot({path:'dist/crm-boards-create-mobile.png'});
+ await crm.locator('#boardForm [type=submit]').click();await expect(crm.locator('#editor')).toBeHidden();await expect(crm.locator('#funnelName')).toHaveText('Партнёры');await expect(crm.locator('.stage-heading h3')).toContainText(['Новый','В работе','Квалифицирован','Продажа','Не подходит','Отложен','Потерян']);
+ await addLead('Мобильная заявка');await expect(crm.getByRole('button',{name:'Мобильная заявка',exact:true})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:'dist/crm-boards-mobile.png'});await page.setViewportSize({width:1440,height:1000});await expect(crm.locator('#crmSummary .card').first()).toHaveCSS('opacity','1');await page.screenshot({path:'dist/crm-boards-desktop.png'});
+ expect(errors).toEqual([]);
+});
