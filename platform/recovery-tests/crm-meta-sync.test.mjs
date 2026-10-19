@@ -4,10 +4,19 @@ import {fixture,testWorker,request} from './fixture.mjs';
 import {crypt,enable,ingest,updateLead} from '../crm/service.js';
 import {drain} from '../crm/delivery.js';
 import {runMetaLeadSync,metaSyncStatus} from '../crm/meta-sync.js';
-import {connectDirectMeta} from '../crm/direct-meta.js';
+import {connectDirectMeta,meta} from '../crm/direct-meta.js';
 
 const p={id:'prj_housevip_cxp7',slug:'housevip-cxp7',timezone:'Asia/Tbilisi'};
 const at=Date.parse('2026-10-19T10:00:00Z'),n=new Date(at).toISOString();
+test('provider diagnostics retain the permission reason but redact credentials and URLs',async()=>{
+ const token='synthetic-private-credential-value',verify='synthetic-verification-secret';
+ const env={CRM_FETCH:async()=>Response.json({error:{code:200,message:`Requires admin permission. ${token} ${verify} https://example.test/?access_token=private person@example.test`}},{status:400})};
+ await assert.rejects(meta(env,'123/subscribed_apps',token,{body:{verify_token:verify}}),e=>{
+  assert.equal(e.metaMethod,'POST');assert.ok(e.metaMessage.includes('Requires admin permission'));
+  for(const secret of [token,verify,'example.test','access_token','person@'])assert.ok(!e.metaMessage.includes(secret));
+  return true;
+ });
+});
 async function setup(){
  const f=fixture();f.env.CRM_ENCRYPTION_KEY=btoa('x'.repeat(32));f.env.META_ADS_ACCESS_TOKEN='synthetic-current-token';
  await enable(f.env,p);

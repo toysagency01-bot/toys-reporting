@@ -92,8 +92,8 @@ export async function runMetaLeadSync(env,at=Date.now()){
    await env.TOYS_DB.prepare("UPDATE crm_meta_sources SET state='ready',last_error=NULL,attempts=0,next_attempt_at=?,last_scan_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE page_id=? AND lease_token=?").bind(iso(at+120000),n,n,source.page_id,lease).run();
   }catch(e){
    const error=(e.syncStage||'sync')+':'+safeError(e)+(Number.isInteger(e.metaSubcode)?':'+e.metaSubcode:'')+(e.metaOperation?'@'+e.metaOperation:'');
-   // Only identifiers and permission names; never provider messages or tokens.
-   if(e.metaDiagnostics)await env.TOYS_DB.prepare('UPDATE projects SET settings_json=json_set(settings_json,\'$.crmMetaDiagnostics\',json(?)) WHERE id=?').bind(JSON.stringify({...e.metaDiagnostics,requiredPermissions:e.metaPermissions||[],checkedAt:n}),source.project_id).run();
+   // Connection diagnostics only: no contacts, credentials or unredacted URLs.
+   if(e.metaDiagnostics)await env.TOYS_DB.prepare('UPDATE projects SET settings_json=json_set(settings_json,\'$.crmMetaDiagnostics\',json(?)) WHERE id=?').bind(JSON.stringify({...e.metaDiagnostics,requiredPermissions:e.metaPermissions||[],method:e.metaMethod,providerMessage:e.metaMessage,checkedAt:n}),source.project_id).run();
    await env.TOYS_DB.prepare("UPDATE crm_meta_sources SET state='error',last_error=?,attempts=attempts+1,next_attempt_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE page_id=? AND lease_token=?").bind(error,iso(at+Math.min(3600000,120000*2**Math.min(source.attempts,5))),n,source.page_id,lease).run();
   }
  }

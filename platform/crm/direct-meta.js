@@ -3,11 +3,18 @@ import {crypt,hash} from './service.js';
 export const META_CALLBACK='https://reports.toys-agency.com/api/crm/meta';
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
 const fields=item=>(item?.fields||item?.subscribed_fields||[]).map(f=>typeof f==='string'?f:f.name).filter(Boolean);
+function safeProviderMessage(message,token,query,body){
+ let value=String(message||'');
+ for(const secret of [token,...Object.values(query),...Object.values(body||{})]){
+  if(typeof secret==='string'&&secret.length>=16)value=value.split(secret).join('[redacted]');
+ }
+ return value.replace(/https?:\/\/\S+/gi,'[url]').replace(/[A-Za-z0-9_|.-]{24,}/g,'[redacted]').replace(/[\w.+-]+@[\w.-]+/g,'[email]').slice(0,500);
+}
 export async function meta(env,path,token,{query={},body=null}={}){
  if(!['debug_token','me'].includes(path)&&!/^\d+(?:\/(?:subscriptions|subscribed_apps|leadgen_forms|leads))?$/.test(path)&&!/^act_\d+\/adspixels$/.test(path))fail('invalid_graph_path');
  const url=new URL('https://graph.facebook.com/v26.0/'+path);url.search=new URLSearchParams(query).toString();
  const response=await (env.CRM_FETCH||fetch)(url.href,{method:body?'POST':'GET',headers:{authorization:'Bearer '+token,...(body?{'content-type':'application/x-www-form-urlencoded'}:{})},...(body?{body:new URLSearchParams(body)}:{}),redirect:'manual',signal:AbortSignal.timeout(20000)});
- const data=await response.json().catch(()=>({}));if(!response.ok||data.error)throw Object.assign(new Error('Meta request failed'),{code:'meta_'+(data.error?.code||response.status),status:502,metaSubcode:data.error?.error_subcode||null,metaOperation:path.replace(/^(act_)?\d+/, 'object'),metaPermissions:['leads_retrieval','pages_read_engagement','pages_manage_metadata','pages_show_list','ads_management','business_management'].filter(p=>String(data.error?.message||'').includes(p))});return data;
+ const data=await response.json().catch(()=>({}));if(!response.ok||data.error)throw Object.assign(new Error('Meta request failed'),{code:'meta_'+(data.error?.code||response.status),status:502,metaSubcode:data.error?.error_subcode||null,metaOperation:path.replace(/^(act_)?\d+/, 'object'),metaMethod:body?'POST':'GET',metaMessage:safeProviderMessage(data.error?.message,token,query,body),metaPermissions:['leads_retrieval','pages_read_engagement','pages_manage_metadata','pages_show_list','ads_management','business_management'].filter(p=>String(data.error?.message||'').includes(p))});return data;
 }
 
 // This operates only on a page explicitly selected by a project administrator.
