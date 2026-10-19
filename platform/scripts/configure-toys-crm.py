@@ -4,6 +4,7 @@
 Usage: python scripts/configure-toys-crm.py migrate
        python scripts/configure-toys-crm.py activate EXPECTED_WORKER_VERSION
        python scripts/configure-toys-crm.py resume-live EXPECTED_WORKER_VERSION
+       python scripts/configure-toys-crm.py import-history FROM_DATE EXPECTED_WORKER_VERSION
        python scripts/configure-toys-crm.py status
 """
 import datetime as dt
@@ -60,6 +61,24 @@ elif action=='resume-live':
     now=dt.datetime.now(dt.timezone.utc).isoformat(timespec='milliseconds').replace('+00:00','Z')
     result=query("UPDATE crm_meta_sources SET history_enabled=0,state='pending',attempts=0,last_error=NULL,next_attempt_at=?,updated_at=? WHERE page_id=? AND project_id=? AND (lease_until IS NULL OR lease_until<?) RETURNING page_id",[now,now,PAGE,PROJECT,now])
     assert result==[{'page_id':PAGE}],'Source is leased; retry after it completes'
+    status()
+elif action=='import-history':
+    assert len(sys.argv)==4,'Start date and expected Worker version are required'
+    assert release.current()==[{'version_id':sys.argv[3],'percentage':100}],'Deployment changed'
+    start=dt.datetime.combine(dt.date.fromisoformat(sys.argv[2]),dt.time(),ZoneInfo('Asia/Tbilisi'))
+    now=dt.datetime.now(dt.timezone.utc)
+    assert start<now,'History start must be in the past'
+    iso=lambda d:d.astimezone(dt.timezone.utc).isoformat(timespec='milliseconds').replace('+00:00','Z')
+    source=query('SELECT project_id,account_id,app_id,history_enabled,history_from FROM crm_meta_sources WHERE page_id=?',[PAGE])
+    assert len(source)==1 and all(source[0][k]==v for k,v in {'project_id':PROJECT,'account_id':ACCOUNT,'app_id':APP}.items())
+    assert query('SELECT access_mode FROM crm_projects WHERE project_id=?',[PROJECT])==[{'access_mode':'admin'}]
+    if source[0]['history_enabled']==1 and source[0]['history_from']==iso(start):
+        status();raise SystemExit(0)
+    # Pause the scanner before resetting its window. Signed live webhooks continue.
+    rows=query("UPDATE crm_meta_sources SET state='paused',history_enabled=0,updated_at=? WHERE page_id=? AND (lease_until IS NULL OR lease_until<?) RETURNING page_id",[iso(now),PAGE,iso(now)])
+    assert rows==[{'page_id':PAGE}],'Scanner is leased; retry after the current scan'
+    query('UPDATE crm_meta_forms SET cursor=NULL,scan_from=NULL,scan_to=NULL,history_finished_at=NULL,next_scan_at=? WHERE page_id=?',[iso(now),PAGE])
+    query("UPDATE crm_meta_sources SET history_enabled=1,history_from=?,history_to=?,state='ready',last_error=NULL,attempts=0,next_attempt_at=?,updated_at=? WHERE page_id=?",[iso(start),iso(now),iso(now),iso(now),PAGE])
     status()
 elif action=='activate':
     assert len(sys.argv)==3,'Expected active Worker version is required'

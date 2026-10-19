@@ -9,8 +9,9 @@ Approved mapping on 2026-10-19:
 - Dataset: `1036998279992732`.
 - CRM access: administrators only, enforced by the API as well as navigation.
 - Live start: 2026-10-19 00:00 Asia/Tbilisi.
-- History deferred by the user: they will provide an export. `history_enabled=0`;
-  no API history import, including delayed webhooks older than live start.
+- History was initially deferred. The user subsequently authorized Page history
+  from **2026-09-01 00:00 Asia/Tbilisi** to the start of this backfill.
+  The earlier full-year request remains deferred; do not extend this window.
 - CAPI: `QualifiedLead` only. Sales still count in CRM but do not emit CAPI events.
 
 ## Credentials and activation
@@ -45,7 +46,7 @@ historical backlog. Delivery failures remain inspectable and retryable.
 Migration `0025_crm_meta_history_opt_in.sql` makes historical retrieval opt-in.
 Disabling history also discards historical scan cursors on the next scan and
 enforces the live cutoff/account on previously queued deliveries. Do not enable
-history for TOYS without renewed authorization. The source was paused while its
+history for TOYS outside the newly approved September window without renewed authorization. The source was paused while its
 CRM credential was unavailable; resume only with this migration and Worker deployed.
 
 `scannedForms` means the API pagination completed, not that a full year was
@@ -85,3 +86,13 @@ there were no delivered lead jobs and no imported TOYS leads. Verify the first
 real/test lead through Meta's Lead Ads testing tool, without creating a fake
 production CAPI qualification. Older stored diagnostics are timestamped failures
 from before the Page permission was fixed, not the current connection state.
+
+## September history backfill
+
+Use `python scripts/configure-toys-crm.py import-history 2026-09-01 EXPECTED_VERSION`.
+This pauses only the scanner, resets form cursors to the explicit new window,
+and resumes it with history enabled. Existing leads, statuses, deletion markers,
+and signed webhook intake remain intact. Repeating the same start date resumes
+without resetting progress. The scheduled scan processes up to 20 form pages
+within a 60-second budget, then drains up to 50 jobs within 120 seconds. Live
+and CAPI jobs remain ahead of historical jobs. The webhook's short drain is unchanged.

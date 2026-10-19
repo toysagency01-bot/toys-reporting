@@ -36,7 +36,8 @@ async function configureCapi(env,source,n){
 
 // Durable reconciliation complements real-time webhooks. Each tick scans a bounded
 // page; it never loads contacts into an admin response or restarts a completed import.
-export async function runMetaLeadSync(env,at=Date.now()){
+export async function runMetaLeadSync(env,at=Date.now(),{maxFormPages=1,budgetMs=60000}={}){
+ const started=Date.now(),pageBudget=Math.max(1,Math.min(20,Math.floor(maxFormPages)));
  const n=iso(at),sources=(await env.TOYS_DB.prepare("SELECT * FROM crm_meta_sources WHERE state!='paused' AND next_attempt_at<=? AND (lease_until IS NULL OR lease_until<?) ORDER BY next_attempt_at LIMIT 3").bind(n,n).all()).results||[];
  for(const source of sources){
   const lease=crypto.randomUUID();
@@ -65,8 +66,9 @@ export async function runMetaLeadSync(env,at=Date.now()){
      statements.push(env.TOYS_DB.prepare('UPDATE crm_meta_sources SET forms_cursor=?,forms_checked_at=? WHERE page_id=? AND lease_token=?').bind(next,next?source.forms_checked_at:n,source.page_id,lease));
      await env.TOYS_DB.batch(statements);
     }
-    const form=await env.TOYS_DB.prepare('SELECT * FROM crm_meta_forms WHERE page_id=? AND next_scan_at<=? ORDER BY next_scan_at,form_id LIMIT 1').bind(source.page_id,n).first();
-    if(form){
+    for(let scan=0;scan<pageBudget&&Date.now()-started<budgetMs;scan++){
+     const form=await env.TOYS_DB.prepare('SELECT * FROM crm_meta_forms WHERE page_id=? AND next_scan_at<=? ORDER BY next_scan_at,form_id LIMIT 1').bind(source.page_id,n).first();
+     if(!form)break;
      stage='leads';
      const history=source.history_enabled===1&&!form.history_finished_at;
      // Do not resume a historical cursor after history has been disabled.
@@ -85,7 +87,7 @@ export async function runMetaLeadSync(env,at=Date.now()){
       statements.push(env.TOYS_DB.prepare("INSERT INTO crm_delivery(id,project_id,kind,source_id,payload_json,next_attempt_at,created_at) VALUES(?,?,'meta_lead',?,?,?,?) ON CONFLICT(project_id,kind,source_id) DO NOTHING").bind('meta_'+await hash(source.project_id+':'+lead.id),source.project_id,String(lead.id),JSON.stringify({pageId:source.page_id,formId:form.form_id,sourceMode:history?'history':'reconcile'}),n,n));
      }
      // Commit progress with queued IDs. A failed batch repeats this page safely.
-     statements.push(env.TOYS_DB.prepare('UPDATE crm_meta_forms SET cursor=?,scan_from=?,scan_to=?,history_finished_at=?,last_scan_at=?,next_scan_at=? WHERE page_id=? AND form_id=?').bind(next,next?from:null,next?to:null,(!history||!next)?(form.history_finished_at||n):null,next?form.last_scan_at:to,next?n:iso(at+(history?0:600000)),source.page_id,form.form_id));
+     statements.push(env.TOYS_DB.prepare('UPDATE crm_meta_forms SET cursor=?,scan_from=?,scan_to=?,history_finished_at=?,last_scan_at=?,next_scan_at=? WHERE page_id=? AND form_id=?').bind(next,next?from:null,next?to:null,(!history||!next)?(form.history_finished_at||n):null,next?form.last_scan_at:to,next?n:iso(at+600000),source.page_id,form.form_id));
      await env.TOYS_DB.batch(statements);
     }
    }catch(e){e.syncStage=stage;throw e;}

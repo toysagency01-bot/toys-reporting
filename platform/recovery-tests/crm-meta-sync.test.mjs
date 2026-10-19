@@ -66,6 +66,27 @@ test('failed reads preserve import progress, sanitize provider errors and apply 
   const s=db.prepare('SELECT * FROM crm_meta_sources').get();assert.equal(s.last_error,'leads:meta_190:463@object/leads');assert.equal(s.state,'error');assert.ok(s.next_attempt_at>n);assert.equal(s.lease_token,null);
  }finally{db.close();}
 });
+test('bounded historical batches finish multiple forms, preserve existing statuses and create no duplicate leads or CAPI milestones',async()=>{
+ const {env,db}=await setup();try{
+  const existing=await ingest(env,p,{email:'lead201@example.test',name:'Existing'},'meta_lead_ads','201');
+  await updateLead(env,p,existing.id,{status:'В работе',version:1},'synthetic','keep-status');
+  let formCalls=0;
+  env.CRM_FETCH=async raw=>{const u=new URL(raw),id=u.pathname.split('/').at(-1);
+   if(id==='leadgen_forms')return Response.json({data:Array.from({length:21},(_,i)=>({id:String(201+i),name:'Form '+i}))});
+   if(id==='leads'){formCalls++;return Response.json({data:[{id:u.pathname.split('/').at(-2),created_time:'2026-09-15T00:00:00Z'}]});}
+   return Response.json({id,form_id:id,created_time:'2026-09-15T00:00:00Z',field_data:[{name:'full_name',values:['Synthetic '+id]},{name:'email',values:['lead'+id+'@example.test']}]});
+  };
+  await runMetaLeadSync(env,at,{maxFormPages:20});assert.equal(formCalls,20);assert.equal((await metaSyncStatus(env,p.id))[0].scannedForms,20);
+  await runMetaLeadSync(env,at,{maxFormPages:20});assert.equal(formCalls,20,'same tick cannot rescan a claimed source');
+  await runMetaLeadSync(env,at+120000,{maxFormPages:20});assert.equal(formCalls,21);
+  db.prepare("UPDATE crm_delivery SET next_attempt_at=?").run(new Date().toISOString());
+  await drain(env,{budgetMs:120000,maxJobs:100});
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM crm_delivery WHERE state='sent'").get().n,21);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM leads').get().n,21);
+  assert.equal(db.prepare('SELECT current_status FROM leads WHERE id=?').get(existing.id).current_status,'В работе');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM crm_milestones').get().n,0);
+ }finally{db.close();}
+});
 test('live-only reconciliation ignores historical cursors, starts at midnight and resumes its own pages',async()=>{
  const {env,db}=await setup();try{
   db.prepare('UPDATE crm_meta_sources SET history_enabled=0,forms_checked_at=?').run(n);

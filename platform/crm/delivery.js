@@ -44,9 +44,9 @@ async function metaLead(env,job,timeoutMs=20000){
  const lead=await ingest(env,p,{name:fields.full_name||[fields.first_name,fields.last_name].filter(Boolean).join(' '),email:fields.email,phone:fields.phone_number,createdAt:d.created_time,sourceAdId:d.ad_id,pageId:data.pageId,formId:d.form_id,adAttribution:attribution,formAnswers:d.field_data,budget:fields.budget,contactMethod:fields.contact_method},'meta_lead_ads',d.id);
  if(attributionError&&!historical)throw attributionError;return lead;
 }
-export async function drain(env,{budgetMs=8000}={}){
+export async function drain(env,{budgetMs=8000,maxJobs=15}={}){
  const started=Date.now();
- const n=now();const jobs=(await env.TOYS_DB.prepare("SELECT * FROM crm_delivery WHERE (state IN ('pending','error') AND next_attempt_at<=? AND attempts<8) OR (state='processing' AND lease_until<?) ORDER BY CASE WHEN kind='capi' THEN 0 WHEN json_extract(payload_json,'$.sourceMode')='history' THEN 2 ELSE 1 END,created_at LIMIT 15").bind(n,n).all()).results||[];
+ const n=now();const jobs=(await env.TOYS_DB.prepare("SELECT * FROM crm_delivery WHERE (state IN ('pending','error') AND next_attempt_at<=? AND attempts<8) OR (state='processing' AND lease_until<?) ORDER BY CASE WHEN kind='capi' THEN 0 WHEN json_extract(payload_json,'$.sourceMode')='history' THEN 2 ELSE 1 END,created_at LIMIT ?").bind(n,n,Math.max(1,Math.min(100,Math.floor(maxJobs)))).all()).results||[];
  for(const job of jobs){
  if(Date.now()-started>=budgetMs)break;
  const lease=crypto.randomUUID(),deadline=new Date(Date.now()+120000).toISOString();
