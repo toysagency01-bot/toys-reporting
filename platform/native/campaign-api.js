@@ -1,6 +1,7 @@
 import {validRange,dateShift} from '../unified/model.js';
 import {campaignIndex,campaignPage,historicalCampaigns} from './campaign-model.js';
 import {loadMetaCreative,safeCreativeLink} from './meta-creative.js';
+import {salesDemoProject,salesDemoAnalytics,attachDemoSales} from './sales-demo-analytics.js';
 
 const reply=(body,status=200)=>Response.json(body,{status,headers:{'cache-control':'private, no-store'}});
 export async function campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,onDemandAdsService,backend}){
@@ -36,7 +37,8 @@ export async function campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,on
    const snapshot=await response.json();if(!snapshot.ok||!snapshot.dashboard)throw new Error('Published history unavailable');
    history=historicalCampaigns(project.id,snapshot.dashboard,data.providers,range);
   }
-  const page=campaignPage({tree,history,range,parent,provider,query,sort,offset});if(!page)return reply({ok:false,error:'campaign_not_found'},404);
+  let page=campaignPage({tree,history,range,parent,provider,query,sort,offset});if(!page)return reply({ok:false,error:'campaign_not_found'},404);
+  if(salesDemoProject(project.slug))page=attachDemoSales(page,await salesDemoAnalytics(env,project,range,provider),project);
   return reply({ok:true,...page,range,sources:data.providers.filter(p=>!provider||p.provider===provider).map(p=>({provider:p.provider,available:Boolean(p.hierarchy),freshness:p.freshness,coverage:p.coverage,fetchedAt:p.fetchedAt,coveredFrom:p.coveredDates?.[0]||p.requestedRange?.from,coveredTo:p.coveredDates?.at(-1)||p.requestedRange?.to})),refreshing:data.providers.some(p=>['refreshing','rate_limited'].includes(p.refresh?.state))});
  }catch(error){return reply({ok:false,error:error.code==='creative_not_found'?'creative_not_found':match[2]?'creative_unavailable':'campaigns_unavailable'},error.code==='creative_not_found'?404:503);}
 }

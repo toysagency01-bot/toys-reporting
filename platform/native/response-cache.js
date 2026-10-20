@@ -24,7 +24,7 @@ function browserStorage(){try{return globalThis.sessionStorage||null;}catch{retu
 function allowed(path){
  if(typeof path!=='string'||!path.startsWith('/')||path.startsWith('//')||path.length>3000)return false;
  const url=new URL(path,'https://cache.invalid'),p=url.pathname;
- return /^\/api\/v2\/projects\/[^/]+\/(dashboard|ads-summary|content-project\/ads\/hierarchy|top-creatives(?:\/[a-f0-9]{64})?|campaign-browser(?:\/[a-f0-9]{64}\/creative)?|exchange-rate)$/.test(p)
+ return /^\/api\/v2\/projects\/[^/]+\/(dashboard|sales-analytics|ads-summary|content-project\/ads\/hierarchy|top-creatives(?:\/[a-f0-9]{64})?|campaign-browser(?:\/[a-f0-9]{64}\/creative)?|exchange-rate)$/.test(p)
   ||/^\/api\/v2\/projects\/[^/]+\/content\/tabs$/.test(p)&&!url.search
   ||/^\/api\/v2\/master\/projects\/[^/]+\/summary$/.test(p)
   ||p==='/api/v2/master/daily-review';

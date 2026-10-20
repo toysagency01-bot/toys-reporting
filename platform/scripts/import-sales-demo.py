@@ -51,7 +51,7 @@ def main():
  (SELECT COUNT(*) FROM project_memberships WHERE project_id='prj_nova_sales_demo') AS memberships,
  (SELECT capi_enabled FROM crm_projects WHERE project_id='prj_nova_sales_demo') AS capiEnabled""")[0]
  for name in ['leads','qualified','sales','revenue','spend']:assert checks[name]==manifest['totals'][name],(name,checks[name])
- for name,expected in [('observations',400),('reports',6),('projectTabs',9),('integrations',0),('deliveries',0),('memberships',0),('capiEnabled',0)]:assert checks[name]==expected,(name,checks[name])
+ for name,expected in [('observations',400),('reports',6),('projectTabs',8),('integrations',0),('deliveries',0),('memberships',0),('capiEnabled',0)]:assert checks[name]==expected,(name,checks[name])
  (ROOT/'dist/sales-demo/hosted-validation.json').write_text(json.dumps(checks,indent=2)+'\n')
  print(json.dumps({'validated':checks,'activation':'draft; deploy administrator-only access before activation'}))
 if __name__=='__main__':main()

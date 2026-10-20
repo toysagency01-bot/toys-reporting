@@ -11,7 +11,7 @@ No real client data was used to construct this dataset.
 - 1,416 fictitious contacts at `example.test`, 822 qualifications, 203 sales.
 - EUR 24,100 advertising cost; EUR 313,930 CRM revenue.
 - CPQL EUR 29.32; advertising cost per sale EUR 118.72; revenue/spend 13.03×.
-- Six published demonstration reports, split by channel, plus nine project tabs.
+- Six published demonstration reports, split by channel, plus eight project tabs.
 - Every sale has a lead, qualification/sale milestone, current amount and history.
 - All contacts, businesses and results are explicitly marked as fictional.
 
@@ -57,7 +57,7 @@ non-demo data. It does not contact Cloudflare or import automatically.
    release tooling verifies that Pages knows each registered project. Enable the
    project only in the private view/editor allowlists; do not publish it or grant
    new access to real client projects.
-5. Verify the hosted dashboard, CRM card, six reports, nine project tabs,
+5. Verify the hosted dashboard, CRM card, six reports, eight project tabs,
    date changes, mobile layout, access controls and exclusion from client reviews.
 
 Local verification completed: schema replay/financial reconciliation, 30 API and

@@ -23,7 +23,7 @@ test('synthetic showroom reconciles dashboard, CRM, channels and published repor
   assert.equal(meta.qualified+google.qualified,822);assert.equal(meta.sales+google.sales,203);
   const board=await get('/crm?view=board');assert.equal(board.total,1416);assert.equal(board.summary.qualified,822);assert.equal(board.summary.sales,203);assert.equal(board.summary.revenue[0].value,313930);
   const reports=await get('/content/reports');assert.equal(reports.reports.length,6);assert.ok(reports.reports.every(r=>r.publishedRevision));
-  const tabs=await get('/content/tabs');assert.equal(tabs.tabs.length,9);
+  const tabs=await get('/content/tabs');assert.equal(tabs.tabs.length,8);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM crm_delivery').get().n,0);
   assert.equal(reviewProjectIncluded({slug:'nova-sales-demo'}),false);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM integrations WHERE project_id='prj_nova_sales_demo'").get().n,0);
