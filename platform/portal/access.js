@@ -1,5 +1,6 @@
 import projectRegistry from '../projects.json' with {type:'json'};
 // Access proves email ownership; D1 decides which client projects that identity may use.
+export const adminOnlyProject=slug=>projectRegistry[slug]?.adminOnly===true;
 export const platformSlugs=Object.keys(projectRegistry);
 export const emailSet=value=>new Set(String(value||'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean));
 export function staffIdentity(email,env){return emailSet(env.MVP_ALLOWED_EMAILS).has(email);}
@@ -11,7 +12,7 @@ export async function clientProjects(env,email){
  const user=await env.TOYS_DB.prepare('SELECT id,status FROM users WHERE email=?').bind(email).first();
  if(!user||user.status==='disabled')return [];
  const rows=(await env.TOYS_DB.prepare(`SELECT p.slug,p.name FROM project_memberships m JOIN projects p ON p.id=m.project_id WHERE m.user_id=? AND m.role IN ('client_owner','client_manager') AND p.organization_id='org_toys_agency' AND p.status IN ('active','draft') ORDER BY p.name`).bind(user.id).all()).results||[];
- return rows.filter(p=>platformSlugs.includes(p.slug));
+ return rows.filter(p=>platformSlugs.includes(p.slug)&&!adminOnlyProject(p.slug));
 }
 
 // Resolve on every request: roles and grants are never trusted from the browser
@@ -21,6 +22,6 @@ export async function platformAccess(env,email){
  if(user?.status==='disabled')return {platformRole:null,projectSlugs:[],userId:user.id,accessVersion:user.version};
  const platformRole=user?.role||(masterIdentity(email,env)?'admin':staffIdentity(email,env)?'team':'client');
  const memberships=user?(await env.TOYS_DB.prepare(`SELECT p.slug FROM project_memberships m JOIN projects p ON p.id=m.project_id WHERE m.user_id=? AND p.organization_id='org_toys_agency' AND p.status IN ('active','draft') AND m.role IN (${platformRole==='team'?"'buyer','agency_admin'":"'client_owner','client_manager'"})`).bind(user.id).all()).results:[];
- return {platformRole,projectSlugs:platformRole==='admin'?null:memberships.map(p=>p.slug).filter(s=>platformSlugs.includes(s)),userId:user?.id||null,accessVersion:user?.version||0};
+ return {platformRole,projectSlugs:platformRole==='admin'?null:memberships.map(p=>p.slug).filter(s=>platformSlugs.includes(s)&&!adminOnlyProject(s)),userId:user?.id||null,accessVersion:user?.version||0};
 }
-export const projectAllowed=(auth,slug)=>auth.platformRole==='admin'||auth.projectSlugs?.includes(slug);
+export const projectAllowed=(auth,slug)=>auth.platformRole==='admin'||!adminOnlyProject(slug)&&auth.projectSlugs?.includes(slug);

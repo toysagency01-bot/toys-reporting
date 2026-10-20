@@ -128,5 +128,24 @@
     "conversionShortLabel": "Лиды",
     "explicitTabs": true,
     "defaultLastDays": 7
+  },
+  "nova-sales-demo": {
+    "title": "NOVA Business Services · DEMO",
+    "periodTimezone": "Asia/Tbilisi",
+    "channels": [
+      "project",
+      "meta",
+      "google"
+    ],
+    "conversionLabel": "Лиды",
+    "conversionShortLabel": "Лиды",
+    "explicitTabs": true,
+    "defaultLastDays": 30,
+    "demoRange": {
+      "from": "2026-08-01",
+      "to": "2026-10-19"
+    },
+    "synthetic": true,
+    "adminOnly": true
   }
 }

@@ -1,6 +1,6 @@
 import {createInvitation,assertOrigin} from './password-auth.js';
 import {masterAuth} from '../master/api.js';
-import {platformSlugs,staffIdentity,masterIdentity,projectAllowed} from './access.js';
+import {platformSlugs,staffIdentity,masterIdentity,projectAllowed,adminOnlyProject} from './access.js';
 import {reply,readJSON,hash} from '../crm/service.js';
 import {accessSchemaReady,SETUP_RETRY_AT} from './schema.js';
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
@@ -30,7 +30,7 @@ export async function accessManagement(request,env){
   }
   return reply(await createInvitation(env,user.id,auth.subject,{guard}));
  }
- const allProjects=(await db.prepare(`SELECT id,slug,name FROM projects WHERE organization_id='org_toys_agency' AND status IN ('active','draft') ORDER BY name`).all()).results.filter(p=>platformSlugs.includes(p.slug));
+ const allProjects=(await db.prepare(`SELECT id,slug,name FROM projects WHERE organization_id='org_toys_agency' AND status IN ('active','draft') ORDER BY name`).all()).results.filter(p=>platformSlugs.includes(p.slug)&&!adminOnlyProject(p.slug));
  if(request.method==='GET'){
   const users=(await directory(db)).map(u=>({...u,role:roleFor(u,env)})).filter(u=>admin||u.role==='client'&&u.projects.some(p=>projectAllowed(auth,p.slug)));
   return reply({ok:true,ready:true,actorRole:auth.platformRole,canManageTeam:admin,users:users.map(u=>({...u,canInvite:admin||u.projects.every(p=>projectAllowed(auth,p.slug)),projects:u.projects.filter(p=>admin||projectAllowed(auth,p.slug)).map(({slug,name})=>({slug,name}))})),projects:allProjects.filter(p=>projectAllowed(auth,p.slug)),loginUrl});

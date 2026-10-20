@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
 import {createHash,randomBytes} from 'node:crypto';
 import {fixture,testWorker} from './fixture.mjs';
@@ -90,5 +91,21 @@ test('campaign controls require assigned staff; the change journal is admin-only
   const created=await(await call('team',base+'/crm',{name:'History test',phone:'+12345'})).json();
   const history=await(await call('admin','/api/v2/master/audit?category=crm')).json();assert.equal(history.ok,true);assert.ok(history.events.some(e=>e.entityId===created.lead.id&&e.actor==='team@example.test'));
   assert.equal((await call('team','/api/v2/master/audit?event='+encodeURIComponent(history.events[0].id))).status,403);
+ }finally{db.close();}
+});
+
+test('private sales demo is admin-only even with explicit grants and public allowlist misconfiguration',async()=>{
+ const {db,env,call}=setup();try{
+  db.exec(readFileSync('dist/sales-demo/import.sql','utf8'));
+  env.MVP_PUBLIC_VIEW_PROJECTS+=',nova-sales-demo';env.MVP_PUBLIC_PROJECT_MATERIALS+=',nova-sales-demo';
+  for(const [who,role] of [['team','buyer'],['client','client_manager']])db.prepare("INSERT INTO project_memberships(project_id,user_id,role) VALUES('prj_nova_sales_demo',?,?)").run(who,role);
+  const root='/api/v2/projects/nova-sales-demo';
+  const paths=['/nova-sales-demo/','/nova-sales-demo/index.html',root+'/board',root+'/board?ui=core/core.js',root+'/content-project',root+'/content-editor',root+'/dashboard?from=2026-08-01&toExclusive=2026-10-20',root+'/crm',root+'/crm/summary?from=2026-08-01&to=2026-10-19',root+'/content/reports',root+'/content/tabs',root+'/weekly-reports',root+'/top-creatives?from=2026-08-01&to=2026-10-19',root+'/campaign-browser?from=2026-08-01&to=2026-10-19','/api/v2/master/projects/nova-sales-demo/summary?from=2026-08-01&to=2026-10-19'];
+  for(const path of paths){for(const who of ['team','client','empty'])assert.equal((await call(who,path)).status,403,who+' '+path);const anon=await worker.fetch(new Request('https://test.local'+path),env);assert.ok([401,403].includes(anon.status),'anonymous '+path);}
+  for(const path of ['/nova-sales-demo/',root+'/dashboard?from=2026-08-01&toExclusive=2026-10-20',root+'/crm',root+'/content/reports',root+'/content/tabs'])assert.equal((await call('admin',path)).status,200,'admin '+path);
+  const admin=await(await call('admin','/api/v2/master')).json();assert.ok(admin.projects.some(p=>p.slug==='nova-sales-demo'));
+  const team=await(await call('team','/api/v2/master')).json();assert.ok(!team.projects.some(p=>p.slug==='nova-sales-demo'));
+  const access=await(await call('admin','/api/v2/master/access')).json();assert.ok(!access.projects.some(p=>p.slug==='nova-sales-demo'));
+  assert.equal((await call('admin','/api/v2/master/access',{name:'Demo client',email:'demo-recipient@example.test',role:'client',enabled:true,version:0,projects:['nova-sales-demo']})).status,400);
  }finally{db.close();}
 });

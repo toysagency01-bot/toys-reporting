@@ -2941,6 +2941,13 @@ async function sha256Text3(value2) {
 }
 __name(sha256Text3, "sha256Text");
 async function authorizeMvp(request, env, projectSlug, requiredRole = "viewer", resource = "protected") {
+  // Registry privacy is enforced before anonymous/public allowlists and for
+  // every content, dashboard and CRM caller of this shared authorization helper.
+  if(projectRegistry[projectSlug]?.adminOnly){
+    const auth=await authorizeMvp(request,env,'__master','editor');
+    if(!auth.ok)return auth;
+    return auth.platformRole==='admin'?{...auth,projectSlug}:{ok:false,status:403,error:'admin_role_required'};
+  }
   if (String(env.ENVIRONMENT || "") === "staging") {
     if (requiredRole === "viewer" && ["dashboard", "exchange-rate"].includes(resource)) {
       if (!["GET", "HEAD"].includes(request.method)) {

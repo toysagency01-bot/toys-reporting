@@ -40,6 +40,16 @@ const html = (slug,privateMode=true,assetBase=null,role=null,cacheScope=null,can
 export default {
   async fetch(request, env, ctx) {
     const url=new URL(request.url);
+    // Apply private-demo policy before every handler, including report collection
+    // reads that otherwise permit published material through public allowlists.
+    const privateSlug=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)(?:\/|$)/)?.[1]||url.pathname.match(/^\/([^/]+)(?:\/(?:index\.html)?)?$/)?.[1];
+    if(projectRegistry[privateSlug]?.adminOnly){
+      const auth=await authorizeMvp(request,env,privateSlug,'viewer');
+      if(!auth.ok){
+        if(!url.pathname.startsWith('/api/')&&!url.searchParams.has('ui')&&request.headers.get('accept')?.includes('text/html'))return loginRedirect(request,auth);
+        return Response.json({ok:false,error:auth.error},{status:auth.status,headers:{'cache-control':'no-store'}});
+      }
+    }
     // Published material routes historically permit anonymous reads. Logged-in
     // identities must still obey project assignments on every project endpoint.
     const signedProject=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)(?:\/|$)/)?.[1]||url.pathname.match(/^\/([^/]+)\/?$/)?.[1];
