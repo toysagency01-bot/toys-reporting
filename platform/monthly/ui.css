@@ -7,3 +7,6 @@ body.bs-monthly-active #content{display:block!important}body.bs-monthly-active #
 body.bs-monthly-active #controls,body.bs-monthly-active .controls,body.bs-monthly-active #platformNotice{display:none!important}
 .monthly-view .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .monthly-table{min-width:1120px}.monthly-table[data-expanded=true]{min-width:2050px}.monthly-summary [data-save]{margin-top:12px}
+
+.monthly-deferred{color:var(--muted);font-weight:500}.monthly-deferred[hidden]{display:none!important}@media(max-width:760px){.monthly-mobile-results>div:last-child{grid-column:auto}}
+@media(max-width:760px){.monthly-mobile .monthly-deferred{display:none}}

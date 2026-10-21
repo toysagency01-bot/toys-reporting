@@ -2,19 +2,20 @@
 """Extract BSCLINIC's latest 12 monthly blocks; never execute spreadsheet formulas.
 Writes a reviewable manifest/SQL. Remote apply is explicit and insert-only.
 """
-import argparse,hashlib,json,re,datetime,decimal
+import argparse,hashlib,json,re,datetime,decimal,importlib.util
 from pathlib import Path
 import openpyxl
 PROJECT='prj_bs_clinic_a5b4'
 SLUG='bs-clinic-a5b4'
 SHEET='Месячная сводка'
+_spec=importlib.util.spec_from_file_location('counts',Path(__file__).with_name('bsclinic-monthly-counts.py'));counts=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(counts)
 
 def number(value,integer=False):
     if isinstance(value,bool) or value is None:return None
     if isinstance(value,(int,float)):
         if value<0 or integer and int(value)!=value:return None
         return int(value) if integer else float(decimal.Decimal(str(value)).quantize(decimal.Decimal('.01')))
-    return None  # Annotated counts remain unconfirmed until the client resolves them.
+    return None  # Count annotations are resolved separately from ordinary numeric cells.
 
 def extract(path):
     book=openpyxl.load_workbook(path,read_only=True,data_only=True)
@@ -40,7 +41,7 @@ def extract(path):
                     value=row[col] if len(row)>col else None;data[key]=number(value,integer)
                     if value is not None and data[key] is None and str(value).strip() not in ['','-','–','—']:raw[key]=str(value)
                 if data['spend'] is not None or data['clicks'] is not None:
-                    data['unconfirmed']=raw;campaign_rows.append(data)
+                    data['unconfirmed']=raw;campaign_rows.append(counts.resolve_row(data))
             elif not name and len(row)>9 and isinstance(row[3],(int,float)):
                 totals={'spend':number(row[3]),'leads':number(row[9],True)}
             position+=1

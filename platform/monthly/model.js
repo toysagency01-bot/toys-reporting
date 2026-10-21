@@ -1,4 +1,4 @@
-export const businessFields=['appointments','patients','revenue'];
+export const businessFields=['appointments','patients','deferredLeads','revenue'];
 export const advertisingFields=['spend','reach','linkClicks','socialClicks','clicks','leads'];
 const known=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0;
 const ratio=(value,base,multiplier=1)=>known(value)&&known(base)&&base>0?value/base*multiplier:null;

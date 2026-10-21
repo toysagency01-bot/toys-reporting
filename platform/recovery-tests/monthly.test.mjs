@@ -13,7 +13,7 @@ test('monthly totals use matched, known results; zero and missing remain distinc
  assert.equal(rowMetrics({spend:1000,appointments:0,patients:null}).appointmentCost,null);assert.equal(reportTotals([{appointments:null}]).appointments,null);assert.equal(reportTotals([{appointments:0}]).appointments,0);
 });
 test('monthly collection imports all periods, preserves source notes and rejects other projects and anonymous readers',async()=>{
- const f=setup(),d=await(await call(f)).json();assert.equal(d.reports.length,12);assert.equal(d.reports[0].to,'2026-09-14');assert.equal(d.reports[0].rows[0].unconfirmed.patients,'3(12)');assert.equal(d.reports[0].rows[0].patientCost,null);
+ const f=setup(),d=await(await call(f)).json();assert.equal(d.reports.length,12);assert.equal(d.reports[0].to,'2026-09-14');assert.equal(d.reports[0].rows[0].sourceAnnotations.patients,'3(12)');assert.equal(d.reports[0].rows[0].deferredLeads,12);assert.equal(d.reports[0].rows[0].patientCost,1000/3);
  assert.equal((await worker.fetch(request('/api/v2/projects/housevip-cxp7/monthly-reports'),f.env)).status,404);
  assert.equal((await call(f,'','GET',null,{headers:{authorization:''}})).status,401);f.db.close();
 });
@@ -21,8 +21,8 @@ test('assigned client edits only business results; team needs project assignment
  const f=setup(),tokens=roleBrowserFixture(f.env,f.db),headers=role=>({cookie:'__Host-toys_session='+tokens[role]});
  assert.equal((await call(f,'','GET',null,{headers:headers('client')})).status,403);
  f.db.prepare("INSERT INTO project_memberships(project_id,user_id,role) VALUES('prj_bs_clinic_a5b4','role-client','client_manager')").run();
- const id='/'+f.id,key=crypto.randomUUID(),body={version:1,rows:[{id:'r1',appointments:4,patients:2,revenue:900}]};
- const save=await call(f,id,'PATCH',body,{headers:headers('client'),key});assert.equal(save.status,200);const d=await save.json();assert.equal(d.report.version,2);assert.equal(d.report.rows[0].patientCost,500);assert.equal(d.report.rows[0].appointmentCost,250);assert.equal(d.report.rows[0].sourceAnnotations.patients,'3(12)');assert.equal(d.report.rows[0].unconfirmed.patients,undefined);assert.equal(d.permissions.canManageReports,false);
+ const id='/'+f.id,key=crypto.randomUUID(),body={version:1,rows:[{id:'r1',appointments:4,patients:2,deferredLeads:100,revenue:900}]};
+ const save=await call(f,id,'PATCH',body,{headers:headers('client'),key});assert.equal(save.status,200);const d=await save.json();assert.equal(d.report.version,2);assert.equal(d.report.rows[0].patientCost,500);assert.equal(d.report.rows[0].deferredLeads,100);assert.equal(d.report.totals.patients,2);assert.equal(d.report.rows[0].appointmentCost,250);assert.equal(d.report.rows[0].sourceAnnotations.patients,'3(12)');assert.equal(d.report.rows[0].unconfirmed.patients,undefined);assert.equal(d.permissions.canManageReports,false);
  assert.equal((await call(f,id,'PATCH',body,{headers:headers('client'),key})).status,200);
  assert.equal(f.db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action='monthly.updated'").get().n,1);
  assert.equal((await call(f,id,'PATCH',body,{headers:headers('client')})).status,409);
@@ -54,3 +54,5 @@ test('new monthly snapshots use only stored campaign-level CZK metrics, deduplic
  for(const [scope,date,spend,checked]of [['old','2026-09-15',900,'2026-09-16'],['new','2026-09-15',100,'2026-09-17'],['new','2026-09-16',150,'2026-09-17']])f.db.prepare("INSERT INTO ads_daily_snapshots(scope_key,local_date,organization_id,project_id,integration_id,provider,payload_json,content_hash,checked_at) VALUES(?,?,'org_toys_agency','prj_bs_clinic_a5b4','monthly-meta','meta_ads',?,'hash',?)").run(scope,date,payload(date,spend),checked);
  const response=await call(f,'','POST',{from:'2026-09-15',to:'2026-10-14'});assert.equal(response.status,201);const d=await response.json(),row=d.report.rows[0];assert.equal(d.report.rows.length,1);assert.equal(row.name,'Stored campaign');assert.equal(row.spend,250);assert.equal(row.leads,4);assert.equal(row.cpl,62.5);assert.equal(row.reach,null);assert.equal(row.patients,null);assert.equal(d.report.source.coveredDates.length,2);f.db.close();
 });
+
+test('deferred leads are reported separately and never enter patient costs or conversions',()=>{const row=rowMetrics({spend:9798,appointments:15,patients:3,deferredLeads:12}),totals=reportTotals([row]);assert.equal(row.patientCost,3266);assert.equal(row.patientRate,20);assert.equal(totals.patients,3);assert.equal(totals.deferredLeads,12);assert.equal(totals.patientCost,3266);const changed=rowMetrics({...row,deferredLeads:500});assert.equal(changed.patientCost,3266);assert.equal(changed.patientRate,20);});
