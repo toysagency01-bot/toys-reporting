@@ -1,3 +1,4 @@
+import {monthlyAPI} from '../monthly/api.js';
 import {crmAllowed} from '../crm/access.js';
 import {runMetaLeadSync} from '../crm/meta-sync.js';
 import {cleanAuthRecords} from '../portal/password-auth.js';
@@ -21,7 +22,7 @@ import masterStyle from '../master/styles.css';
 import masterClient from '../dist/master-client.txt';
 import {liveCommerce} from '../native/live-commerce.js';
 import {attachCRMQualification} from '../native/crm-attribution.js';
-import backend, {authorizeMvp, projectRecord, onDemandAdsService,runDirectAdsImports} from '../runtime/backend.js';
+import backend, {sameOriginWrite,authorizeMvp, projectRecord, onDemandAdsService,runDirectAdsImports} from '../runtime/backend.js';
 import {creativeKey,loadMetaCreative} from '../native/meta-creative.js';
 import {rankCreatives} from '../native/top-creatives.js';
 import {campaignAPI} from '../native/campaign-api.js';
@@ -80,6 +81,7 @@ export default {
     const connection=await connections(request,env,ctx);if(connection)return connection;
     const crm=await crmRoute(request,env,ctx);if(crm){if(crm.ok&&request.method==='PATCH')ctx?.waitUntil(drain(env));return crm;}
     const control=await campaignControlAPI(request,env,ctx,{authorizeMvp,projectRecord,onDemandAdsService});if(control)return control;
+    const monthly=await monthlyAPI(request,env,{authorizeMvp,sameOriginWrite});if(monthly)return monthly;
     const sales=await salesDemoAPI(request,env,{authorizeMvp,projectRecord});if(sales)return sales;
     const campaigns=await campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,onDemandAdsService,backend});if(campaigns)return campaigns;
 

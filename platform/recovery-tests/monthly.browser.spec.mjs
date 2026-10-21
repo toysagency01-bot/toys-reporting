@@ -1,0 +1,37 @@
+import {test,expect} from '@playwright/test';
+const path='/api/v2/projects/bs-clinic-a5b4/monthly-reports';
+async function setup(page,context,request,role='client'){
+ const data=await(await request.get('/api/v2/projects/housevip-cxp7/dashboard')).json();data.dashboard.project.slug='bs-clinic-a5b4';data.dashboard.project.name='BSCLINIC';
+ await context.route('**/projects/bs-clinic-a5b4/dashboard*',r=>r.fulfill({json:data}));
+ await context.route('**/projects/bs-clinic-a5b4/content/tabs*',r=>r.fulfill({json:{ok:true,tabs:[{sourceTitle:'BSCLINIC - Месячная сводка',label:'Сводка (месяц)',channel:'meta',mode:'table'},{sourceTitle:'BSCLINIC - Еженедельная сводка',label:'Сводка (неделя)',channel:'meta',mode:'table'}]}}));
+ await page.setExtraHTTPHeaders({'x-test-role':role});
+ await page.goto('/bs-clinic-a5b4/#monthly');await expect(page.locator('#uxMonthly .monthly-kpis')).toBeVisible();
+}
+test('client fills business results, costs update immediately and survive reload; monthly reports stay separate',async({page,context,request})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.setViewportSize({width:1440,height:1000});await setup(page,context,request);
+ await expect(page.locator('[data-select] option')).toHaveCount(12);await expect(page.locator('#uxMonthly [data-new]')).toHaveCount(0);await expect(page.locator('[data-edit-ads]')).toHaveCount(0);
+ const table=page.locator('.monthly-table');await table.locator('[data-row=r1][data-field=appointments]').fill('4');await table.locator('[data-row=r1][data-field=patients]').fill('2');await table.locator('[data-row=r1][data-field=revenue]').fill('1200');
+ await expect(table.locator('[data-row=r1][data-metric=appointmentCost]')).toHaveText('250 Kč');await expect(table.locator('[data-row=r1][data-metric=patientCost]')).toHaveText('500 Kč');await expect(page.locator('#uxMonthly')).toContainText('Есть несохранённые изменения');
+ await page.locator('[data-save]').first().click();await expect(page.locator('.monthly-status')).toContainText('Изменения сохранены');await page.reload();await expect(page.locator('.monthly-table [data-row=r1][data-field=patients]')).toHaveValue('2');
+ await page.locator('[data-trend]').selectOption('appointments');await expect(page.locator('.monthly-chart svg')).toHaveAttribute('aria-label','Динамика: Записи');await expect(page.locator('.monthly-history-table tbody tr')).toHaveCount(12);
+ await page.screenshot({path:'/tmp/bs-monthly-desktop.png',fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.locator('#uxNav [data-ux-view=project]').click();await expect(page.locator('#uxMonthly')).not.toHaveClass(/active/);await page.locator('#uxProjectChannels [data-legacy-view=meta]').click();await expect(page.locator('#projectSubNav')).not.toContainText('Сводка (месяц)');await expect(page.locator('#projectSubNav')).toContainText('Сводка (неделя)');
+ await page.goto('/housevip-cxp7/');await expect(page.locator('#uxNav [data-ux-view=monthly]')).toHaveCount(0);expect(errors).toEqual([]);
+});
+test('mobile client edits in campaign cards and gets an unsaved-change warning',async({page,context,request})=>{
+ await page.setViewportSize({width:390,height:844});await setup(page,context,request);await expect(page.locator('#uxNav [data-ux-view=monthly]')).toBeInViewport();await expect(page.locator('.monthly-table-wrap')).toBeHidden();const card=page.locator('.monthly-campaign').first();await card.locator('summary').click();await card.locator('[data-field=appointments]').fill('5');await card.locator('[data-field=patients]').fill('3');
+ await expect(card.locator('[data-metric=appointmentCost]')).toHaveText('200 Kč');
+ page.once('dialog',d=>d.dismiss());await page.locator('#uxNav [data-ux-view=overview]').click();await expect(page.locator('#uxMonthly')).toHaveClass(/active/);await expect(card.locator('[data-field=patients]')).toHaveValue('3');
+ await page.locator('[data-save]').first().click();await expect(page.locator('.monthly-status')).toContainText('Изменения сохранены');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'/tmp/bs-monthly-mobile.png',fullPage:true});
+ await page.reload();await page.locator('.monthly-campaign').first().locator('summary').click();await expect(page.locator('.monthly-mobile [data-row=r1][data-field=patients]')).toHaveValue('3');
+});
+test('team creates a new month and edits advertising; conflict keeps the unsaved form; native new-tab route works',async({page,context,request})=>{
+ await setup(page,context,request,'team');await page.locator('[data-new]').click();const dialog=page.locator('.monthly-dialog');await dialog.locator('[name=from]').fill('2026-09-15');await dialog.locator('[name=to]').fill('2026-10-14');await dialog.getByRole('button',{name:'Создать сводку'}).click();await expect(dialog).toHaveCount(0);await expect(page.locator('[data-select] option')).toHaveCount(13);
+ await page.locator('[data-edit-ads]').check();const table=page.locator('.monthly-table');await expect(table.locator('[data-row=r1][data-field=spend]')).toHaveValue('');await table.locator('[data-row=r1][data-field=spend]').fill('1000');await table.locator('[data-row=r1][data-field=leads]').fill('10');await table.locator('[data-row=r1][data-field=appointments]').fill('2');await page.locator('[data-save]').first().click();await expect(page.locator('.monthly-status')).toContainText('Изменения сохранены');
+ const data=await(await page.request.get(path,{headers:{'x-test-role':'team'}})).json(),current=data.reports[0];await table.locator('[data-row=r1][data-field=appointments]').fill('4');
+ const changed=await page.request.patch(path+'/'+current.id,{headers:{'x-test-role':'team',origin:'http://127.0.0.1:4173','x-idempotency-key':crypto.randomUUID()},data:{version:current.version,rows:[{id:'r1',appointments:3}]}});expect(changed.ok()).toBe(true);
+ await page.locator('[data-save]').first().click();await expect(page.locator('.monthly-status')).toContainText('Сводку изменил другой пользователь');await expect(table.locator('[data-row=r1][data-field=appointments]')).toHaveValue('4');
+ page.once('dialog',d=>d.accept());await page.locator('[data-refresh]').click();await expect(page.locator('.monthly-table [data-row=r1][data-field=appointments]')).toHaveValue('3');
+ // A direct section URL remains an ordinary native browser link.
+ const tabPromise=context.waitForEvent('page');await page.locator('#uxNav [data-ux-view=monthly]').click({button:'middle'});const tab=await tabPromise;await tab.setExtraHTTPHeaders({'x-test-role':'team'});await tab.reload();await expect(tab.locator('#uxMonthly .monthly-kpis')).toBeVisible();await tab.close();
+});

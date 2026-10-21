@@ -4,7 +4,7 @@ import {parse} from '../crm/service.js';
 // Existing durable histories remain the source of truth; no fabricated backfill.
 const events=`
  SELECT 'log:'||a.id AS event_id,a.project_id,COALESCE(u.email,json_extract(CASE WHEN json_valid(a.after_json) THEN a.after_json ELSE '{}' END,'$.actor'),'system') AS actor_ref,
- CASE WHEN a.entity_type='user' THEN 'access' ELSE 'crm' END AS category,a.action,a.entity_id,COALESCE(l.name,u2.email,a.entity_id,'') AS label,a.before_json,a.after_json,a.created_at
+ CASE WHEN a.entity_type='user' THEN 'access' WHEN a.entity_type='monthly_report' THEN 'reports' ELSE 'crm' END AS category,a.action,a.entity_id,COALESCE(l.name,u2.email,a.entity_id,'') AS label,a.before_json,a.after_json,a.created_at
  FROM audit_log a LEFT JOIN users u ON u.id=a.actor_user_id LEFT JOIN users u2 ON a.entity_type='user' AND u2.id=a.entity_id LEFT JOIN leads l ON a.entity_type='lead' AND l.id=a.entity_id
  UNION ALL
  SELECT 'lead:'||e.id,e.project_id,COALESCE(u.email,json_extract(CASE WHEN json_valid(e.note) THEN e.note ELSE '{}' END,'$.actor'),'system'),'crm','crm.lead.updated',e.lead_id,COALESCE(l.name,e.lead_id),json_object('status',e.from_status),json_patch(json_object('status',e.to_status),CASE WHEN json_valid(e.note) THEN e.note ELSE '{}' END),e.changed_at FROM lead_status_events e LEFT JOIN users u ON u.id=e.changed_by_user_id LEFT JOIN leads l ON l.id=e.lead_id
@@ -27,7 +27,7 @@ const events=`
 // source groups prevent SQLite from flattening nine histories into one UNION.
 const sources=events.split('\n UNION ALL\n');
 const withEvents=`WITH events_a AS MATERIALIZED (${sources.slice(0,5).join(' UNION ALL ')}), events_b AS MATERIALIZED (${sources.slice(5).join(' UNION ALL ')}), events AS (SELECT * FROM events_a UNION ALL SELECT * FROM events_b), resolved AS (SELECT e.*,p.slug AS project_slug,p.name AS project_name,COALESCE(u.email,e.actor_ref) AS actor,COALESCE(u.display_name,'') AS actor_name FROM events e LEFT JOIN projects p ON p.id=e.project_id LEFT JOIN users u ON u.id=e.actor_ref OR 'password:'||u.id=e.actor_ref OR u.email=e.actor_ref WHERE e.project_id IS NULL OR p.organization_id='org_toys_agency')`;
-const allowed=['name','email','role','status','projects','scope','version','comment','note','reason','boardMove','sale','owner','value','currency','deletedAt','targetStatus','observedStatus','state','error'];
+const allowed=['period','results','summary','name','email','role','status','projects','scope','version','comment','note','reason','boardMove','sale','owner','value','currency','deletedAt','targetStatus','observedStatus','state','error'];
 const safe=value=>Object.fromEntries(Object.entries(value||{}).filter(([k,v])=>allowed.includes(k)&&v!==null&&v!==''&&k!=='actor'));
 const publicRow=r=>({id:r.event_id,category:r.category,action:r.action,entityId:r.entity_id,label:r.label,actor:r.actor,actorName:r.actor_name,project:r.project_slug?{slug:r.project_slug,name:r.project_name}:null,createdAt:r.created_at.includes('T')?r.created_at:r.created_at.replace(' ','T')+'Z',before:safe(parse(r.before_json)),after:safe(parse(r.after_json))});
 const fail=()=>{throw Object.assign(new Error('invalid_audit_filter'),{code:'invalid_audit_filter',status:400});};
