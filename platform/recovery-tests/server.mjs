@@ -5,6 +5,9 @@ import pages from '../pages-hotfix/_worker.js';
 import http from 'node:http';
 import {fixture,testWorker} from './fixture.mjs';
 const worker=await testWorker();const{env,db}=fixture();env.MVP_EDITOR_PROJECTS+=',__master,profkit-instashop-r4vk,karlovarska-sul-k4rm,bs-clinic-a5b4,toys-agency-ctft';env.MVP_VIEW_PROJECTS=env.MVP_EDITOR_PROJECTS;
+if(process.env.TOYS_TEST_COHORT==='true'){
+ db.exec("INSERT INTO crm_projects(project_id,enabled_at,timezone,updated_at) VALUES('prj_housevip_cxp7','2026-01-01T00:00:00Z','Asia/Tbilisi','2026-10-14T06:00:00Z'); INSERT INTO leads(id,project_id,source_provider,external_lead_id,created_at,name,current_status,metadata_json) VALUES('cohort-browser','prj_housevip_cxp7','manual','cohort-browser','2026-10-07T09:00:00Z','Synthetic cohort','Квалифицирован','{}'); INSERT INTO crm_milestones(id,project_id,lead_id,kind,occurred_at) VALUES('cohort-milestone','prj_housevip_cxp7','cohort-browser','qualified','2026-10-14T06:00:00Z');");
+}
 if(process.env.TOYS_TEST_EMPTY_WEEKLY==='true')db.exec("UPDATE content_items SET logical_key='legacy-weekly' WHERE logical_key='weekly-main'");
 if(process.env.TOYS_TEST_CRM_INDUSTRY==='real_estate')db.exec("UPDATE projects SET settings_json=json_set(settings_json,'$.industry','real_estate') WHERE id='prj_housevip_cxp7'");
 if(process.env.TOYS_TEST_CRM_TEMPLATE==='toys_agency')db.exec("UPDATE projects SET settings_json=json_set(settings_json,'$.crmTemplate','toys_agency') WHERE id='prj_housevip_cxp7'");

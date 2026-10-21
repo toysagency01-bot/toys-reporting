@@ -85,9 +85,12 @@ export async function summary(env,p,from,to,provider=null){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(from||'')||!/^\d{4}-\d{2}-\d{2}$/.test(to||'')||from>to)fail('invalid_range');
  const cfg=await env.TOYS_DB.prepare('SELECT timezone,enabled_at FROM crm_projects WHERE project_id=?').bind(p.id).first();
  if(!cfg)return {available:false,qualified:0,sales:0,revenue:[],byAd:[]};
- const rows=(await env.TOYS_DB.prepare(`SELECT m.kind,m.occurred_at,m.value,m.currency,l.metadata_json FROM crm_milestones m JOIN leads l ON l.id=m.lead_id WHERE m.project_id=? AND l.deleted_at IS NULL`).bind(p.id).all()).results||[];
- const res={available:true,startedAt:cfg.enabled_at,dateBasis:'first_status_change',qualified:0,sales:0,revenue:[],byAd:[]},money=new Map(),ads=new Map();
- for(const r of rows){const day=new Intl.DateTimeFormat('en-CA',{timeZone:cfg.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(r.occurred_at));if(day<from||day>to)continue;const a=parse(r.metadata_json).adAttribution;if(provider&&a?.provider!==provider)continue;
+ const rows=(await env.TOYS_DB.prepare(`SELECT m.kind,m.occurred_at,m.value,m.currency,l.created_at AS received_at,l.metadata_json FROM crm_milestones m JOIN leads l ON l.id=m.lead_id AND l.project_id=m.project_id WHERE m.project_id=? AND l.deleted_at IS NULL`).bind(p.id).all()).results||[];
+ const res={available:true,startedAt:cfg.enabled_at,dateBasis:'per_metric',dateBasisByMetric:{qualified:'lead_received_at',sales:'first_sale_at',revenue:'first_sale_at'},qualified:0,sales:0,revenue:[],byAd:[]},money=new Map(),ads=new Map();
+ const calendar=new Intl.DateTimeFormat('en-CA',{timeZone:cfg.timezone,year:'numeric',month:'2-digit',day:'2-digit'});
+ // Advertising qualifications belong to the intake cohort, even if the sales
+ // team qualifies that lead later. Event timestamps remain immutable for CAPI.
+ for(const r of rows){const at=r.kind==='qualified'?r.received_at:r.occurred_at;if(!Number.isFinite(Date.parse(at)))continue;const day=calendar.format(new Date(at));if(day<from||day>to)continue;const a=parse(r.metadata_json).adAttribution;if(provider&&a?.provider!==provider)continue;
   res[r.kind==='sale'?'sales':'qualified']++;if(r.kind==='sale')money.set(r.currency,(money.get(r.currency)||0)+Math.round(Number(r.value)*100));
   if(a){const key=[a.provider,a.accountId,a.adId].join(':');if(!ads.has(key))ads.set(key,{...a,qualified:0,sales:0});ads.get(key)[r.kind==='sale'?'sales':'qualified']++;}
  }

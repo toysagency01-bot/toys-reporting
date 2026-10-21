@@ -84,7 +84,7 @@ let appliedAds='';
 function applyAds(rows,commerce=null){const signature=JSON.stringify([rows,commerce,ads?.providers.map(p=>p.hierarchy)]);if(signature===appliedAds)return;appliedAds=signature;window.TOYS_NATIVE.refreshAds(rows,commerce);}
 async function refresh(){
  if(refreshing)return;const requested=range();if(!validRange(requested.from,requested.to)||(Date.parse(requested.to)-Date.parse(requested.from))/86400000>=366){notice('Для обновления кабинета выберите период не длиннее года.',true);return;}
- refreshing=true;const seq=++sequence,address=`${api}/${privateMode?'content-project/ads/hierarchy':'ads-summary'}?from=${requested.from}&to=${requested.to}`;
+ refreshing=true;const seq=++sequence,address=`${api}/${privateMode?'content-project/ads/hierarchy':'ads-summary'}?from=${requested.from}&to=${requested.to}&crmBasis=received-v1`;
  const apply=(result,cached=false)=>{if(seq!==sequence||JSON.stringify(range())!==JSON.stringify(requested))return;ads=result;if(!privateMode)crmStats=result.crm||null;renderCRM();
   const names=[...new Set((ads.providers||[]).map(p=>p.provider))].filter(name=>ads.providers.filter(p=>p.provider===name).every(p=>p.hierarchy&&p.requestedRange?.from===requested.from&&p.requestedRange?.to===requested.to));
   const normalized=advertisingModel(dashboard,ads,requested);const live=allRows.filter(r=>r.date>=requested.from&&r.date<=requested.to&&!names.includes(r.provider)).concat(normalized.filter(r=>names.includes(r.provider)));const base=allRows.filter(r=>r.date<requested.from||r.date>requested.to);const all=[...base,...live];
@@ -106,7 +106,7 @@ async function refreshCRM(){
 }
 function renderCRM(){
  let panel=$('platformCRMStats');if(!panel){const host=$('mainCards')||$('cards')||document.querySelector('#uxOverview .cards');if(!host)return;panel=document.createElement('div');panel.id='platformCRMStats';panel.className='cards';host.after(panel);}
- panel.hidden=!crmStats?.available;if(panel.hidden)return;
+ panel.hidden=!crmStats?.available;let basis=$('platformCRMDateBasis');if(basis)basis.hidden=panel.hidden;if(panel.hidden)return;if(!basis){basis=document.createElement('p');basis.id='platformCRMDateBasis';basis.className='note';panel.after(basis);}basis.textContent=projectConfig.synthetic?'Квалификации, продажи и выручка — по лидам, поступившим за выбранный период.':'Квалы — по дате поступления лидов. Продажи и выручка — по дате продажи. Прошлые периоды уточняются по мере квалификации.';
  const demoRows=projectConfig.synthetic?selectedRows().filter(r=>!salesContext().provider||r.provider===salesContext().provider):null;
  const signature=JSON.stringify([crmStats,demoRows]);if(panel._renderSignature!==signature){panel._renderSignature=signature;const cards=[['Квал-лиды CRM',format(crmStats.qualified)],['Продажи CRM',format(crmStats.sales)],['Выручка CRM',(crmStats.revenue||[]).map(r=>format(r.value)+' '+h(r.currency)).join('<br>')||'—']];if(projectConfig.synthetic){const rows=demoRows,cost=aggregate(rows).money.find(m=>m.currency==='EUR')?.spend,revenue=(crmStats.revenue||[]).find(m=>m.currency==='EUR')?.value;cards.push(['Стоимость квала',cost!=null&&crmStats.qualified>0?format(cost/crmStats.qualified)+' EUR':'—'],['Стоимость продажи',cost!=null&&crmStats.sales>0?format(cost/crmStats.sales)+' EUR':'—'],['ROAS CRM',cost>0&&revenue!=null?format(revenue/cost)+'×':'—']);}panel.innerHTML=cards.map(([label,value])=>`<div class="card"><div class="label">${label}</div><div class="value">${value}</div></div>`).join('');}
  if(privateMode&&window.TOYS_CRM_ALLOWED!==false&&!$('platformCRMLink')){const link=document.createElement('a');link.id='platformCRMLink';link.href=api+'/content-crm';link.textContent='Открыть CRM';link.className='secondary';panel.after(link);}
@@ -114,7 +114,7 @@ function renderCRM(){
 function renderCreatives(){if(!ready)return;const channels=Object.keys(dashboard.advertising?.channels||{}).map(c=>/google/i.test(c)?'google_ads':'meta_ads');renderTopCreatives({rankings:creativeRankings,state:creativeState,activeChannel:document.querySelector('#platformSeg .active')?.dataset.platform||'__all',range:range(),channels:channels.length?[...new Set(channels)]:['meta_ads'],slug});}
 async function refreshCreatives(){
  const requested=range(),seq=++creativeSequence;if(!creativeRankings)creativeState='loading';renderCreatives();
- const address=`${api}/top-creatives?from=${requested.from}&to=${requested.to}`,apply=(data,cached=false)=>{if(seq!==creativeSequence||JSON.stringify(range())!==JSON.stringify(requested))return;creativeRankings=data.rankings;creativeState='ready';renderCreatives();};
+ const address=`${api}/top-creatives?from=${requested.from}&to=${requested.to}&crmBasis=received-v1`,apply=(data,cached=false)=>{if(seq!==creativeSequence||JSON.stringify(range())!==JSON.stringify(requested))return;creativeRankings=data.rankings;creativeState='ready';renderCreatives();};
  try{const saved=await dataCache.load(address);if(saved){apply(saved.value,true);if(saved.fresh)return;creativeState='refreshing';renderCreatives();}apply(await json(address));}
  catch{if(seq!==creativeSequence)return;creativeState='error';}
  finally{if(seq===creativeSequence)renderCreatives();}
