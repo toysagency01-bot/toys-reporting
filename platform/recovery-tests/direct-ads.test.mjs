@@ -44,10 +44,11 @@ test('independent reconciliation mismatch is recorded without silently replacing
   db.exec(`INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES('direct-meta','prj_housevip_cxp7','meta_ads','123','active','{"timezone":"UTC","currency":"IDR"}')`);
   const audit={schemaVersion:'meta-account-reconciliation/1',status:'mismatch',comparedDays:29,matchedDays:28};
   const result=await scheduledAds(env,{now:()=>Date.parse('2026-10-13T12:00:00Z'),makeScope:rt.integrationScope,normalize:rt.normalizeAdsHierarchy,metrics:rt.METRIC_NAMES,metaAdapter:async()=>({provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',coverage:'complete',dailyMetrics:[],campaigns:[],accountReconciliation:audit})});
-  assert.equal(result[0].status,'success');
+  assert.equal(result[0].error,'account_reconciliation_mismatch');
   const log=db.prepare("SELECT status,details_json FROM sync_runs WHERE job_type='meta-account-reconciliation'").get();
   assert.equal(log.status,'warning');assert.deepEqual(JSON.parse(log.details_json),audit);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ads_daily_snapshots').get().n,30);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ads_daily_snapshots').get().n,1);
+  assert.equal(db.prepare('SELECT local_date FROM ads_daily_snapshots').get().local_date,'2026-10-13');
  }finally{db.close();}
 });
 test('Google account totals preserve exact currency and fractional conversions',()=>{
@@ -149,5 +150,19 @@ test('FX import accepts only the official rate for the requested date and preser
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM exchange_rates WHERE base_currency='USD' AND quote_currency='UAH'").get().n,0);
   await refreshUsdUah(env,{now:new Date(day+'T18:00:00Z'),fetchImpl:async url=>{calls++;const d=new URL(url).searchParams.get('date');return Response.json([{cc:'USD',rate:41,exchangedate:d.slice(6,8)+'.'+d.slice(4,6)+'.'+d.slice(0,4)}]);}});
   assert.equal(calls,5);assert.equal(db.prepare("SELECT rate FROM exchange_rates WHERE rate_date=? AND base_currency='USD' AND quote_currency='UAH'").get(day).rate,41);
+ }finally{db.close();}
+});
+test('a discrepant historical day cannot erase the saved hierarchy while today still updates',async()=>{
+ const {env,db}=setup();try{
+  env.DIRECT_ADS_IMPORT_ENABLED='true';db.exec(`INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES('direct-meta','prj_housevip_cxp7','meta_ads','123','active','{"timezone":"UTC","currency":"IDR"}')`);
+  await saveAdsSnapshot(env.TOYS_DB,scope,payload());
+  const historicalBefore=db.prepare("SELECT payload_json FROM ads_daily_snapshots WHERE local_date='2026-10-12'").get().payload_json;
+  const day=(date,spend)=>({date,metrics:{impressions:'100',clicks:'4',spend,conversions:'2'}});
+  const audit={status:'mismatch',daily:[{date:'2026-10-12',matched:false}],comparedDays:29,matchedDays:0};
+  const out=await scheduledAds(env,{now:()=>Date.parse('2026-10-13T12:00:00Z'),makeScope:rt.integrationScope,normalize:rt.normalizeAdsHierarchy,metrics:rt.METRIC_NAMES,metaAdapter:async()=>({provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',coverage:'complete',dailyMetrics:[day('2026-10-12','0'),day('2026-10-13','32.09')],campaigns:[],accountReconciliation:audit})});
+  assert.equal(out[0].error,'account_reconciliation_mismatch');
+  assert.equal(db.prepare("SELECT payload_json FROM ads_daily_snapshots WHERE local_date='2026-10-12'").get().payload_json,historicalBefore);
+  const today=await readAdsSnapshot(env.TOYS_DB,scope,'2026-10-13','2026-10-13');assert.equal(today.hierarchy.dailyMetrics[0].metrics.spend.value,'32.09');
+  const state=db.prepare('SELECT state,last_error_code,next_attempt_at FROM ads_import_status').get();assert.equal(state.state,'error');assert.equal(state.last_error_code,'account_reconciliation_mismatch');assert.equal(state.next_attempt_at,'2026-10-13T12:20:00.000Z');
  }finally{db.close();}
 });

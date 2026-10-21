@@ -31,3 +31,16 @@ test('audit refuses wrong accounts, duplicate days, missing metrics and paginati
  for(const data of [[{...row('2026-10-01','1'),account_id:'456'}],[row('2026-10-01','1'),row('2026-10-01','1')],[{...row('2026-10-01','1'),clicks:undefined}]])await assert.rejects(reconcileMetaAccount({...base,fetchPage:async()=>({data})}));
  await assert.rejects(reconcileMetaAccount({...base,fetchPage:async()=>({data:[],paging:{next:'https://graph.facebook.com/v26.0/act_456/insights?after=next'}})}),{code:'account_audit_pagination_scope'});
 });
+test('single-day verification repairs an incomplete multi-day account response without accepting an unverified retry',async()=>{
+ const ads=[row('2026-10-01','21.46'),row('2026-10-02','32.09')],calls=[];
+ const result=await reconcileMetaAccount({scope,eventKeys:['lead'],adRows:ads,dailyFallback:true,fetchPage:async p=>{
+  const range=JSON.parse(p.time_range);calls.push(range);
+  if(range.since!==range.until)return {data:[{...ads[0],impressions:'0',clicks:'0',spend:'0'},ads[1]]};
+  assert.equal(range.since,'2026-10-01');return {data:[ads[0]]};
+ }});
+ assert.equal(result.status,'matched');assert.equal(result.retriedDays,1);assert.equal(result.accountTotals.spend,'53.55');assert.equal(calls.length,2);
+ const failed=await reconcileMetaAccount({scope,eventKeys:['lead'],adRows:ads,dailyFallback:true,fetchPage:async p=>{
+  const range=JSON.parse(p.time_range);if(range.since===range.until)throw Error('Unavailable');return {data:[]};
+ }});
+ assert.equal(failed.status,'mismatch');assert.equal(failed.matchedDays,1);
+});

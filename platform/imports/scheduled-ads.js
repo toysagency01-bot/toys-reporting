@@ -1,5 +1,5 @@
 import projectRegistry from '../projects.json' with {type:'json'};
-import {saveAdsSnapshot,shift} from './ads-store.js';
+import {saveAdsSnapshot,shift,dates} from './ads-store.js';
 import {createGoogleReceiverAdapter} from '../native/google-receiver.js';
 import {nextRefreshAt,shouldPollAds,adsAreStale} from './refresh-policy.js';
 
@@ -41,13 +41,20 @@ export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,
    const result=await adapter({project:{id:scope.projectId,slug:scope.projectSlug,organizationId:scope.organizationId},integration:{id:scope.integrationId,accountId:scope.accountId,timezone:scope.timezone,currency:scope.currency,config:scope.config},request:{from,to,level:'ad',metrics}});
    if(result.sourceFetchedAt&&adsAreStale(result.sourceFetchedAt,now(),20))throw Object.assign(new Error('Provider delivery stale'),{code:'upstream_delivery_stale'});
    const payload={...normalize(result,{...scope,from,to}),fetchedAt:iso(now())};
-   const rowsWritten=await saveAdsSnapshot(db,scope,payload);
+   // A successful HTTP response is not proof of complete historical delivery.
+   // Keep previously saved days when the independent account check disagrees;
+   // today's live data is outside that completed-day audit and keeps updating.
+   const audit=result.accountReconciliation;
+   const excludedDates=audit&&audit.status!=='matched'
+    ?dates(from,shift(to,-1)).filter(date=>!audit.daily?.some(d=>d.date===date&&d.matched)) : [];
+   const rowsWritten=await saveAdsSnapshot(db,scope,payload,{excludeDates:excludedDates});
    if(result.accountReconciliation){
     const audit=result.accountReconciliation;
     await db.prepare(`INSERT INTO sync_runs(project_id,provider,job_type,status,started_at,finished_at,rows_read,message,details_json) VALUES(?,'meta_ads','meta-account-reconciliation',?,?,?,?,?,?)`)
      .bind(scope.projectId,audit.status==='matched'?'success':'warning',at,iso(now()),audit.comparedDays||0,audit.status,JSON.stringify(audit)).run()
      .catch(()=>console.error('Meta account reconciliation could not be persisted'));
    }
+   if(excludedDates.length)throw Object.assign(new Error('Historical account totals failed verification'),{code:'account_reconciliation_mismatch'});
    await db.prepare(`UPDATE ads_import_status SET state='success',last_success_at=?,last_error_code=NULL,failure_count=0,
     next_attempt_at=?,lease_token=NULL,lease_until=NULL,range_from=?,range_to=?,rows_written=? WHERE integration_id=? AND lease_token=?`)
     .bind(iso(now()),iso(nextRefreshAt(now())),from,to,rowsWritten,row.id,token).run();

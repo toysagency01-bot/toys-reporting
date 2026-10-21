@@ -18,6 +18,11 @@ export function mountCalendar({from,to,apply,timeZone='Asia/Tbilisi',root=docume
  dialog.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-cancel'))dialog.close();else if(b.hasAttribute('data-prev'))move(-1);else if(b.hasAttribute('data-next'))move(1);else if(b.hasAttribute('data-apply')){apply(start,end);sync();dialog.close();}else if(b.dataset.date){const day=b.dataset.date;if(!pickingEnd){start=day;end='';pickingEnd=true;}else{end=day;if(end<start)[start,end]=[end,start];pickingEnd=false;}draw();dialog.querySelector(`[data-date="${day}"]`)?.focus();}});
  dialog.addEventListener('keydown',e=>{if(!e.target.dataset.date)return;const offsets={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7};if(!(e.key in offsets))return;e.preventDefault();const d=new Date(e.target.dataset.date+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+offsets[e.key]);const iso=d.toISOString().slice(0,10);if(iso>today()||(from.min&&iso<from.min))return;month=iso.slice(0,7);draw();dialog.querySelector(`[data-date="${iso}"]`)?.focus();});
  dialog.addEventListener('close',()=>trigger.focus());
- const yesterday=root.querySelector('#periodSeg [data-days="1"]');if(yesterday){yesterday.textContent='Сегодня';yesterday.addEventListener('click',e=>{e.stopImmediatePropagation();apply(today(),today());root.querySelectorAll('#periodSeg button').forEach(b=>b.classList.toggle('active',b===yesterday));sync();},true);}
+ const presets=root.querySelectorAll('#periodSeg [data-days]');
+ for(const button of presets){
+  const days=Number(button.dataset.days);if(!Number.isInteger(days)||days<1)continue;
+  if(days===1)button.textContent='Сегодня';
+  button.addEventListener('click',e=>{e.stopImmediatePropagation();const end=today(),start=new Date(Date.parse(end+'T12:00:00Z')-(days-1)*86400000).toISOString().slice(0,10);apply(start,end);presets.forEach(b=>b.classList.toggle('active',b===button));sync();},true);
+ }
  sync();return {sync,today};
 }

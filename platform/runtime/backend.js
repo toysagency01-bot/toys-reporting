@@ -2747,17 +2747,19 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
     const shiftDate=(date,days)=>new Date(Date.parse(date+'T12:00:00Z')+days*86400000).toISOString().slice(0,10);
     if(chunkDays)for(let start=from;start<=to;start=shiftDate(start,chunkDays))windows.push({since:start,until:[shiftDate(start,chunkDays-1),to].sort()[0]});
     else windows.push({since:from,until:to});
-    for(const window of windows){
-    params.set('time_range',JSON.stringify(window));
+    const fetchWindow=async window=>{
+    const windowRows=[];
+    const windowParams=new URLSearchParams(params);
+    windowParams.set('time_range',JSON.stringify(window));
     const insightRetry={...retry,signal:AbortSignal.any([deadline,AbortSignal.timeout(chunkDays?25000:18000)])};
     const seenCursors = /* @__PURE__ */ new Set();
     let cursor = null;
     for (let pageNumber = 1; pageNumber <= 100; pageNumber += 1) {
-      if (cursor) params.set("after", cursor);
-      else params.delete("after");
-      const payload = await page(fetchImpl, endpoint, params, token, insightRetry);
+      if (cursor) windowParams.set("after", cursor);
+      else windowParams.delete("after");
+      const payload = await page(fetchImpl, endpoint, windowParams, token, insightRetry);
       if (!Array.isArray(payload?.data)) fail3("provider_schema_mismatch");
-      rows.push(...payload.data);
+      windowRows.push(...payload.data);
       const next = payload?.paging?.next;
       if (!next) {
         cursor = null;
@@ -2777,7 +2779,13 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       seenCursors.add(cursor);
       if (pageNumber === 100) fail3("pagination_limit");
     }
-    }
+    return windowRows;
+    };
+    if(chunkDays===1){
+      const output=new Array(windows.length);let next=0;
+      await Promise.all(Array.from({length:Math.min(3,windows.length)},async()=>{while(next<windows.length){const index=next++;output[index]=await fetchWindow(windows[index]);}}));
+      rows.push(...output.flat());
+    }else for(const window of windows)rows.push(...await fetchWindow(window));
     const configuredEvents=integration?.config?.resultActionTypes;
     if(configuredEvents&&(!Array.isArray(configuredEvents)||!configuredEvents.length||configuredEvents.some(k=>typeof k!=='string'||! /^[a-z0-9_.]+$/.test(k))))fail3('invalid_conversion_mapping');
     const eventKeys=configuredEvents|| (project?.slug==='housevip-cxp7'?['lead']:project?.slug==='profkit-instashop-r4vk'?['onsite_conversion.messaging_conversation_started_7d','messaging_conversation_started_7d','onsite_conversion.messaging_first_reply']:project?.slug==='karlovarska-sul-k4rm'?['omni_purchase','purchase','offsite_conversion.fb_pixel_purchase']:null);
@@ -2788,7 +2796,7 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       const completedTo=[to,shiftDate(today,-1)].sort()[0];
       if(completedTo>=from){
         const auditSignal=AbortSignal.any([deadline,AbortSignal.timeout(18000)]);
-        try{accountReconciliation=await reconcileMetaAccount({adRows:rows,eventKeys,
+        try{accountReconciliation=await reconcileMetaAccount({adRows:rows,eventKeys,dailyFallback:chunkDays===1,
           scope:{accountId:expectedAccountId,currency:integration.currency,timezone:integration.timezone,from,to:completedTo,apiVersion},
           fetchPage:values=>page(fetchImpl,endpoint,new URLSearchParams({...values,appsecret_proof:proof}),token,{maxAttempts:1,signal:auditSignal})});}
         catch(error){accountReconciliation={schemaVersion:'meta-account-reconciliation/1',status:'error',checkedAt:new Date().toISOString(),errorCode:/^[a-z_]+$/.test(error.code||'')?error.code:'account_audit_failed',scope:{from,to:completedTo,timezone:integration.timezone}};}

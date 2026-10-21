@@ -20,11 +20,12 @@ function mergeNode(target,source){
  for(const child of source.children){const existing=byId.get(child.providerId);if(existing)mergeNode(existing,child);else{const copy=structuredClone(child);target.children.push(copy);byId.set(child.providerId,copy);}}
  return target;
 }
-export async function saveAdsSnapshot(db,scope,payload){
+export async function saveAdsSnapshot(db,scope,payload,{excludeDates=[]}={}){
  if(payload.coverage!=='complete'||payload.integrationId!==scope.integrationId||payload.provider!==scope.provider||payload.hierarchy?.providerId!==scope.accountId||payload.hierarchy.timezone!==scope.timezone||payload.hierarchy.currency!==scope.currency)throw Object.assign(new Error('Invalid import scope'),{code:'snapshot_scope_mismatch'});
  const key=scopeKey(scope),at=payload.sourceFetchedAt||payload.fetchedAt;
  if(!Number.isFinite(Date.parse(at)))throw new Error('Import timestamp required');
- const statements=dates(payload.requestedRange.from,payload.requestedRange.to).map(date=>{
+ const excluded=new Set(excludeDates);
+ const statements=dates(payload.requestedRange.from,payload.requestedRange.to).filter(date=>!excluded.has(date)).map(date=>{
   const day={schemaVersion:payload.schemaVersion,provider:payload.provider,integrationId:payload.integrationId,metricAvailability:payload.metricAvailability,levelsAreAlternative:true,hierarchy:sliceNode(payload.hierarchy,date)};
   const json=JSON.stringify(day);if(new TextEncoder().encode(json).length>1500000)throw Object.assign(new Error('Daily snapshot too large'),{code:'snapshot_too_large'});
   return db.prepare(`INSERT INTO ads_daily_snapshots(scope_key,local_date,organization_id,project_id,integration_id,provider,payload_json,content_hash,checked_at)
@@ -34,7 +35,7 @@ export async function saveAdsSnapshot(db,scope,payload){
    .bind(key,date,scope.organizationId,scope.projectId,scope.integrationId,scope.provider,json,hash(day),at);
  });
  // One transaction: a failed page or DB write cannot publish half a period.
- await db.batch(statements);return statements.length;
+ if(statements.length)await db.batch(statements);return statements.length;
 }
 export async function readAdsSnapshot(db,scope,from,to,now=Date.now()){
  const rows=(await db.prepare('SELECT local_date,payload_json,checked_at FROM ads_daily_snapshots WHERE scope_key=? AND local_date>=? AND local_date<=? ORDER BY local_date').bind(scopeKey(scope),from,to).all()).results||[];

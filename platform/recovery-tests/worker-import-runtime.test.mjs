@@ -19,7 +19,7 @@ export const probe={async fetch(request){
  }});
  try{
  if(path.startsWith('/metadata')){const config=path==='/metadata-discover'?{allowCurrencyDiscovery:true}:path==='/metadata-mismatch'?{expectedCurrency:'CZK'}:{};return Response.json({ok:true,...await adapter.accountMetadata({externalAccountId:'123',configJson:JSON.stringify(config)})});}
- const result=await adapter({integration:{accountId:'123',timezone:'UTC',currency:'EUR',config:chunked?{insightChunkDays:3}:{}},request:{from:'2026-10-01',to:chunked?'2026-10-10':'2026-10-01'}});return Response.json({ok:true,calls,coverage:result.coverage,...(chunked?{windows}:{})});}
+ const result=await adapter({integration:{accountId:'123',timezone:'UTC',currency:'EUR',config:chunked?{insightChunkDays:path==='/chunks-daily'?1:3}:{}},request:{from:'2026-10-01',to:chunked?'2026-10-10':'2026-10-01'}});return Response.json({ok:true,calls,coverage:result.coverage,...(chunked?{windows}:{})});}
  catch(e){return Response.json({ok:false,calls,code:e.code});}
 }};`;
  const built=await build({stdin:{contents:source,resolveDir:resolve('runtime')},bundle:true,write:false,format:'esm',platform:'browser',external:['cloudflare:workers','node:crypto']});
@@ -31,6 +31,8 @@ export const probe={async fetch(request){
   const chunks=await(await mf.dispatchFetch('http://local/chunks')).json();
   assert.equal(chunks.coverage,'complete');assert.equal(chunks.calls,4);
   assert.deepEqual(chunks.windows,[{since:'2026-10-01',until:'2026-10-03'},{since:'2026-10-04',until:'2026-10-06'},{since:'2026-10-07',until:'2026-10-09'},{since:'2026-10-10',until:'2026-10-10'}]);
+  const daily=await(await mf.dispatchFetch('http://local/chunks-daily')).json();assert.equal(daily.calls,10);assert.equal(daily.coverage,'complete');
+  assert.deepEqual(daily.windows.map(w=>w.since).sort(),Array.from({length:10},(_,i)=>'2026-10-'+String(i+1).padStart(2,'0')));assert.ok(daily.windows.every(w=>w.since===w.until));
   assert.deepEqual(await(await mf.dispatchFetch('http://local/chunks-fail')).json(),{ok:false,calls:2,code:'provider_http_error'});
   assert.deepEqual(await(await mf.dispatchFetch('http://local/metadata-discover')).json(),{ok:true,accountTimezone:'Europe/Prague',expectedCurrency:'EUR'});
   for(const path of ['/metadata-missing','/metadata-mismatch'])assert.deepEqual(await(await mf.dispatchFetch('http://local'+path)).json(),{ok:false,calls:1,code:'currency_scope_mismatch'});

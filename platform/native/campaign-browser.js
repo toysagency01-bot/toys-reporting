@@ -28,7 +28,7 @@ export function mountCampaignBrowser({slug,context}){
  const controls=mountCampaignControls({slug,render,onStatus(key,status){observedStatuses.set(key,status);render();}});
  const visible=()=>section.classList.contains('active')&&!document.body.classList.contains('platform-show-crm');
  const params=(parent='',offset=0)=>new URLSearchParams({...current.range,provider:current.provider||'',...(demo?{analytics:'crm-v1'}:{}),parent,q:query,sort,offset:String(offset)});
- const url=(parent,offset)=>`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser?${params(parent,offset)}`;
+ const url=(parent,offset)=>`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser?${params(parent,offset)}&adsBasis=daily-v2`;
  const selectedParent=()=>mobile.matches?path.at(-1)||'':'';
  function reset(){generation++;pages.clear();nodes.clear();loading.clear();errors.clear();expanded.clear();path=[];}
  async function load(parent='',more=false){
