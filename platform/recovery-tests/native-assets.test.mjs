@@ -1,7 +1,11 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
 import {sourceTable} from '../native/data.js';
 const assets=JSON.parse(readFileSync('dist/native-assets.json','utf8'));
-test('logos, favicon, shared styling and navigation SVGs come byte-for-byte from the original boards',()=>{for(const p of ['assets/toys-logo.svg','assets/favicon.svg','core/theme.js','core/ux-v2.css','core/ux-v2.js','core/ux-v2-instashop.js','housevip-cxp7/ux-v2.css','housevip-cxp7/ux-v2.js'])assert.equal(assets[p].body,readFileSync('../'+p,'utf8'),p);});
+test('original branding, navigation icons and layout remain unchanged when section buttons become links',()=>{
+ for(const p of ['assets/toys-logo.svg','assets/favicon.svg','core/theme.js'])assert.equal(assets[p].body,readFileSync('../'+p,'utf8'),p);
+ for(const p of ['core/ux-v2.js','core/ux-v2-instashop.js','housevip-cxp7/ux-v2.js'])assert.deepEqual(assets[p].body.match(/<svg[\s\S]*?<\/svg>/g),readFileSync('../'+p,'utf8').match(/<svg[\s\S]*?<\/svg>/g),p);
+ for(const p of ['core/ux-v2.css','housevip-cxp7/ux-v2.css'])assert.equal(assets[p].body.split('\n.ux-nav a{')[0].replaceAll('.ux-nav :is(button,a)','.ux-nav button'),readFileSync('../'+p,'utf8'),p);
+});
 test('original core styles are unchanged by the data adapter',()=>{for(const p of ['core/core.js','core/instashop.js','housevip-cxp7/core.js'])assert.deepEqual(assets[p].body.match(/<style>[\s\S]*?<\/style>/g),readFileSync('../'+p,'utf8').match(/<style>[\s\S]*?<\/style>/g),p);});
 test('ecommerce provider is retained instead of guessing Google, and alternate grains remain separate',()=>{const row={date:'2026-10-01',platform:'Meta Ads',metrics:[{metricCode:'ecom.purchases',value:'3',state:'observed'}]};const d={ecommerce:{account:{rows:[row]},campaigns:{rows:[{...row,campaign:{label:'Campaign'}}]}}};const account=sourceTable(d,'EcomFunnel');assert.equal(account.table.rows.length,1);assert.equal(account.table.rows[0].c[1].v,'Meta Ads');assert.equal(sourceTable(d,'EcomFunnelCampaign').table.rows.length,1);});
 test('an empty newly connected account keeps the shell available for CRM and materials',()=>{for(const p of ['core/core.js','housevip-cxp7/core.js'])assert(assets[p].body.includes("show(C.platformExplicitTabs && !DATA.length ? 'content' : 'emptyState')"));});

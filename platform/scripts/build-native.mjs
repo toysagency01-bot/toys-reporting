@@ -1,3 +1,4 @@
+import {sectionNavigation} from './navigation-assets.mjs';
 import {readFile,writeFile} from 'node:fs/promises';
 import {build} from 'esbuild';
 import {createHash} from 'node:crypto';
@@ -42,7 +43,7 @@ for(const path of ['core/core.js','housevip-cxp7/core.js','core/instashop.js']){
  }
  assets[path]={type:'text/javascript; charset=utf-8',body:source};
 }
-for(const path of ['core/theme.js','core/instashop-model.js','core/ux-v2.js','core/ux-v2-instashop.js','core/ux-v2.css','housevip-cxp7/ux-v2.js','housevip-cxp7/ux-v2.css','assets/toys-logo.svg','assets/favicon.svg'])assets[path]={type:path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':'text/javascript',body:await read(path)};
+for(const path of ['core/theme.js','core/instashop-model.js','core/ux-v2.js','core/ux-v2-instashop.js','core/ux-v2.css','housevip-cxp7/ux-v2.js','housevip-cxp7/ux-v2.css','assets/toys-logo.svg','assets/favicon.svg'])assets[path]={type:path.endsWith('.css')?'text/css':path.endsWith('.svg')?'image/svg+xml':'text/javascript',body:path.includes('ux-v2')?sectionNavigation(await read(path),path):await read(path)};
 assets['assets/toys-black.svg']={type:'image/svg+xml',body:await read('assets/toys-black')};
 assets['vendor/chart.umd.js']={type:'text/javascript',body:await readFile('node_modules/chart.js/dist/chart.umd.js','utf8')};
 assets['platform-tools.css']={type:'text/css',body:await readFile('native/tools.css','utf8')};
