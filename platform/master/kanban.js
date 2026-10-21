@@ -1,8 +1,8 @@
 import {escapeHtml as h} from '../unified/model.js';
 export const sourceLabel=source=>({meta_lead_ads:'Meta Lead Ads',website:'Сайт',manual:'Вручную',legacy_meta_sheet:'Meta',legacy_project_sheet:'Перенесённый лид',instagram:'Instagram Direct',whatsapp:'WhatsApp Business'})[source]||source;
 const date=s=>s?new Date(s).toLocaleDateString('ru-RU',{day:'numeric',month:'short',timeZone:'Asia/Tbilisi'}):'';
-export function mountKanban({root,onOpen,onMove,onMore,onDelete,canEdit=true}){
- const board=root.getElementById('leadsBoard');let dragging=null,point=null,frame=0,lastFrame=0;const pending=new Set();
+export function mountKanban({root,onOpen,onMove,onMore,onDelete,onSelect,onSelectStage,canEdit=true}){
+ const board=root.getElementById('leadsBoard');let dragging=null,point=null,frame=0,lastFrame=0;const pending=new Set();let selection=new Set(),selecting=false,selectionBusy=false;
  const navigation=document.createElement('div');navigation.className='kanban-navigation';navigation.hidden=true;
  navigation.innerHTML='<button type="button" data-direction="-1" aria-label="Предыдущие этапы" aria-controls="leadsBoard">←</button><input type="range" min="0" max="1000" value="0" step="1" aria-label="Прокрутка этапов" aria-controls="leadsBoard"><button type="button" data-direction="1" aria-label="Следующие этапы" aria-controls="leadsBoard">→</button>';
  board.before(navigation);
@@ -39,7 +39,7 @@ export function mountKanban({root,onOpen,onMove,onMore,onDelete,canEdit=true}){
   }
   frame=requestAnimationFrame(scrollDrag);
  }
- board.addEventListener('dragstart',e=>{const card=e.target.closest('[data-card]');if(!card||!canEdit||pending.has(card.dataset.card)){e.preventDefault();return;}dragging=card.dataset.card;e.dataTransfer.setData('text/plain',dragging);e.dataTransfer.effectAllowed='move';card.classList.add('dragging');board.classList.add('is-dragging');});
+ board.addEventListener('dragstart',e=>{const card=e.target.closest('[data-card]');if(!card||!canEdit||pending.has(card.dataset.card)||selecting){e.preventDefault();return;}dragging=card.dataset.card;e.dataTransfer.setData('text/plain',dragging);e.dataTransfer.effectAllowed='move';card.classList.add('dragging');board.classList.add('is-dragging');});
  function dragover(e){if(!dragging)return;point={x:e.clientX,y:e.clientY};if(!frame)frame=requestAnimationFrame(scrollDrag);const column=columnAt(e);if(!column)return;e.preventDefault();e.dataTransfer.dropEffect='move';highlight(column);}
  function drop(e){if(!dragging)return;const column=columnAt(e),id=dragging;stop();if(column){e.preventDefault();onMove(id,stageOf(column));}}
  for(const area of [board,headers]){area.addEventListener('dragenter',dragover);area.addEventListener('dragover',dragover);area.addEventListener('drop',drop);}
@@ -51,14 +51,15 @@ export function mountKanban({root,onOpen,onMove,onMore,onDelete,canEdit=true}){
  root.addEventListener('keydown',e=>{if(e.key==='Escape')stop();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
  window.addEventListener('blur',stop);
- board.addEventListener('click',e=>{const remove=e.target.closest('[data-delete-lead]');if(remove){if(!pending.has(remove.dataset.deleteLead))onDelete?.(remove.dataset.deleteLead);return;}const card=e.target.closest('[data-card]');if(card&&!pending.has(card.dataset.card))onOpen(card.dataset.card);const more=e.target.closest('[data-more]');if(more){more.disabled=true;onMore(more.dataset.more).finally(()=>{if(more.isConnected)more.disabled=false;});}});
+ for(const area of [board,headers])area.addEventListener('change',e=>{const check=e.target;if(check.matches('[data-select-lead]'))onSelect?.(check.dataset.selectLead,check.checked);if(check.matches('[data-select-stage]'))onSelectStage?.(check.dataset.selectStage,check.checked);});
+ board.addEventListener('click',e=>{if(e.target.closest('.lead-select'))return;const remove=e.target.closest('[data-delete-lead]');if(remove){if(!pending.has(remove.dataset.deleteLead))onDelete?.(remove.dataset.deleteLead);return;}const card=e.target.closest('[data-card]');if(card&&!pending.has(card.dataset.card)){if(selecting){if(!selectionBusy)onSelect?.(card.dataset.card,!selection.has(card.dataset.card));}else onOpen(card.dataset.card);}const more=e.target.closest('[data-more]');if(more){more.disabled=true;onMore(more.dataset.more).finally(()=>{if(more.isConnected)more.disabled=false;});}});
  return {
   render(columns){
    stop();const scroll=board.scrollLeft;
-   board.innerHTML=columns.map(c=>`<section class="kanban-column" style="--stage-color:${/^#[a-f0-9]{6}$/i.test(c.color)?c.color:'#8b949f'}" data-stage="${h(c.status)}" aria-label="${h(c.status)}"><div class="stage-heading"><h3>${h(c.status)}</h3><span class="stage-count">${c.total}</span></div><div class="stage-cards">${c.leads.map(l=>`<article class="lead-card-wrap${canEdit?' can-delete':''}"><button type="button" class="lead-card" data-card="${h(l.id)}" aria-label="${h(l.name||'Без имени')}" draggable="${canEdit}"><strong>${h(l.name||'Имя не указано')}</strong><span class="lead-contact lead-phone">${h(l.phone||'Телефон не указан')}</span><span class="lead-card-top"><span class="lead-source">${h(sourceLabel(l.source))}</span><time datetime="${h(l.createdAt)}">${h(date(l.createdAt))}</time></span>${l.email?`<span class="lead-contact">${h(l.email)}</span>`:''}${l.metadata?.budget?`<span class="lead-budget">Бюджет · ${h(l.metadata.budget)}</span>`:''}<span class="lead-card-bottom"><span>${h(l.metadata?.contactMethod||'Открыть карточку')}</span>${l.owner?`<span class="lead-owner" title="${h(l.owner)}">${h(l.owner)}</span>`:''}</span></button>${canEdit?`<button type="button" class="lead-delete" data-delete-lead="${h(l.id)}" aria-label="Удалить лида ${h(l.name||'без имени')}" title="Удалить лида"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7"/></svg></button>`:''}</article>`).join('')||'<div class="stage-empty">Нет лидов на этом этапе</div>'}</div>${c.hasMore?`<button class="load-more" data-more="${h(c.status)}">Показать ещё · ${c.total-c.leads.length}</button>`:''}</section>`).join('');
-   headers.innerHTML=columns.map(c=>`<div class="kanban-pinned-stage" data-drop-stage="${h(c.status)}" style="--stage-color:${/^#[a-f0-9]{6}$/i.test(c.color)?c.color:'#8b949f'}"><strong>${h(c.status)}</strong><span class="stage-count">${c.total}</span></div>`).join('');
+   board.innerHTML=columns.map(c=>`<section class="kanban-column" style="--stage-color:${/^#[a-f0-9]{6}$/i.test(c.color)?c.color:'#8b949f'}" data-stage="${h(c.status)}" aria-label="${h(c.status)}"><div class="stage-heading">${canEdit?`<input class="stage-select" type="checkbox" data-select-stage="${h(c.status)}" aria-label="Выбрать загруженные лиды этапа ${h(c.status)}">`:''}<h3>${h(c.status)}</h3><span class="stage-count">${c.total}</span></div><div class="stage-cards">${c.leads.map(l=>`<article class="lead-card-wrap${canEdit?' can-delete':''}">${canEdit?`<label class="lead-select"><input type="checkbox" data-select-lead="${h(l.id)}" aria-label="Выбрать лида ${h(l.name||l.phone||'без имени')}"></label>`:''}<button type="button" class="lead-card" data-card="${h(l.id)}" aria-label="${h(l.name||'Без имени')}" draggable="${canEdit}"><strong>${h(l.name||'Имя не указано')}</strong><span class="lead-contact lead-phone">${h(l.phone||'Телефон не указан')}</span><span class="lead-card-top"><span class="lead-source">${h(sourceLabel(l.source))}</span><time datetime="${h(l.createdAt)}">${h(date(l.createdAt))}</time></span>${l.email?`<span class="lead-contact">${h(l.email)}</span>`:''}${l.metadata?.budget?`<span class="lead-budget">Бюджет · ${h(l.metadata.budget)}</span>`:''}<span class="lead-card-bottom"><span>${h(l.metadata?.contactMethod||'Открыть карточку')}</span>${l.owner?`<span class="lead-owner" title="${h(l.owner)}">${h(l.owner)}</span>`:''}</span></button>${canEdit?`<button type="button" class="lead-delete" data-delete-lead="${h(l.id)}" aria-label="Удалить лида ${h(l.name||'без имени')}" title="Удалить лида"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7m4-7v7"/></svg></button>`:''}</article>`).join('')||'<div class="stage-empty">Нет лидов на этом этапе</div>'}</div>${c.hasMore?`<button class="load-more" data-more="${h(c.status)}">Показать ещё · ${c.total-c.leads.length}</button>`:''}</section>`).join('');
+   headers.innerHTML=columns.map(c=>`<div class="kanban-pinned-stage" data-drop-stage="${h(c.status)}" style="--stage-color:${/^#[a-f0-9]{6}$/i.test(c.color)?c.color:'#8b949f'}">${canEdit?`<input class="stage-select" type="checkbox" data-select-stage="${h(c.status)}" aria-label="Выбрать загруженные лиды этапа ${h(c.status)} (закреплённый заголовок)">`:''}<strong>${h(c.status)}</strong><span class="stage-count">${c.total}</span></div>`).join('');
    for(const id of pending)setPending(id,true);
-   board.scrollLeft=scroll;syncHeaders();
+   board.scrollLeft=scroll;syncSelection();syncHeaders();
   },
   update(columns){
    const cards=new Map([...board.querySelectorAll('[data-card]')].map(el=>[el.dataset.card,el.closest('.lead-card-wrap')]));
@@ -73,9 +74,16 @@ export function mountKanban({root,onOpen,onMove,onMore,onDelete,canEdit=true}){
    }
    syncHeaders();
   },
+  toolbar:navigation,
+  selection(ids,{enabled,busy}){selection=new Set(ids);selecting=enabled;selectionBusy=busy;syncSelection();syncHeaders();},
   pending:setPending,
   notice(text=''){notice.textContent=text;notice.hidden=!text;},
   clear(){stop();board.replaceChildren();headers.replaceChildren();notice.hidden=true;syncScroll();}
  };
- function setPending(id,value){if(value)pending.add(id);else pending.delete(id);const card=[...board.querySelectorAll('[data-card]')].find(c=>c.dataset.card===id);if(card){card.disabled=value;card.draggable=canEdit&&!value;card.classList.toggle('saving',value);card.setAttribute('aria-busy',String(value));const remove=card.closest('.lead-card-wrap').querySelector('[data-delete-lead]');if(remove)remove.disabled=value;}}
+ function syncSelection(){
+  board.classList.toggle('selection-mode',selecting);headers.classList.toggle('selection-mode',selecting);
+  for(const card of board.querySelectorAll('[data-card]')){const id=card.dataset.card,wrap=card.closest('.lead-card-wrap'),input=wrap.querySelector('[data-select-lead]');wrap.classList.toggle('selected',selection.has(id));if(input){input.checked=selection.has(id);input.disabled=selectionBusy||pending.has(id);}card.draggable=canEdit&&!selecting&&!pending.has(id);}
+  for(const input of [...board.querySelectorAll('[data-select-stage]'),...headers.querySelectorAll('[data-select-stage]')]){const column=[...board.children].find(c=>c.dataset.stage===input.dataset.selectStage),ids=[...column.querySelectorAll('[data-card]')].map(c=>c.dataset.card),n=ids.filter(id=>selection.has(id)).length;input.checked=ids.length>0&&n===ids.length;input.indeterminate=n>0&&n<ids.length;input.disabled=selectionBusy||!ids.length;}
+ }
+ function setPending(id,value){if(value)pending.add(id);else pending.delete(id);const card=[...board.querySelectorAll('[data-card]')].find(c=>c.dataset.card===id);if(card){card.disabled=value;card.draggable=canEdit&&!value&&!selecting;card.classList.toggle('saving',value);card.setAttribute('aria-busy',String(value));const remove=card.closest('.lead-card-wrap').querySelector('[data-delete-lead]');if(remove)remove.disabled=value;}}
 }

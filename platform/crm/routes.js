@@ -1,4 +1,4 @@
-import {listBoards,createBoard,boardTemplates} from './boards.js';
+import {listBoards,createBoard,boardTemplates,boardDetails,updateBoard} from './boards.js';
 import {crmAllowed} from './access.js';
 import {authorizeMvp} from '../runtime/backend.js';
 import {reply,readJSON,project,enable,ingest,updateLead,deleteLead,summary,listLeads} from './service.js';
@@ -12,6 +12,8 @@ export async function crmRoute(request,env,ctx){
  const p=await project(env,m[1]);if(!p)fail('not_found',404);const path=m[2]||'';
  if(path==='boards'&&!write)return reply({ok:true,boards:await listBoards(env,p),templates:boardTemplates(),canManage:['admin','team'].includes(auth.platformRole)});
  if(path==='boards'&&request.method==='POST'){if(!['admin','team'].includes(auth.platformRole))fail('board_manage_forbidden',403);return reply({ok:true,board:await createBoard(env,p,await readJSON(request),auth.subject,request.headers.get('x-idempotency-key'))},201);}
+ const boardRoute=path.match(/^boards\/([^/]+)$/);
+ if(boardRoute){if(!['admin','team'].includes(auth.platformRole))fail('board_manage_forbidden',403);if(!write)return reply({ok:true,...await boardDetails(env,p,boardRoute[1])});if(request.method==='PATCH')return reply(await updateBoard(env,p,boardRoute[1],await readJSON(request),auth.subject,request.headers.get('x-idempotency-key')));}
  if(path==='summary'&&!write)return reply({ok:true,...await summary(env,p,url.searchParams.get('from'),url.searchParams.get('to'))});
  if(path===''&&!write)return reply({...await listLeads(env,p,url),canManageBoards:['admin','team'].includes(auth.platformRole)});
  if(path==='enable'&&request.method==='POST'){await enable(env,p);return reply({ok:true});}
