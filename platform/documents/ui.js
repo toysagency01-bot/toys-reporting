@@ -46,9 +46,10 @@ export function mountDocuments({host,json,projects,role=()=>null}){
  host.addEventListener('input',e=>{if(e.target.closest('.invoice-form')){dirty=true;preview();$('[data-doc-saved]').textContent='Есть несохранённые изменения';}});
  host.addEventListener('change',e=>{if(e.target.closest('.invoice-form')){dirty=true;preview();}});
  host.addEventListener('click',async e=>{
+  const currentProjectLink=e.target.closest('a[href^="#documents?project="]');if(currentProjectLink&&currentProjectLink.hash===location.hash&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey){e.preventDefault();await load(slug,{force:true});return;}
   const link=e.target.closest('[data-doc-list-pdf]');if(link){e.preventDefault();if(!busy)await action(async()=>{const d=await json(base()+'/invoices/'+encodeURIComponent(link.dataset.docListPdf));await download(d.invoice);});return;}const b=e.target.closest('button');if(!b||busy||b.closest('.invoice-import-dialog'))return;
   if(b.hasAttribute('data-doc-import')){if(leave()){if(editing)await load(slug,{force:true});importer.open();}return;}
-  if(b.hasAttribute('data-doc-archive')){if(leave()){frame();editing=false;await importer.archive($('[data-doc-body]'));}return;}
+  if(b.hasAttribute('data-doc-archive')){if(leave()){frame();editing=false;await importer.archive($('[data-doc-body]'));if(project)$('[data-doc-body]').insertAdjacentHTML('afterbegin','<button class="secondary" data-doc-back>← К инвойсам проекта</button>');}return;}
   if(b.hasAttribute('data-billing-save')){await action(async()=>{const d=await write(base()+'/billing',{version:billing?.version||0,method:$('[data-billing-method]').value,note:$('[data-billing-note]').value},'PATCH');billing=d.billing;await load(slug,{force:true});notify('Способ оплаты сохранён.');});return;}
   if(b.hasAttribute('data-doc-new')){if(leave())newInvoice();return;}
   if(b.hasAttribute('data-doc-back')){if(leave())load(slug,{force:true});return;}
