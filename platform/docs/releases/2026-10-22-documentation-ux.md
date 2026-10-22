@@ -44,3 +44,13 @@ Implementation: `1bcecdc`.
 Worker: `1b97f69e-ddab-4cca-b690-2d74aa4bdc7c` at 100%.
 SHA256: `92f0332f0052252a46ce3525697cbf7a2dfa7047d141e9c03a17604dd0cce7e4`.
 Rollback: `c30f0443-0e53-4ea4-8bda-b77341e614ae` (leave all invoice data intact).
+
+Hover follow-up (`45a968b`): the shared dashboard `tr:hover td` rule applied a dark
+background to white invoice paper while its description text remained dark. The
+issue was reproduced in the browser before the fix. Invoice paper cells now retain
+a white background in both themes. All ten browser scenarios passed, including
+hovering description/header cells in the editor, historical invoice and archive
+popup, plus description textarea readability. Screenshots were inspected locally.
+Updated Worker: `268c1e64-37ef-4713-83f6-6a79db98f5ef` (100%).
+SHA256: `95c16c715658bf3c7f24fb3fe8827ec40e60811386b452b609d3f78b9c7738b0`.
+Follow-up rollback: `1b97f69e-ddab-4cca-b690-2d74aa4bdc7c`.
