@@ -49,6 +49,7 @@ function theme(){const light=document.documentElement.dataset.theme==='light',pa
 try{if(!embedded)document.documentElement.dataset.theme=localStorage.getItem('toys-unified-theme')||'dark';}catch{}theme();$('theme').onclick=()=>{document.documentElement.dataset.theme=document.documentElement.dataset.theme==='light'?'dark':'light';try{localStorage.setItem('toys-unified-theme',document.documentElement.dataset.theme);}catch{}theme();};
 function show(view){
  if(state.view==='documents'&&view!=='documents'&&!documentsUI.leave()){history.replaceState(null,'','#documents?project='+encodeURIComponent(state.slug));return;}
+ if(state.view==='documents'&&view!=='documents')documentsUI.deactivate();
  state.view=['crm',...(!client?['access','reviews','documents',...(state.platformRole==='admin'?['audit']:[])]:[])].includes(view)?view:'home';
  switchPeriod(state.view==='crm'?'crm':'home');
  const reviews=state.view==='reviews';

@@ -53,7 +53,7 @@ test('updates use version guards, invoice numbers are unique and only drafts can
   const key=crypto.randomUUID();assert.equal((await call(f,'/invoices/'+draft.id,{method:'DELETE',body:{version:1},key})).status,200);assert.equal((await call(f,'/invoices/'+draft.id,{method:'DELETE',body:{version:1},key})).status,200);
   assert.equal((await call(f,'/invoices/'+draft.id+'/pdf')).status,404);
   const list=(await call(f)).body.invoices;assert.equal(list.length,1);assert.equal(list[0].id,invoice.id);
-  const audit=await worker.fetch(new Request('https://test.local/api/v2/master/audit?category=documents',{headers:{cookie:'__Host-toys_session='+f.tokens.admin}}),f.env);const log=await audit.json();assert.ok(log.events.some(e=>e.action==='invoice.deleted'));assert.ok(log.events.every(e=>e.actor==='admin@roles.test'));
+  const audit=await worker.fetch(new Request('https://test.local/api/v2/master/audit?category=documents',{headers:{cookie:'__Host-toys_session='+f.tokens.admin}}),f.env);const log=await audit.json();assert.ok(log.events.some(e=>e.action==='invoice.deleted'));assert.ok(log.events.every(e=>e.actor==='admin@roles.test'));assert.ok(log.events.some(e=>e.label==='TEST-1'));
  }finally{f.db.close();}
 });
 test('PDF downloads are real, Unicode-capable, multipage, private, and reject incomplete drafts',async()=>{

@@ -21,5 +21,6 @@ test('team documents are scoped to assigned projects; unsaved changes survive ca
  await page.setExtraHTTPHeaders({'x-test-role':'team'});await page.goto(route);await page.locator('[data-doc-new]').first().click();await page.locator('[name=issuer]').fill('Unsaved team invoice');
  page.once('dialog',d=>d.dismiss());await page.locator('[data-view=home]').click();await expect(page.locator('#documents')).toBeVisible();await expect(page.locator('[name=issuer]')).toHaveValue('Unsaved team invoice');
  await page.locator('[data-doc-pdf]').click();await expect(page.locator('[data-doc-message]')).toContainText('Для PDF');await expect(page.locator('[name=issuer]')).toHaveValue('Unsaved team invoice');
+  await page.locator('[name=issuer]').fill('Discard this edit');page.once('dialog',d=>d.accept());await page.locator('[data-view=home]').click();await expect(page.locator('#documents')).toBeHidden();await page.locator('[data-view=documents]').click();await expect(page.locator('.invoice-form')).toHaveCount(0);await expect(page.locator('.invoice-list')).toBeVisible();
  await page.setExtraHTTPHeaders({'x-test-role':'client'});await page.reload();await expect(page.locator('[data-doc-new]')).toHaveCount(0);
 });

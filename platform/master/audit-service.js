@@ -4,8 +4,8 @@ import {parse} from '../crm/service.js';
 // Existing durable histories remain the source of truth; no fabricated backfill.
 const events=`
  SELECT 'log:'||a.id AS event_id,a.project_id,COALESCE(u.email,json_extract(CASE WHEN json_valid(a.after_json) THEN a.after_json ELSE '{}' END,'$.actor'),'system') AS actor_ref,
- CASE WHEN a.entity_type='user' THEN 'access' WHEN a.entity_type IN ('invoice','invoice_defaults') THEN 'documents' WHEN a.entity_type='monthly_report' THEN 'reports' ELSE 'crm' END AS category,a.action,a.entity_id,COALESCE(l.name,u2.email,a.entity_id,'') AS label,a.before_json,a.after_json,a.created_at
- FROM audit_log a LEFT JOIN users u ON u.id=a.actor_user_id LEFT JOIN users u2 ON a.entity_type='user' AND u2.id=a.entity_id LEFT JOIN leads l ON a.entity_type='lead' AND l.id=a.entity_id
+ CASE WHEN a.entity_type='user' THEN 'access' WHEN a.entity_type IN ('invoice','invoice_defaults') THEN 'documents' WHEN a.entity_type='monthly_report' THEN 'reports' ELSE 'crm' END AS category,a.action,a.entity_id,COALESCE(l.name,u2.email,iv.number,CASE WHEN a.entity_type='invoice_defaults' THEN 'Реквизиты инвойсов' END,a.entity_id,'') AS label,a.before_json,a.after_json,a.created_at
+ FROM audit_log a LEFT JOIN users u ON u.id=a.actor_user_id LEFT JOIN users u2 ON a.entity_type='user' AND u2.id=a.entity_id LEFT JOIN leads l ON a.entity_type='lead' AND l.id=a.entity_id LEFT JOIN project_invoices iv ON a.entity_type='invoice' AND iv.id=a.entity_id AND iv.project_id=a.project_id
  UNION ALL
  SELECT 'lead:'||e.id,e.project_id,COALESCE(u.email,json_extract(CASE WHEN json_valid(e.note) THEN e.note ELSE '{}' END,'$.actor'),'system'),'crm','crm.lead.updated',e.lead_id,COALESCE(l.name,e.lead_id),json_object('status',e.from_status),json_patch(json_object('status',e.to_status),CASE WHEN json_valid(e.note) THEN e.note ELSE '{}' END),e.changed_at FROM lead_status_events e LEFT JOIN users u ON u.id=e.changed_by_user_id LEFT JOIN leads l ON l.id=e.lead_id
  UNION ALL

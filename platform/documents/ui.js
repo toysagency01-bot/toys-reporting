@@ -53,5 +53,5 @@ export function mountDocuments({host,json,projects}){
   if(b.hasAttribute('data-doc-delete')){if(!confirm('Удалить этот черновик инвойса?'))return;await action(async()=>{await write(base()+'/invoices/'+invoice.id,{version:invoice.version},'DELETE');dirty=false;await load(slug,{force:true});notify('Черновик удалён.');});return;}
   if(b.hasAttribute('data-doc-pdf'))await action(async()=>{const saved=dirty||!invoice.id?await save():invoice;notify('Готовим PDF…');await download(saved);});
  });
- return {load,leave,isEditing:()=>editing};
+ return {load,leave,deactivate(){seq++;editing=false;invoice=null;dirty=false;},isEditing:()=>editing};
 }
