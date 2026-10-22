@@ -1,0 +1,60 @@
+import {unzipSync} from 'fflate';
+import {escapeHtml as h} from '../unified/model.js';
+const base='/api/v2/master/documents/imports';
+const labels={invalid_invoice_xml:'Не удалось прочитать XML инвойсов. Выберите исходную XML-выгрузку.',import_source_changed:'Этот инвойс уже импортирован, но данные источника изменились. Оригинал сохранён; нужна ручная сверка.',original_conflict:'У этого инвойса уже есть другой оригинал. Замена заблокирована.',invalid_pdf:'В архиве найден некорректный PDF.',report_storage_unavailable:'Хранилище оригиналов временно недоступно. Данные сохранены; ZIP можно загрузить повторно.',invoice_import_unavailable:'Импорт не завершён. Повторите загрузку: уже сохранённые документы не задублируются.'};
+export function mountInvoiceImport({host,json,projects,onDone}){
+ let completed=false,active=false,busy=false,records=[],mappings={},files=[],dialog=null;
+ const message=(s,bad=false)=>{const n=dialog?.querySelector('[data-import-message]');if(n){n.textContent=s;n.className=bad?'error':'note';}};
+ const close=()=>{dialog?.remove();dialog=null;active=false;records=[];files=[];if(completed){completed=false;onDone();}};
+ async function run(fn){if(busy)return;busy=true;dialog.querySelectorAll('button,input,select').forEach(n=>n.disabled=true);try{await fn();}catch(e){message(labels[e.message]||e.message||'Не удалось импортировать. Повторите попытку.',true);}finally{busy=false;dialog?.querySelectorAll('button,input,select').forEach(n=>n.disabled=false);}}
+ async function write(path,body){return json(path,{method:'POST',headers:{'x-idempotency-key':crypto.randomUUID()},body:JSON.stringify(body),signal:AbortSignal.timeout(60000)});}
+ function open(){
+  if(active)return;active=true;dialog=document.createElement('dialog');dialog.className='invoice-import-dialog';dialog.innerHTML=`<div class="docs-heading"><h2>Импорт старых инвойсов</h2><button class="secondary" data-import-close aria-label="Закрыть импорт">×</button></div><p class="note">XML переносит данные и реквизиты. ZIP добавляет оригиналы PDF. Можно загрузить только ZIP, если данные уже перенесены.</p><label>XML-выгрузка<input type="file" accept=".xml" data-import-xml></label><label>Архивы с оригиналами PDF<input type="file" accept=".zip" multiple data-import-zips></label><p class="note">До 4 МБ XML; до 32 МБ на ZIP и 64 МБ распакованных PDF за загрузку. Оригиналы приватные, до 8 МБ каждый.</p><p data-import-message role="status" aria-live="polite"></p><div data-import-preview></div><div class="actions"><button class="secondary" data-import-check>Проверить файлы</button><button class="primary" data-import-go hidden>Импортировать</button></div>`;host.append(dialog);dialog.showModal();
+  dialog.addEventListener('cancel',e=>{e.preventDefault();if(!busy)close();});
+  dialog.onclick=e=>{const b=e.target.closest('button');if(!b||busy)return;if(b.hasAttribute('data-import-close')){close();return;}if(b.hasAttribute('data-import-check'))run(check);if(b.hasAttribute('data-import-go'))run(commit);};
+  dialog.onchange=e=>{if(e.target.type==='file'){records=[];files=[];dialog.querySelector('[data-import-go]').hidden=true;dialog.querySelector('[data-import-preview]').replaceChildren();message('Файлы изменены. Нажмите «Проверить файлы».');}};
+ }
+ async function check(){
+  records=[];files=[];const xml=dialog.querySelector('[data-import-xml]').files[0],zips=[...dialog.querySelector('[data-import-zips]').files];if(!xml&&!zips.length)throw Error('Выберите XML или ZIP.');
+  if(xml){if(xml.size>4*1024*1024)throw Error('XML больше 4 МБ.');const p=await write(base+'/preview',{xml:await xml.text()});records=p.records;mappings=p.mappings;}
+  let unpacked=0;const seen=new Map();
+  for(const z of zips){if(z.size>32*1024*1024)throw Error('ZIP больше 32 МБ.');
+   const entries=unzipSync(new Uint8Array(await z.arrayBuffer()),{filter:f=>{if(!/\.pdf$/i.test(f.name))return false;if(f.originalSize>8*1024*1024)throw Error('PDF в ZIP больше 8 МБ.');unpacked+=f.originalSize;if(unpacked>64*1024*1024)throw Error('Объём распакованных PDF превышает 64 МБ.');return true;}});
+   for(const [name,bytes]of Object.entries(entries)){
+    const m=name.match(/(?:^|\/)([^/]+)_(\d+)\/invoice-[^/]+\.pdf$/i);if(!m)throw Error('Не удалось определить исходный ID PDF: '+name);
+    if(new TextDecoder().decode(bytes.slice(0,5))!=='%PDF-')throw Error('Некорректный PDF: '+name);
+    const sha=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(v=>v.toString(16).padStart(2,'0')).join('');
+    if(seen.has(m[2])&&seen.get(m[2])!==sha)throw Error('Два разных PDF для одного инвойса: '+m[2]);if(seen.has(m[2]))continue;seen.set(m[2],sha);files.push({externalId:m[2],name,bytes});
+   }
+  }
+  if(!records.length&&!files.length)throw Error('В выбранных файлах нет инвойсов.');
+  const groups=new Map();for(const r of records){const g=groups.get(r.clientKey)||{key:r.clientKey,buyer:r.buyer,n:0};g.n++;groups.set(r.clientKey,g);}
+  dialog.querySelector('[data-import-preview]').innerHTML=`<p><b>${records.length} инвойсов · ${files.length} оригиналов PDF</b></p>${records.length?`<p class="note">Неоднозначные проекты оставьте без привязки — документы сохранятся в общем архиве. Изменённые версии и совпадения номеров не перезаписываются.</p><div class="table-wrap"><table><thead><tr><th>Клиент в источнике</th><th>Счетов</th><th>Проект</th></tr></thead><tbody>${[...groups.values()].map(g=>`<tr><td>${h(g.buyer)}</td><td>${g.n}</td><td><select data-import-client="${h(g.key)}"><option value="">Без привязки · архив</option>${projects().map(p=>`<option value="${h(p.slug)}" ${mappings[g.key]===p.slug?'selected':''}>${h(p.name)}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div><label class="import-defaults"><input type="checkbox" data-import-defaults checked> Заполнить пустые реквизиты проектов из последних инвойсов</label>`:''}`;
+  dialog.querySelector('[data-import-go]').hidden=false;message(`Проверено. Уже в базе: ${records.filter(r=>r.existing).length}. Требуют проверки формата: ${records.filter(r=>!r.data).length}.`);
+ }
+ async function commit(){
+  let saved=0,duplicates=0,linked=0,originals=0;const issues=[];
+  // Oldest first: after importing the complete set, the last record fills defaults.
+  const choices=Object.fromEntries([...dialog.querySelectorAll('[data-import-client]')].map(n=>[n.dataset.importClient,n.value]));
+  const ordered=[...records].sort((a,b)=>a.date.localeCompare(b.date)||a.number.localeCompare(b.number,undefined,{numeric:true}));
+  for(const r of ordered){message(`Импорт данных ${++saved}/${records.length}…`);try{const out=await write(base+'/records',{record:r.raw,project:choices[r.clientKey]||null});if(out.duplicate)duplicates++;if(out.record.invoiceId)linked++;if(out.linkConflict)issues.push('№ '+r.number+': совпадение номера в проекте');}catch(e){issues.push('№ '+r.number+': '+(labels[e.message]||e.message));}}
+  // Defaults are filled only after all records exist, so newest verified data wins.
+  if(dialog.querySelector('[data-import-defaults]')?.checked){const last=new Map();for(const r of ordered)if(r.data&&choices[r.clientKey])last.set(choices[r.clientKey],r);for(const r of last.values())await write(base+'/records',{record:r.raw,project:choices[r.clientKey],saveDefaults:true});}
+  if(files.length){const archive=[];let offset=0;do{const d=await json(base+'?offset='+offset);archive.push(...d.records);offset=d.nextOffset;}while(offset!==null);
+   for(const f of files){const matches=archive.filter(r=>r.externalId===f.externalId);if(matches.length!==1){issues.push(f.name+': нет однозначного инвойса в XML/базе');continue;}message(`Оригиналы ${originals+1}/${files.length}…`);try{await json(base+'/'+matches[0].id+'/original',{method:'POST',body:f.bytes,headers:{'content-type':'application/pdf','x-idempotency-key':crypto.randomUUID()},signal:AbortSignal.timeout(60000)});originals++;}catch(e){issues.push(f.name+': '+(labels[e.message]||e.message));}}
+  }
+  const result=`Обработано: ${records.length}; повторных: ${duplicates}; в проектах: ${linked}; оригиналов: ${originals}.`;
+  dialog.querySelector('[data-import-preview]').innerHTML=`<p><b>${h(result)}</b></p>${issues.length?'<h3>Нужна проверка</h3><ul>'+issues.map(s=>'<li>'+h(s)+'</li>').join('')+'</ul>':'<p>Импорт завершён.</p>'}`;dialog.querySelector('[data-import-go]').hidden=true;message(issues.length?'Часть файлов требует проверки. Повторная загрузка безопасна.':'Данные сохранены.',!!issues.length);completed=true;
+ }
+ async function archive(target,{offset=0,unassigned=false,append=false,q=''}={}){
+  const result=await json(base+'?offset='+offset+(unassigned?'&unassigned=1':'')+'&q='+encodeURIComponent(q));
+  const rows=result.records.map(r=>`<tr><td>${h(r.number)}<small>${h(r.date)}</small></td><td>${h(r.buyer)}</td><td>${h(r.total)} ${h(r.currency)}</td><td>${r.project?`<a class="text-button" href="#documents?project=${encodeURIComponent(r.project.slug)}">${h(r.project.name)}</a>`:`<select data-archive-project="${h(r.id)}"><option value="">Без привязки</option>${projects().map(p=>`<option value="${h(p.slug)}">${h(p.name)}</option>`).join('')}</select><button class="text-button" data-archive-link="${h(r.id)}">Привязать клиента</button>`}</td><td><div class="actions">${r.hasOriginal?`<a class="secondary" href="${base}/${r.id}/original">Оригинал PDF</a>`:r.canGenerate?`<a class="secondary" href="${base}/${r.id}/pdf">PDF по данным</a>`:'<span class="note">Нужна проверка данных</span>'}<a class="text-button" href="${base}/${r.id}/source">Исходные данные</a></div></td></tr>`).join('');
+  if(append){target.querySelector('tbody').insertAdjacentHTML('beforeend',rows);target.querySelector('[data-archive-more]')?.remove();}
+  else target.innerHTML=`<div class="docs-heading"><div><h3>Архив импорта · все проекты</h3><p class="note">Всего ${result.counts.total} · в проектах ${result.counts.linked||0} · оригиналов ${result.counts.originals||0}. «PDF по данным» создан из XML; это не исходный файл.</p></div><label><input type="checkbox" data-archive-unassigned ${unassigned?'checked':''}> Только без привязки</label></div><label>Поиск по клиенту или номеру<input type="search" data-archive-search value="${h(q)}" maxlength="150" placeholder="Имя клиента или номер — Enter"></label><div class="table-wrap"><table><thead><tr><th>Инвойс</th><th>Клиент</th><th>Сумма</th><th>Проект</th><th>Документы</th></tr></thead><tbody>${rows||'<tr><td colspan="5">Документов пока нет.</td></tr>'}</tbody></table></div>`;
+  if(result.nextOffset!==null)target.insertAdjacentHTML('beforeend',`<button class="secondary" data-archive-more="${result.nextOffset}">Показать ещё</button>`);
+  target.onchange=e=>{if(e.target.hasAttribute('data-archive-unassigned'))archive(target,{unassigned:e.target.checked,q:target.querySelector('[data-archive-search]').value});};
+  target.onkeydown=e=>{if(e.target.hasAttribute('data-archive-search')&&e.key==='Enter'){e.preventDefault();archive(target,{unassigned:target.querySelector('[data-archive-unassigned]').checked,q:e.target.value});}};
+  target.onclick=async e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-archive-more'))return archive(target,{offset:Number(b.dataset.archiveMore),unassigned:target.querySelector('[data-archive-unassigned]').checked,append:true,q});if(b.dataset.archiveLink){const project=target.querySelector(`[data-archive-project="${b.dataset.archiveLink}"]`).value;if(!project)return;b.disabled=true;try{const linked=await write(base+'/'+b.dataset.archiveLink+'/link',{project});if(linked.conflicts)throw Error('Часть инвойсов имеет совпадающие номера. Они сохранены в архиве без привязки.');await archive(target,{unassigned,q});}catch(e){b.disabled=false;const n=host.querySelector('[data-doc-message]');n.textContent=labels[e.message]||e.message;n.className='error';}}};
+ }
+ return {open,archive,get active(){return active;},leave(){if(busy){message('Дождитесь завершения импорта.');return false;}if(active&&records.length&&!completed&&!confirm('Закрыть импорт? Уже импортированные документы сохранятся.'))return false;close();return true;}};
+}

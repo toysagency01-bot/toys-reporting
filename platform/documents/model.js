@@ -30,4 +30,4 @@ export function normalize(raw){
  totals(d);if(d.status!=='draft')ready(d);return d;
 }
 export function ready(data){if(!data.issuer||!data.customer||data.lines.some(l=>!l.description||Number(l.quantity)<=0)||Number(totals(data).total)<=0)fail('invoice_incomplete');}
-export function present(row){return {id:row.id,number:row.number,version:row.version,data:JSON.parse(row.data_json),duplicatedFrom:row.duplicated_from,createdAt:row.created_at,updatedAt:row.updated_at};}
+export function present(row){return {id:row.id,number:row.number,version:row.version,data:JSON.parse(row.data_json),...(row.import_id?{archive:{id:row.import_id,hasOriginal:!!row.original_ready}}:{}),duplicatedFrom:row.duplicated_from,createdAt:row.created_at,updatedAt:row.updated_at};}

@@ -22,7 +22,7 @@ const $=id=>root.getElementById(id),prefix='',api=prefix+'/api/v2';
 const cache=memoryCache(),overviewCache=responseCache({prefix:api+'/master/projects/'});
 const state={projects:[],pages:[],summaries:new Map(),slug:'',view:'home',provider:'',offset:0,leads:[],seq:0};
 const auditUI=client?null:mountAudit({host:$('audit'),json,projects:()=>state.projects});
-const documentsUI=client?null:mountDocuments({host:$('documents'),json,projects:()=>state.projects});
+const documentsUI=client?null:mountDocuments({host:$('documents'),json,projects:()=>state.projects,role:()=>state.platformRole});
 const dailyReview=client?null:mountDailyReview({host:$('reviews'),json,isVisible:()=>isVisible()&&state.view==='reviews'});
 let statuses=[];const selectedBoards=new Map();
 function selectedBoard(){if(!selectedBoards.has(state.slug)){let saved;try{saved=sessionStorage.getItem('toys-crm-board:'+state.slug);}catch{}selectedBoards.set(state.slug,saved||'default');}return selectedBoards.get(state.slug);}
