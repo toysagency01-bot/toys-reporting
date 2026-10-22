@@ -45,6 +45,8 @@
 #documents .invoice-paper table{table-layout:fixed;width:100%!important;min-width:0!important}
 #documents .invoice-paper th,#documents .invoice-paper td{padding:8px 4px;font-size:10px;color:#192b32;border-color:#e4ebed;min-width:0;overflow-wrap:anywhere}
 #documents .invoice-paper th{background:#eef5f5}
+/* A document is always white, independent of dashboard row-hover colors. */
+#documents .invoice-paper td,#documents .invoice-paper tr:hover td{background:#fff}
 #documents .invoice-paper th:first-child{width:48%}
 #documents .invoice-paper td:first-child{white-space:pre-wrap}
 #documents .invoice-paper th:not(:first-child),#documents .invoice-paper td:not(:first-child){text-align:right}
