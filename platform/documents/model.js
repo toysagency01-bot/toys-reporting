@@ -5,6 +5,11 @@ const text=(v,max=4000)=>{if(typeof v!=='string'||v.length>max||/[\u0000-\u0008\
 export const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tbilisi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 export const shift=(day,n)=>new Date(Date.parse(day+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
 const day=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')&&!Number.isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;
+// Keep the boundary on the matching calendar day, clamping short months.
+export function invoiceArchiveCutoff(value=today()){
+ if(!day(value))fail('invalid_invoice');const [year,month,date]=value.split('-').map(Number),start=new Date(Date.UTC(year,month-3,1));
+ const last=new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth()+1,0)).getUTCDate();start.setUTCDate(Math.min(date,last));return start.toISOString().slice(0,10);
+}
 function decimal(v,scale,max){
  if(typeof v!=='string'||!new RegExp('^\\d{1,9}(?:[.,]\\d{1,'+scale+'})?$').test(v))fail('invalid_invoice_number');
  const [a,b='']=v.replace(',','.').split('.'),n=BigInt(a+b.padEnd(scale,'0'));if(n>BigInt(max))fail('invalid_invoice_number');return n;

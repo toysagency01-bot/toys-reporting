@@ -64,3 +64,16 @@ test('PDF downloads are real, Unicode-capable, multipage, private, and reject in
   const parsed=await PDFDocument.load(bytes);assert.ok(parsed.getPageCount()>2);assert.ok(parsed.getPageCount()<20);writeFileSync('/tmp/toys-invoice-qa.pdf',bytes);
  }finally{f.db.close();}
 });
+
+test('two-month invoice archive is a calendar filter; old records, details and PDF stay intact',async()=>{
+ const {invoiceArchiveCutoff}=await import('../documents/model.js');assert.equal(invoiceArchiveCutoff('2026-10-22'),'2026-08-22');assert.equal(invoiceArchiveCutoff('2026-04-30'),'2026-02-28');assert.equal(invoiceArchiveCutoff('2024-04-30'),'2024-02-29');assert.equal(invoiceArchiveCutoff('2026-01-31'),'2025-11-30');
+ const f=setup();try{
+  const cutoff=invoiceArchiveCutoff(),before=new Date(Date.parse(cutoff+'T12:00:00Z')-86400000).toISOString().slice(0,10);
+  const old=(await call(f,'/invoices',{method:'POST',body:{number:'AGE-OLD',data:data({date:before,dueDate:cutoff,status:'issued'})}})).body.invoice;
+  const boundary=(await call(f,'/invoices',{method:'POST',body:{number:'AGE-BOUNDARY',data:data({date:cutoff,dueDate:cutoff,status:'issued'})}})).body.invoice;
+  const recent=(await call(f,'?period=recent')).body;assert.deepEqual(recent.invoices.map(r=>r.id),[boundary.id]);assert.equal(recent.cutoff,cutoff);
+  const archive=(await call(f,'?period=archive')).body;assert.deepEqual(archive.invoices.map(r=>r.id),[old.id]);assert.equal((await call(f,'?period=all')).body.invoices.length,2);assert.equal((await call(f)).body.invoices.length,2);
+  assert.equal((await call(f,'?period=invalid')).status,400);assert.equal((await call(f,'/invoices/'+old.id)).body.invoice.data.payment,details.payment);assert.equal((await call(f,'/invoices/'+old.id+'/pdf')).status,200);
+  assert.equal((await call(f,'?period=archive',{role:'client'})).status,403);assert.equal(f.db.prepare('SELECT COUNT(*) n FROM project_invoices WHERE deleted_at IS NULL').get().n,2);
+ }finally{f.db.close();}
+});

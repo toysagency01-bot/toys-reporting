@@ -10,7 +10,7 @@ export async function boundedBody(request,max){
  while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>max){await reader.cancel();fail('request_too_large',413);}chunks.push(value);}
  const bytes=new Uint8Array(size);let at=0;for(const b of chunks){bytes.set(b,at);at+=b.length;}return bytes;
 }
-const summary=r=>({id:r.id,externalId:r.external_id,clientKey:r.client_key,buyer:r.buyer_name,number:r.number,date:r.issue_date,currency:r.currency,total:r.total,project:r.project_slug?{slug:r.project_slug,name:r.project_name}:null,invoiceId:r.invoice_id,hasOriginal:!!r.original_ready,canGenerate:!!r.data_json,warnings:JSON.parse(r.warnings_json)});
+const summary=r=>({id:r.id,externalId:r.external_id,clientKey:r.client_key,buyer:r.buyer_name,number:r.number,date:r.issue_date,currency:r.currency,total:r.total,project:r.project_slug?{slug:r.project_slug,name:r.project_name}:null,invoiceId:r.invoice_id,hasOriginal:!!r.original_ready,canGenerate:r.can_generate===undefined?!!r.data_json:!!r.can_generate,warnings:JSON.parse(r.warnings_json)});
 export async function importAPI(request,env,auth,tail){
  try{
   if(auth.platformRole!=='admin')fail('admin_role_required',403);
@@ -19,7 +19,7 @@ export async function importAPI(request,env,auth,tail){
   const get=async id=>db.prepare(select+' WHERE r.id=?').bind(id).first();
   if(request.method==='GET'){
    if(!parts.length){const offset=Number(url.searchParams.get('offset')||0),q=url.searchParams.get('q')||'';if(!Number.isSafeInteger(offset)||offset<0||offset>100000||q.length>150)fail('invalid_invoice');
-    const rows=(await db.prepare(select+` WHERE (?=0 OR r.invoice_id IS NULL) AND (?='' OR instr(lower(r.buyer_name||' '||r.number),lower(?))>0) ORDER BY r.issue_date DESC,r.number DESC,r.id LIMIT 51 OFFSET ?`).bind(url.searchParams.get('unassigned')==='1'?1:0,q,q,offset).all()).results;
+    const rows=(await db.prepare(select.replace('r.*','r.id,r.external_id,r.client_key,r.buyer_name,r.number,r.issue_date,r.currency,r.total,r.invoice_id,r.original_ready,r.warnings_json,(r.data_json IS NOT NULL) AS can_generate')+` WHERE (?=0 OR r.invoice_id IS NULL) AND (?='' OR instr(lower(r.buyer_name||' '||r.number),lower(?))>0) ORDER BY r.issue_date DESC,r.number DESC,r.id LIMIT 51 OFFSET ?`).bind(url.searchParams.get('unassigned')==='1'?1:0,q,q,offset).all()).results;
     const count=await db.prepare('SELECT COUNT(*) total,SUM(original_ready) originals,SUM(invoice_id IS NOT NULL) linked FROM invoice_import_records').first();
     return reply({ok:true,records:rows.slice(0,50).map(summary),nextOffset:rows.length>50?offset+50:null,counts:count});
    }

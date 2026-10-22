@@ -132,3 +132,8 @@ html[data-theme=light] #documents{--docs-link:#087f75}
 #documents .invoice-status[data-status=paid]{color:var(--docs-link)}
 #documents .danger{border:1px solid #c95464;border-radius:8px;padding:8px 12px;background:transparent;color:#c95464;font:500 12px/1.4 'Golos Text',sans-serif;cursor:pointer}
 #documents .danger:hover{background:#c9546410}
+#documents .invoice-periods{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin:12px 0}
+#documents .invoice-periods button{border-color:transparent;background:transparent;color:var(--muted)}
+#documents .invoice-periods button[aria-pressed=true]{background:var(--accent-dim);color:var(--docs-link)}
+#documents .invoice-periods>.note{margin-left:10px;font-size:11px}
+#documents .docs-empty .actions{justify-content:center;margin-top:14px}
