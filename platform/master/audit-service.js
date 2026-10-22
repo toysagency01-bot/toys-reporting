@@ -4,7 +4,7 @@ import {parse} from '../crm/service.js';
 // Existing durable histories remain the source of truth; no fabricated backfill.
 const events=`
  SELECT 'log:'||a.id AS event_id,a.project_id,COALESCE(u.email,json_extract(CASE WHEN json_valid(a.after_json) THEN a.after_json ELSE '{}' END,'$.actor'),'system') AS actor_ref,
- CASE WHEN a.entity_type='user' THEN 'access' WHEN a.entity_type='monthly_report' THEN 'reports' ELSE 'crm' END AS category,a.action,a.entity_id,COALESCE(l.name,u2.email,a.entity_id,'') AS label,a.before_json,a.after_json,a.created_at
+ CASE WHEN a.entity_type='user' THEN 'access' WHEN a.entity_type IN ('invoice','invoice_defaults') THEN 'documents' WHEN a.entity_type='monthly_report' THEN 'reports' ELSE 'crm' END AS category,a.action,a.entity_id,COALESCE(l.name,u2.email,a.entity_id,'') AS label,a.before_json,a.after_json,a.created_at
  FROM audit_log a LEFT JOIN users u ON u.id=a.actor_user_id LEFT JOIN users u2 ON a.entity_type='user' AND u2.id=a.entity_id LEFT JOIN leads l ON a.entity_type='lead' AND l.id=a.entity_id
  UNION ALL
  SELECT 'lead:'||e.id,e.project_id,COALESCE(u.email,json_extract(CASE WHEN json_valid(e.note) THEN e.note ELSE '{}' END,'$.actor'),'system'),'crm','crm.lead.updated',e.lead_id,COALESCE(l.name,e.lead_id),json_object('status',e.from_status),json_patch(json_object('status',e.to_status),CASE WHEN json_valid(e.note) THEN e.note ELSE '{}' END),e.changed_at FROM lead_status_events e LEFT JOIN users u ON u.id=e.changed_by_user_id LEFT JOIN leads l ON l.id=e.lead_id
@@ -47,7 +47,7 @@ export async function auditHistory(db,params){
   return {ok:true,event:result};
  }
  const project=params.get('project')||'',actor=(params.get('actor')||'').trim(),category=params.get('category')||'',from=params.get('from')||'',to=params.get('to')||'',offset=params.get('offset')||'0';
- if(project.length>120||actor.length>150||!['','crm','reports','access','creative','campaigns'].includes(category)||!/^[0-9]{1,6}$/.test(offset)||from&&!validRange(from,from)||to&&!validRange(to,to)||from&&to&&from>to)fail();
+ if(project.length>120||actor.length>150||!['','crm','reports','access','creative','campaigns','documents'].includes(category)||!/^[0-9]{1,6}$/.test(offset)||from&&!validRange(from,from)||to&&!validRange(to,to)||from&&to&&from>to)fail();
  const where=[],args=[];
  if(project){where.push('project_slug=?');args.push(project);}
  if(actor){where.push("(instr(lower(actor),lower(?))>0 OR instr(lower(actor_name),lower(?))>0)");args.push(actor,actor);}
