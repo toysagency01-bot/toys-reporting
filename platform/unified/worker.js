@@ -20,6 +20,7 @@ import {runTelegramReviews} from '../master/telegram-reviews.js';
 import masterDocument from '../master/index.html';
 import masterStyle from '../master/styles.css';
 import invoiceStyle from '../documents/styles.css';
+import fieldFocusStyle from '../native/field-focus.css';
 import masterClient from '../dist/master-client.txt';
 import {liveCommerce} from '../native/live-commerce.js';
 import {attachCRMQualification} from '../native/crm-attribution.js';
@@ -72,7 +73,7 @@ export default {
       if(clientCRM&&url.searchParams.get('format')==='json')return Response.json({ok:true,context},{headers:{'cache-control':'no-store'}});
       if(clientCRM&&projects.has(clientCRM[1]))return html(clientCRM[1],true,null,auth.role,dashboardCacheScope(request,auth));
       const coreStyle=nativeAssets['core/core.js'].body.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';
-      const doc=masterDocument.replace('</head>',`<style>${nativeAssets['platform-fonts.css'].body}${coreStyle}${nativeAssets['platform-tools.css'].body}${masterStyle}${invoiceStyle}</style></head>`).replace('</body>',`<script>window.TOYS_CACHE_SCOPE=${JSON.stringify(dashboardCacheScope(request,auth))};window.TOYS_CLIENT_CRM=${JSON.stringify(context).replace(/</g,'\\u003c')};${masterClient.replace(/<\/script/gi,'<\\/script')}</script></body>`);
+      const doc=masterDocument.replace('</head>',`<style>${nativeAssets['platform-fonts.css'].body}${coreStyle}${nativeAssets['platform-tools.css'].body}${masterStyle}${invoiceStyle}${fieldFocusStyle}</style></head>`).replace('</body>',`<script>window.TOYS_CACHE_SCOPE=${JSON.stringify(dashboardCacheScope(request,auth))};window.TOYS_CLIENT_CRM=${JSON.stringify(context).replace(/</g,'\\u003c')};${masterClient.replace(/<\/script/gi,'<\\/script')}</script></body>`);
       return new Response(doc,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'same-origin'}});
     }
     const bridged=await agentBridge(request,env);if(bridged)return bridged;

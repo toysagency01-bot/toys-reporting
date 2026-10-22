@@ -1,0 +1,17 @@
+/* One field boundary on login, dashboards and the master cabinet. The keyboard
+   indicator sits on that boundary instead of drawing a second outer rectangle. */
+:root{--field-focus:#087f75}
+html[data-theme=dark]{--field-focus:#36d8c8}
+:where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=reset]):not([type=file]),textarea,select):focus{
+ border-color:var(--field-focus)!important;
+ box-shadow:none!important;
+ outline:none!important;
+ outline-offset:0!important;
+}
+:where(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=reset]):not([type=file]),textarea,select):focus-visible{
+ outline:2px solid var(--field-focus)!important;
+ outline-offset:-2px!important;
+}
+@media(forced-colors:active){
+ :where(input,textarea,select):focus{outline:2px solid Highlight!important;outline-offset:-2px!important}
+}
