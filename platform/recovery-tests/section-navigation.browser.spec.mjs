@@ -28,6 +28,6 @@ for(const slug of ['housevip-cxp7','bs-clinic-a5b4','profkit-instashop-r4vk'])te
   const popup=context.waitForEvent('page');await page.locator(`#uxNav [data-ux-view=${view}]`).click(options);const tab=await popup;await expect(tab.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(tab.locator(`#uxNav [data-ux-view=${view}]`)).toHaveClass(/active/);expect(page.url()).toBe(before);await tab.close();
  }
  await page.screenshot({path:'/tmp/toys-section-menu-'+slug+'-desktop.png'});
- await page.setViewportSize({width:390,height:844});await page.locator('#uxNav [data-ux-view=campaigns]').click();await expect(panel('campaigns')).toBeVisible();await page.locator('#uxNav [data-ux-view=weekly]').click();await expect(panel('weekly')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.setViewportSize({width:390,height:844});await page.locator('#clientSectionSelect').selectOption('campaigns');await expect(panel('campaigns')).toBeVisible();await page.locator('#clientSectionSelect').selectOption('weekly');await expect(panel('weekly')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:'/tmp/toys-section-menu-'+slug+'-mobile.png'});expect(errors).toEqual([]);
 });

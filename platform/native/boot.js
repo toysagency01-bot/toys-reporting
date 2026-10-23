@@ -1,4 +1,5 @@
 import {mountMonthlyReports} from '../monthly/ui.js';
+import {mountClientUX} from './client-ux.js';
 import projectRegistry from '../projects.json' with {type:'json'};
 import {mountCalendar} from './calendar.js';
 import {nextRefreshAt} from '../imports/refresh-policy.js';
@@ -36,7 +37,7 @@ const title=projectConfig.title;
 const projectDay=new Intl.DateTimeFormat('en-CA',{timeZone:projectConfig.periodTimezone||'Asia/Tbilisi',year:'numeric',month:'2-digit',day:'2-digit'});
 const $=id=>document.getElementById(id);
 let creativeRankings=null,creativeState="loading",creativeSequence=0;
-let crmStats=null,clientNavigation,campaignBrowser,salesFunnel;
+let crmStats=null,clientNavigation,campaignBrowser,salesFunnel,clientUX;
 let dashboard,allRows=[],ads=null,snapshotPromise,tabsPromise,ready=false,toolkit,refreshing=false,sequence=0,calendar,refreshTimer,periodTimer;
 const readJSON=async(url,options={})=>{const r=await fetch(url,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000),...options});const d=await r.json().catch(()=>({}));if(!r.ok||!(d.ok||d.status==='ok')){const status=r.redirected?401:r.status;if([401,403].includes(status))clearDashboardStorage();throw Object.assign(new Error(d.error||`HTTP ${status}`),{status});}return d;};
 const json=(url,options={})=>dataCache.get(url,()=>readJSON(url,options));
@@ -46,7 +47,7 @@ function notice(text,error=false){const n=$('platformNotice');if(n){n.textConten
 const load=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_SCRIPTS?.[path]){try{window.TOYS_BUNDLED_SCRIPTS[path]();resolve();}catch(e){reject(e);}return;}const s=document.createElement('script');s.src=asset(path);s.onload=resolve;s.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(s);});
 const css=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_STYLES?.[path]){const style=document.createElement('style');style.textContent=window.TOYS_BUNDLED_STYLES[path];document.head.append(style);resolve();return;}const l=document.createElement('link');l.rel='stylesheet';l.href=asset(path);l.onload=resolve;l.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(l);});
 const metric=r=>r.metrics||[];
-window.TOYS_PLATFORM={today:()=>projectDay.format(new Date()),invalidate(){dataCache.delete(demoTabsAddress);tabsPromise=json(demoTabsAddress).then(d=>(d.tabs||[]).filter(t=>slug!=='bs-clinic-a5b4'||t.sourceTitle!=='BSCLINIC - Месячная сводка'));materialCache.clear();},asset,scheduleRender,updateChart,observeScrollFades,async fx(from,to){const d=await json(`${api}/exchange-rate?base=${from}&quote=${to}`);return Response.json({date:d.rate.date,[from.toLowerCase()]:{[to.toLowerCase()]:Number(d.rate.rate)}});},tabs:()=>tabsPromise,afterRender(){if(ready){attachHierarchy();maskUnavailable();calendar?.sync();renderCRM();renderCreatives();salesFunnel?.sync();}},async table(name,raw){
+window.TOYS_PLATFORM={today:()=>projectDay.format(new Date()),invalidate(){dataCache.delete(demoTabsAddress);tabsPromise=json(demoTabsAddress).then(d=>(d.tabs||[]).filter(t=>slug!=='bs-clinic-a5b4'||t.sourceTitle!=='BSCLINIC - Месячная сводка'));materialCache.clear();},asset,scheduleRender,updateChart,observeScrollFades,async fx(from,to){const d=await json(`${api}/exchange-rate?base=${from}&quote=${to}`);return Response.json({date:d.rate.date,[from.toLowerCase()]:{[to.toLowerCase()]:Number(d.rate.rate)}});},tabs:()=>tabsPromise,afterRender(){if(ready){attachHierarchy();maskUnavailable();calendar?.sync();renderCRM();renderCreatives();salesFunnel?.sync();clientUX?.sync();}},async table(name,raw){
  if(name==='WeeklyComments')return weeklyTable((await json(api+'/weekly-reports')).reports||[]);
  if(['GoogleAds','MetaAds','InstashopSales','EcomFunnel','EcomFunnelCampaign','Insights','MetaAdsFormat','QualifiedLeads'].includes(name))return sourceTable(await snapshotPromise,name);
  const path=`${api}/content/tabs?tab=${encodeURIComponent(name)}${raw?'&raw=1':''}`;return materialCache.get(path,()=>json(path));
@@ -107,10 +108,11 @@ async function refreshCRM(){
 }
 function renderCRM(){
  let panel=$('platformCRMStats');if(!panel){const host=$('mainCards')||$('cards')||document.querySelector('#uxOverview .cards');if(!host)return;panel=document.createElement('div');panel.id='platformCRMStats';panel.className='cards';host.after(panel);}
- panel.hidden=!crmStats?.available;let basis=$('platformCRMDateBasis');if(basis)basis.hidden=panel.hidden;if(panel.hidden)return;if(!basis){basis=document.createElement('p');basis.id='platformCRMDateBasis';basis.className='note';panel.after(basis);}basis.textContent=projectConfig.synthetic?'Квалификации, продажи и выручка — по лидам, поступившим за выбранный период.':'Квалы — по дате поступления лидов. Продажи и выручка — по дате продажи. Прошлые периоды уточняются по мере квалификации.';
+ panel.hidden=!crmStats?.available;let basis=$('platformCRMDateBasis');if(basis)basis.hidden=panel.hidden;if(panel.hidden){clientUX?.sync();return;}if(!basis){basis=document.createElement('p');basis.id='platformCRMDateBasis';basis.className='note';panel.after(basis);}basis.textContent=projectConfig.synthetic?'Квалификации, продажи и выручка — по лидам, поступившим за выбранный период.':'Квалы — по дате поступления лидов. Продажи и выручка — по дате продажи. Прошлые периоды уточняются по мере квалификации.';
  const demoRows=projectConfig.synthetic?selectedRows().filter(r=>!salesContext().provider||r.provider===salesContext().provider):null;
  const signature=JSON.stringify([crmStats,demoRows]);if(panel._renderSignature!==signature){panel._renderSignature=signature;const cards=[['Квал-лиды CRM',format(crmStats.qualified)],['Продажи CRM',format(crmStats.sales)],['Выручка CRM',(crmStats.revenue||[]).map(r=>format(r.value)+' '+h(r.currency)).join('<br>')||'—']];if(projectConfig.synthetic){const rows=demoRows,cost=aggregate(rows).money.find(m=>m.currency==='EUR')?.spend,revenue=(crmStats.revenue||[]).find(m=>m.currency==='EUR')?.value;cards.push(['Стоимость квала',cost!=null&&crmStats.qualified>0?format(cost/crmStats.qualified)+' EUR':'—'],['Стоимость продажи',cost!=null&&crmStats.sales>0?format(cost/crmStats.sales)+' EUR':'—'],['ROAS CRM',cost>0&&revenue!=null?format(revenue/cost)+'×':'—']);}panel.innerHTML=cards.map(([label,value])=>`<div class="card"><div class="label">${label}</div><div class="value">${value}</div></div>`).join('');}
  if(privateMode&&window.TOYS_CRM_ALLOWED!==false&&!$('platformCRMLink')){const link=document.createElement('a');link.id='platformCRMLink';link.href=api+'/content-crm';link.textContent='Открыть CRM';link.className='secondary';panel.after(link);}
+ clientUX?.sync();
 }
 function renderCreatives(){if(!ready)return;const channels=Object.keys(dashboard.advertising?.channels||{}).map(c=>/google/i.test(c)?'google_ads':'meta_ads');renderTopCreatives({rankings:creativeRankings,state:creativeState,activeChannel:document.querySelector('#platformSeg .active')?.dataset.platform||'__all',range:range(),channels:channels.length?[...new Set(channels)]:['meta_ads'],slug});}
 async function refreshCreatives(){
@@ -170,7 +172,7 @@ async function boot(){
  await new Promise((resolve,reject)=>{const start=Date.now();const poll=()=>{if(['content','emptyState'].some(id=>$(id)&&!$(id).classList.contains('hidden')))resolve();else if(Date.now()-start>15000)reject(new Error('Данные не загрузились'));else setTimeout(poll,50);};poll();});
  const controls=$('controls')||document.querySelector('.controls');
  const n=document.createElement('div');n.id='platformNotice';n.className='platform-notice';n.setAttribute('role','status');controls.after(n);notice(dashboard.coverage?.warning||'Опубликованные данные проекта.');
- ready=true;mountTools();mountMonthlyReports({slug,entryHash});maskUnavailable();
+ ready=true;mountTools();mountMonthlyReports({slug,entryHash});clientUX=mountClientUX({shop,config:projectConfig,commerceChannels:()=>{const r=range(),active=document.querySelector('#platformSeg .active')?.dataset.platform;return [...new Set((dashboard.ecommerce?.account?.rows||[]).filter(row=>row.date>=r.from&&row.date<=r.to&&(!active||active==='__all'||row.platform===active)).map(row=>row.platform))].sort();}});maskUnavailable();
  if(!allRows.length&&$('updated'))$('updated').textContent='Нет рекламной активности в загруженном периоде';
  clientNavigation=mountClientNavigation({slug,api,prefix,asset,initialCRM,onChange:async()=>{await refreshCRM();await refreshCreatives();if(projectConfig.synthetic)campaignBrowser?.refresh();}});
  const from=$(shop?'from':'dateFrom'),to=$(shop?'to':'dateTo');
