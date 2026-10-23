@@ -12,6 +12,7 @@ for(const slug of ['housevip-cxp7','bs-clinic-a5b4','profkit-instashop-r4vk','ka
  let campaignReads=0;await page.route('**/campaign-browser?*',r=>{campaignReads++;return r.fulfill({json:{ok:true,rows:[{key:'1'.padStart(64,'0'),name:'Synthetic campaign',provider:'meta_ads',currency:'EUR',level:'campaign',status:'ACTIVE',history:false,metrics:{spend:100,conversions:5,cpa:20,impressions:1000,clicks:25,ctr:2.5,purchases:2,roas:3}}],total:1,nextOffset:null,sources:[]}});});
  await page.setViewportSize({width:1440,height:1000});await page.goto('/'+slug+'/');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
  await page.getByRole('button',{name:'Максимум',exact:true}).click();await expect(page.locator('#uxInsightTitle')).toBeVisible();
+ await expect(page.locator('#platformCRMLink')).toHaveCount(0);await expect(page.locator('#platformCRMDateBasis')).toBeHidden();const method=page.locator('#platformCRMMethod');await expect(method).toBeVisible();const summary=method.locator('summary');await summary.focus();await summary.press('Enter');await expect(page.locator('#platformCRMDateBasis')).toBeVisible();expect(await page.locator('#platformCRMDateBasis').evaluate(e=>getComputedStyle(e).fontSize)).toBe('12px');await summary.press('Enter');await expect(page.locator('#platformCRMDateBasis')).toBeHidden();
  const cards=page.locator(slug.includes('instashop')?'#cards':'#mainCards');
  await expect(page.locator('#clientExtraMetrics,.client-commerce-result,.campaign-metrics-toggle')).toHaveCount(0);
  const labels=await cards.locator(':scope > .card:visible .label').allTextContents();
@@ -37,7 +38,7 @@ for(const slug of ['housevip-cxp7','bs-clinic-a5b4','profkit-instashop-r4vk','ka
  for(const width of [1440,1024,768,390,360]){
   await page.setViewportSize({width,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   expect(await page.locator('#controls button:visible,.controls button:visible').evaluateAll(nodes=>nodes.every(e=>e.scrollWidth<=e.clientWidth+1))).toBe(true);
-  if(width<=760){await expect(page.locator('#clientSectionSelect')).toBeVisible();await expect(page.locator('#uxNav')).toBeHidden();expect(await metricCards.evaluateAll(nodes=>nodes.every(e=>{const r=e.getBoundingClientRect();return [...e.querySelectorAll('.label,.value')].every(n=>{const b=n.getBoundingClientRect();return b.left>=r.left&&b.right<=r.right+1;});}))).toBe(true);}
+  if(width<=760){await expect(page.locator('#platformCRMDateBasis')).toBeHidden();expect(await summary.evaluate(e=>e.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);await expect(page.locator('#clientSectionSelect')).toBeVisible();await expect(page.locator('#uxNav')).toBeHidden();expect(await metricCards.evaluateAll(nodes=>nodes.every(e=>{const r=e.getBoundingClientRect();return [...e.querySelectorAll('.label,.value')].every(n=>{const b=n.getBoundingClientRect();return b.left>=r.left&&b.right<=r.right+1;});}))).toBe(true);}
  }
  await page.screenshot({path:'/tmp/restored-'+slug+'-mobile-light.png',fullPage:true});
  await page.locator('#clientSectionSelect').selectOption('weekly');await expect(page.locator('#controls,.controls').first()).toBeHidden();await expect(page.locator('#clientSectionSelect')).toHaveValue('weekly');

@@ -14,5 +14,5 @@ test('dashboard and master attribute a later qualification to intake, with clear
 test('mobile dashboard reports the same cohort and retains usable period controls',async({page})=>{
  await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));await page.setViewportSize({width:390,height:844});await page.goto('/api/v2/projects/housevip-cxp7/content-project');
  await period(page,intake);await expect(count(page)).toHaveText('1');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
- await page.locator('#platformCRMDateBasis').scrollIntoViewIfNeeded();await page.screenshot({path:'/tmp/crm-cohort-mobile.png'});await period(page,event);await expect(count(page)).toHaveText('0');
+ await expect(page.locator('#platformCRMDateBasis')).toBeHidden();await page.locator('#platformCRMMethod summary').click();await page.locator('#platformCRMDateBasis').scrollIntoViewIfNeeded();await page.screenshot({path:'/tmp/crm-cohort-mobile.png'});await period(page,event);await expect(count(page)).toHaveText('0');
 });

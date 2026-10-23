@@ -85,3 +85,9 @@ body.client-compact .ux-period-metrics>div{padding:10px;border-radius:9px}
 body.client-compact .ux-period-metrics strong{font-size:14px}
 @media(max-width:760px){body.client-compact :is(#mainCards,#cards),body.client-compact #ecomTopCards>.ecom-channel>.cards{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}body.client-compact .ux-insight>div:nth-child(2){flex-basis:calc(100% - 44px)}body.client-compact .ux-insight button{margin-left:44px}}
 body.client-compact .ux-insight-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+body.client-compact .client-crm-method{margin:4px 0 12px;font-size:11px;line-height:1.5;color:var(--muted)}
+body.client-compact .client-crm-method summary{width:fit-content;max-width:100%;padding:7px 0;min-height:32px;box-sizing:border-box;cursor:pointer}
+body.client-compact .client-crm-method summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+body.client-compact .client-crm-method p{font-size:12px;line-height:1.6;margin:4px 0 8px;overflow-wrap:anywhere}
+@media(max-width:760px){body.client-compact .client-crm-method summary{min-height:44px;align-content:center}}
