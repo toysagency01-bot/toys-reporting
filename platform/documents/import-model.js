@@ -10,7 +10,7 @@ export function parseInvoiceXML(xml){
  const entries=Array.isArray(rows)?rows:[rows];if(entries.length>1000)fail('import_limit');
  const records=entries.map(prepareImport);if(new Set(records.map(r=>r.id)).size!==records.length)fail('duplicate_import_source');return records;
 }
-function party(r,p){return ['name','street','post-code','city','country','tax-no','email','phone','www'].map(k=>{const s=text(r[p+'-'+k]);return s?(k==='tax-no'?'Tax ID: ':'')+s:'';}).filter(Boolean).join('\n');}
+export function party(r,p){return ['name','street','post-code','city','country','tax-no','email','phone','www'].map(k=>{const s=text(r[p+'-'+k]);return s?(k==='tax-no'?'Tax ID: ':'')+s:'';}).filter(Boolean).join('\n');}
 export function prepareImport(raw){
  if(!raw||typeof raw!=='object'||Array.isArray(raw)||JSON.stringify(raw).length>100000)fail('invalid_invoice_xml');
  // Keep the source fields without the provider's bearer-like invoice sharing token.

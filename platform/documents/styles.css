@@ -137,3 +137,9 @@ html[data-theme=light] #documents{--docs-link:#087f75}
 #documents .invoice-periods button[aria-pressed=true]{background:var(--accent-dim);color:var(--docs-link)}
 #documents .invoice-periods>.note{margin-left:10px;font-size:11px}
 #documents .docs-empty .actions{justify-content:center;margin-top:14px}
+#documents .invoice-project-dialog{width:min(420px,90vw);padding:22px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text)}
+#documents .invoice-project-dialog::backdrop{background:rgba(0,0,0,.45)}
+#documents .invoice-project-dialog form{display:grid;gap:16px}
+#documents .invoice-project-dialog label{display:grid;gap:6px}
+#documents .invoice-project-dialog select{width:100%}
+#documents [data-doc-client]{width:100%;max-width:100%;margin-bottom:8px}

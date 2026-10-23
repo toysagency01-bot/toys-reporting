@@ -9,12 +9,14 @@ import {telegramReviewStatus} from './telegram-reviews.js';
 import {auditHistory} from './audit-service.js';
 import {documentsAPI} from '../documents/api.js';
 import {importAPI} from '../documents/import-api.js';
+import {documentCatalogAPI} from '../documents/catalog-api.js';
 export async function masterAuth(request,env){return authorizeMvp(request,env,'__master','editor');}
 export async function masterAPI(request,env,ctx){
  const url=new URL(request.url),m=url.pathname.match(/^\/api\/v2\/master(?:\/(.*))?$/);if(!m)return null;
  const auth=await masterAuth(request,env);if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  try{
  const path=m[1]||'';
+ if(path==='documents'||path==='documents/clients')return documentCatalogAPI(request,env,auth,path.endsWith('/clients')?'clients':'');
  const archive=path.match(/^documents\/imports(?:\/(.*))?$/);if(archive)return importAPI(request,env,auth,archive[1]||'');
  const documents=path.match(/^projects\/([^/]+)\/documents(?:\/(.*))?$/);
  if(documents)return documentsAPI(request,env,auth,documents[1],documents[2]||'');
