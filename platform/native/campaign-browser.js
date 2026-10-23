@@ -17,13 +17,9 @@ export function mountCampaignBrowser({slug,context}){
  legacy.classList.add('platform-legacy-campaigns');
  const host=document.createElement('div');host.id='platformCampaignBrowser';host.dataset.salesDemo=String(registry[slug]?.synthetic===true);legacy.before(host);
  const demo=registry[slug]?.synthetic===true;
- const commerce=slug==='karlovarska-sul-k4rm',columns=[['impressions','Показы'],['clicks','Клики'],['ctr','CTR'],['spend','Расход'],['conversions',demo?'Лиды CRM':'Результаты'],['cpa',demo?'Стоимость лида':'Цена результата'],...(demo?[['qualifiedLeads','Квалифицированы'],['qualificationRate','Лид → квал'],['sales','Продажи'],['qualifiedSaleRate','Квал → продажа'],['saleRate','Лид → продажа'],['revenue','Выручка CRM'],['cpql','Стоимость квала'],['cac','Стоимость продажи'],['crmRoas','ROAS CRM']]:[]),...(commerce?[['purchases','Покупки'],['roas','ROAS']]:[])];
- const primary=commerce?['spend','purchases','roas']:['spend','conversions','cpa'];
- if(!demo)columns.sort((a,b)=>(primary.includes(a[0])?primary.indexOf(a[0]):99)-(primary.includes(b[0])?primary.indexOf(b[0]):99));
- let allMetrics=demo;
- function syncColumns(){host.dataset.allMetrics=String(allMetrics);host.style.setProperty('--campaign-columns',allMetrics?columns.length:primary.length);}
- syncColumns();
- host.innerHTML=`<div class="campaign-toolbar"><nav class="campaign-breadcrumbs" aria-label="Уровни рекламной кампании"></nav><div class="campaign-filters"><label class="campaign-search"><span class="sr-only">Поиск кампаний, групп и объявлений</span><input type="search" placeholder="Кампания, группа или объявление" maxlength="120"></label><label><span class="sr-only">Сортировка</span><select aria-label="Сортировка кампаний"><option value="spend">По расходу</option><option value="impressions">По показам</option><option value="conversions">По результатам</option><option value="name">По названию</option></select></label><button type="button" class="campaign-metrics-toggle" data-action="metrics" aria-expanded="${allMetrics}">${allMetrics?'Основные показатели':'Все показатели'}</button></div></div><p class="campaign-source-note"></p><div class="campaign-level-summary"></div><div class="campaign-list" aria-live="polite"></div><details class="campaign-method-details"><summary>Как считаются показатели</summary><p class="campaign-method">Показатели каждого уровня считаются отдельно. Суммы — в валюте рекламного кабинета. «Результаты» — конверсии источника; они не всегда означают продажи. Статусы отражают последнюю загрузку данных.</p></details>`;
+ const commerce=slug==='karlovarska-sul-k4rm',columns=[['impressions','Показы'],['clicks','Клики'],['ctr','CTR'],['spend','Расход'],['conversions',demo?'Лиды CRM':'Результаты'],['cpa',demo?'Стоимость лида':'CPA'],...(demo?[['qualifiedLeads','Квалифицированы'],['qualificationRate','Лид → квал'],['sales','Продажи'],['qualifiedSaleRate','Квал → продажа'],['saleRate','Лид → продажа'],['revenue','Выручка CRM'],['cpql','Стоимость квала'],['cac','Стоимость продажи'],['crmRoas','ROAS CRM']]:[]),...(commerce?[['purchases','Покупки'],['roas','ROAS']]:[])];
+ host.style.setProperty('--campaign-columns',columns.length);
+ host.innerHTML=`<div class="campaign-toolbar"><nav class="campaign-breadcrumbs" aria-label="Уровни рекламной кампании"></nav><div class="campaign-filters"><label class="campaign-search"><span class="sr-only">Поиск кампаний, групп и объявлений</span><input type="search" placeholder="Кампания, группа или объявление" maxlength="120"></label><label><span class="sr-only">Сортировка</span><select aria-label="Сортировка кампаний"><option value="spend">По расходу</option><option value="impressions">По показам</option><option value="conversions">По результатам</option><option value="name">По названию</option></select></label></div></div><p class="campaign-source-note"></p><div class="campaign-level-summary"></div><div class="campaign-list" aria-live="polite"></div><p class="campaign-method">Показатели каждого уровня считаются отдельно. Суммы — в валюте рекламного кабинета. «Результаты» — конверсии источника; они не всегда означают продажи. Статусы сохранены при загрузке данных; перед переключением проверяем их в Meta.</p>`;
  const list=host.querySelector('.campaign-list'),crumbs=host.querySelector('.campaign-breadcrumbs'),note=host.querySelector('.campaign-source-note'),summary=host.querySelector('.campaign-level-summary');
  const cache=responseCache({prefix:`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser`}),pages=new Map(),nodes=new Map(),expanded=new Set(),loading=new Set(),errors=new Map();
  const mobile=matchMedia('(max-width:760px)');
@@ -49,7 +45,7 @@ export function mountCampaignBrowser({slug,context}){
   }catch(error){if(seq===generation&&error.name!=='AbortError')errors.set(parent,error.message==='access_denied'?'Войдите в кабинет, чтобы открыть детализацию.':'Не удалось загрузить детализацию. Попробуйте ещё раз.');}
   finally{if(seq===generation){loading.delete(parent);render();}}
  }
- const metric=(row,[key,label])=>`<div class="campaign-cell" data-metric="${key}" data-secondary="${!demo&&!primary.includes(key)}"><span>${label}</span><b>${number(row.metrics[key])}${row.metrics[key]==null?'':['ctr','qualificationRate','qualifiedSaleRate','saleRate'].includes(key)?'%':['roas','crmRoas'].includes(key)?'×':['spend','cpa','revenue','cpql','cac'].includes(key)?' '+h(row.currency):''}</b></div>`;
+ const metric=(row,[key,label])=>`<div class="campaign-cell"><span>${label}</span><b>${number(row.metrics[key])}${row.metrics[key]==null?'':['ctr','qualificationRate','qualifiedSaleRate','saleRate'].includes(key)?'%':['roas','crmRoas'].includes(key)?'×':['spend','cpa','revenue','cpql','cac'].includes(key)?' '+h(row.currency):''}</b></div>`;
  function rowHTML(row,depth){
   row={...row,status:observedStatuses.get(row.key)||row.status};
   const open=expanded.has(row.key),ad=row.level==='ad',expandable=!ad&&!row.history;
@@ -73,16 +69,14 @@ export function mountCampaignBrowser({slug,context}){
   const partial=(root?.sources||[]).filter(s=>s.available&&s.coverage==='partial');
   note.textContent=demo?'Результаты CRM по каждой кампании. Лиды за выбранный период, квалификации и продажи — по истории этих лидов.':unavailable.length?`Детализация ${[...new Set(unavailable)].join(', ')} пока недоступна. Сохранённая история показана отдельно.`:partial.length?'За часть периода доступна только история кампаний. Такие строки отмечены отдельно.':(root?.sources||[]).some(s=>s.freshness==='stale')?'Показана последняя сохранённая детализация.':root?.refreshing?'Обновляем детализацию. Последние данные сохранены.':'Откройте кампанию, затем группу — чтобы увидеть объявления.';
   summary.innerHTML=data?.parent?`<div class="campaign-parent-summary"><strong>${h(data.parent.name)}</strong><span>Расход ${number(data.parent.metrics.spend)} ${h(data.parent.currency)} · Результаты ${number(data.parent.metrics.conversions)}</span></div>`:'';
-  list.innerHTML=`${!mobile.matches?`<div class="campaign-grid campaign-table-head"><span>Название · ${data?.total??'—'}</span>${columns.map(c=>`<span data-secondary="${!demo&&!primary.includes(c[0])}">${c[1]}</span>`).join('')}</div>`:''}${levelHTML(parent)}`;
+  list.innerHTML=`${!mobile.matches?`<div class="campaign-grid campaign-table-head"><span>Название · ${data?.total??'—'}</span>${columns.map(c=>`<span>${c[1]}</span>`).join('')}</div>`:''}${levelHTML(parent)}`;
   list.querySelectorAll('img').forEach(img=>img.onerror=()=>img.remove());
   if(focusKey)list.querySelector(`[data-key="${focusKey}"]`)?.focus({preventScroll:true});
  }
- if(demo)host.querySelector('.campaign-metrics-toggle').hidden=true;
  if(demo)host.querySelector('.campaign-method').textContent='Конверсии: квалификации / лиды, продажи / квалификации и продажи / лиды. Стоимость квала и продажи — расход / соответствующее количество; ROAS CRM — выручка / расход. Выручка в EUR. При нулевом знаменателе показываем «—».';
  host.addEventListener('click',e=>{
   const button=e.target.closest('[data-action]');if(!button)return;
   const action=button.dataset.action,key=button.dataset.key,row=nodes.get(key);
-  if(action==='metrics'){allMetrics=!allMetrics;syncColumns();button.textContent=allMetrics?'Основные показатели':'Все показатели';button.setAttribute('aria-expanded',String(allMetrics));return;}
   if(action==='control'&&row){controls.open(row,current.range,button);return;}
   if(action==='creative'&&row){openCreative({row:{...row,detailsKey:row.key},slug,range:current.range,trigger:button,endpoint:'campaign-browser'});return;}
   if(action==='history')return;

@@ -198,7 +198,7 @@ for(const slug of ['karlovarska-sul-k4rm','profkit-instashop-r4vk'])test(slug+' 
  await page.route('**/projects/'+slug+'/content/tabs',r=>r.fulfill({json:{ok:true,tabs:[]}}));
  await page.route('**/projects/'+slug+'/weekly-reports',r=>r.fulfill({json:{ok:true,reports:[]}}));
  await page.goto('/'+slug+'/#section=overview&view=account');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
- await expect(page.locator('#uxOverview')).toBeVisible();await expect(page.locator('#uxInsightTitle')).toBeHidden();
+ await expect(page.locator('#uxOverview')).toBeVisible();await expect(page.locator('#uxInsightTitle')).toBeVisible();
  await expect(page.locator('#uxNav [data-ux-view="overview"] svg')).toHaveCount(1);
  await expect(page.locator('header img')).toHaveAttribute('src',/\?ui=assets%2Ftoys-logo.svg/);
  await expect(page.locator('#toysThemeToggle')).toBeVisible();

@@ -172,7 +172,7 @@ async function boot(){
  await new Promise((resolve,reject)=>{const start=Date.now();const poll=()=>{if(['content','emptyState'].some(id=>$(id)&&!$(id).classList.contains('hidden')))resolve();else if(Date.now()-start>15000)reject(new Error('Данные не загрузились'));else setTimeout(poll,50);};poll();});
  const controls=$('controls')||document.querySelector('.controls');
  const n=document.createElement('div');n.id='platformNotice';n.className='platform-notice';n.setAttribute('role','status');controls.after(n);notice(dashboard.coverage?.warning||'Опубликованные данные проекта.');
- ready=true;mountTools();mountMonthlyReports({slug,entryHash});clientUX=mountClientUX({shop,config:projectConfig,commerceChannels:()=>{const r=range(),active=document.querySelector('#platformSeg .active')?.dataset.platform;return [...new Set((dashboard.ecommerce?.account?.rows||[]).filter(row=>row.date>=r.from&&row.date<=r.to&&(!active||active==='__all'||row.platform===active)).map(row=>row.platform))].sort();}});maskUnavailable();
+ ready=true;mountTools();mountMonthlyReports({slug,entryHash});clientUX=mountClientUX();maskUnavailable();
  if(!allRows.length&&$('updated'))$('updated').textContent='Нет рекламной активности в загруженном периоде';
  clientNavigation=mountClientNavigation({slug,api,prefix,asset,initialCRM,onChange:async()=>{await refreshCRM();await refreshCreatives();if(projectConfig.synthetic)campaignBrowser?.refresh();}});
  const from=$(shop?'from':'dateFrom'),to=$(shop?'to':'dateTo');

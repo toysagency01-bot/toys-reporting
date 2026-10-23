@@ -1,67 +1,38 @@
 /* Shared compact project UI; original calculators and source renderers are intact. */
-body.client-compact{--client-link:var(--accent);--client-action-text:#061b18}
-html[data-theme=light] body.client-compact{--client-link:#00796f}
 body.client-compact .ux-section{animation:none}
 body.client-compact .panel,body.client-compact .card{animation:none;box-shadow:none;border-radius:12px}
 body.client-compact>header{min-height:56px;padding:10px 16px;margin-bottom:12px;border-radius:12px}
 body.client-compact .ux-nav{margin-bottom:12px;padding:4px;border-radius:11px;box-shadow:none}
 body.client-compact .ux-nav a{min-height:42px;box-sizing:border-box;padding:9px 12px;font-size:12px;border-radius:8px}
-body.client-compact .ux-nav a.active,body.client-compact #platformClientNav a.active,body.client-compact .ux-project-channels .active{color:var(--client-link)}
 body.client-compact [data-ux-view=leads]{display:none!important}
 body.client-compact #controls,body.client-compact .controls{border-radius:12px;padding:10px;gap:8px;box-shadow:none}
 body.client-compact .seg button,body.client-compact #platformCalendar{min-height:42px;padding:9px 12px}
-body.client-compact .seg button.active{color:var(--client-link)}
 body.client-compact .ux-page-heading{padding:16px 2px 12px;gap:10px}
 body.client-compact .ux-page-heading p{display:none}
 body.client-compact .ux-page-heading h1{font-size:23px;line-height:1.2}
 body.client-compact .ux-page-heading>div>span{font-size:12px;margin-top:5px}
 body.client-compact #uxOverview>.ux-page-heading>div>span{display:none}
 body.client-compact .platform-notice{font-size:11px;line-height:1.5;margin:6px 2px}
-body.client-compact #mainCards,body.client-compact #cards{display:grid;grid-template-columns:repeat(var(--client-primary-count,3),minmax(0,1fr))!important;gap:10px;margin-bottom:8px}
 body.client-compact #mainCards.hidden,body.client-compact #cards.hidden{display:none!important}
-body.client-compact :is(#mainCards,#cards)[data-client-expanded=false]>.client-secondary-metric{display:none!important}
-body.client-compact :is(#mainCards,#cards)[data-client-expanded=true]{grid-template-columns:repeat(4,minmax(0,1fr))!important}
 body.client-compact :is(#mainCards,#cards)>.card,body.client-compact #ecomTopCards .card{min-height:88px;padding:14px;border-radius:11px}
 body.client-compact :is(#mainCards,#cards) .label,body.client-compact #ecomTopCards .label{font-size:11px;margin-bottom:9px;line-height:1.4;letter-spacing:.025em}
 body.client-compact :is(#mainCards,#cards) .value,body.client-compact #ecomTopCards .value{font-size:24px;line-height:1.25;letter-spacing:-.025em;overflow-wrap:anywhere}
-body.client-compact .card::after{display:none}
 body.client-compact .card .delta{margin-top:6px;font-size:11px}
-body.client-compact .client-metric-source{font-size:11px;line-height:1.5;color:var(--muted);margin:0 2px 8px}
-body.client-compact .client-metrics-toggle{border:0;background:none;color:var(--client-link);padding:7px 2px;min-height:36px;cursor:pointer;font:500 12px 'Golos Text';margin-bottom:10px}
 body.client-compact #platformCRMStats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0 8px}
-body.client-compact #platformCRMStats::before{content:'CRM · результаты отдела продаж';grid-column:1/-1;font-size:11px;color:var(--muted);margin:0 2px}
 body.client-compact #platformCRMStats .card{min-height:0;padding:12px 14px;border-radius:10px}
 body.client-compact #platformCRMStats .label{font-size:10px;margin-bottom:7px;line-height:1.4}
 body.client-compact #platformCRMStats .value{font-size:21px;line-height:1.3}
-body.client-compact #platformCRMLink{display:none}
-body.client-compact .client-crm-basis{font-size:11px;color:var(--muted);margin:4px 2px 12px}
-body.client-compact .client-crm-basis summary{cursor:pointer;padding:7px 0}
-body.client-compact .client-crm-basis p{font-size:12px;line-height:1.6;margin:4px 0}
-body.client-compact .ux-overview-grid{grid-template-columns:minmax(0,1fr);gap:12px}
 body.client-compact .ux-overview-grid .chart-wrap{height:260px}
-body.client-compact .client-campaign-comparison{margin:10px 0 14px;color:var(--muted);font-size:12px}
-body.client-compact .client-campaign-comparison summary{cursor:pointer;padding:9px 2px}
-body.client-compact .client-campaign-comparison .ux-attention{margin:0;padding:12px;border-color:var(--line);background:var(--panel)}
-body.client-compact .client-campaign-comparison .ux-attention b{color:var(--muted);font-size:10px}
-body.client-compact .client-campaign-comparison .ux-attention strong{font-size:13px}
-body.client-compact .client-campaign-comparison .ux-attention p{font-size:12px}
 body.client-compact .ux-panel-heading h2{font-size:13px!important}
 body.client-compact #uxCampaigns .panel:has(>#platformCampaignBrowser)>h2{display:none}
 body.client-compact #uxCampaigns>.panel,body.client-compact #uxWeekly>.panel{padding:16px}
-body.client-compact .campaign-method-details{color:var(--muted);font-size:11px;margin-top:12px}
-body.client-compact .campaign-method-details summary{cursor:pointer;min-height:32px;display:flex;align-items:center}
 body.client-compact .platform-top-creatives{margin-top:14px;padding:16px}
 body.client-compact .platform-top-creatives[data-unavailable=true]{padding:12px 16px}
 body.client-compact .platform-top-creatives[data-unavailable=true] .top-switches{display:none}
 body.client-compact .platform-top-creatives[data-unavailable=true] .top-basis{margin:7px 0 0}
 body.client-compact .top-switches button{min-height:42px;font-size:12px}
-body.client-compact .top-switches button[aria-pressed=false]{color:var(--text)}
-body.client-compact .ux-project-channels button.active{color:var(--client-link)}
-body.client-compact a,body.client-compact .text-button{color:var(--client-link)}
-body.client-compact .primary,body.client-compact .ux-primary{color:var(--client-action-text)}
 body.client-compact .client-section-picker{display:none}
 body.client-compact [hidden]{display:none!important}
-@media(max-width:1050px){body.client-compact :is(#mainCards,#cards){grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:760px){
  body.client-compact>header{padding:10px 12px;min-height:52px;margin-bottom:10px;border-radius:11px;gap:10px}
  body.client-compact>header .updated,body.client-compact>header>span:last-child:not(.brand-name){font-size:10px}
@@ -77,7 +48,6 @@ body.client-compact [hidden]{display:none!important}
  body.client-compact .ux-page-heading{padding:12px 2px 10px}
  body.client-compact .ux-page-heading h1{font-size:21px}
  body.client-compact .ux-page-heading>div>span{font-size:12px}
- body.client-compact :is(#mainCards,#cards),body.client-compact :is(#mainCards,#cards)[data-client-expanded=true]{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}
  body.client-compact :is(#mainCards,#cards)>.card{min-height:86px;padding:12px}
  body.client-compact :is(#mainCards,#cards) .label{font-size:10px;margin-bottom:8px}
  body.client-compact :is(#mainCards,#cards) .value{font-size:21px}
@@ -85,7 +55,6 @@ body.client-compact [hidden]{display:none!important}
  body.client-compact #platformCRMStats .card{padding:11px 8px}
  body.client-compact #platformCRMStats .label{font-size:10px;letter-spacing:0}
  body.client-compact #platformCRMStats .value{font-size:18px;overflow-wrap:anywhere}
- body.client-compact .client-metrics-toggle{min-height:44px;font-size:12px}
  body.client-compact .ux-overview-grid .chart-wrap{height:230px}
  body.client-compact #uxCampaigns>.panel,body.client-compact #uxWeekly>.panel{padding:12px}
  body.client-compact .campaign-toolbar{gap:8px;margin-bottom:10px}
@@ -97,18 +66,22 @@ body.client-compact [hidden]{display:none!important}
 }
 
 body.client-compact:is([data-client-view=weekly],[data-client-view=project],[data-client-view=method]) :is(#controls,.controls,#platformNotice){display:none!important}
-body.client-compact .campaign-breadcrumbs button[aria-current]{color:var(--client-link)}
 
-body.client-compact #ecomTopCards>.ecom-channel>.cards{grid-template-columns:repeat(var(--client-commerce-count,3),minmax(0,1fr));gap:10px;margin-bottom:10px}body.client-compact #ecomTopCards[data-client-expanded=false] .client-secondary-metric{display:none!important}body.client-compact #ecomTopCards[data-client-expanded=true]>.ecom-channel>.cards{grid-template-columns:repeat(3,minmax(0,1fr))}body.client-compact #ecomTopCards .value small{display:block;font-size:11px;font-weight:400;margin-top:6px;color:var(--muted)}body.client-compact .campaign-method-details summary::after{content:' +';margin-left:8px}body.client-compact .campaign-method-details[open] summary::after{content:' −'}
-@media(max-width:760px){body.client-compact #ecomTopCards>.ecom-channel>.cards,body.client-compact #ecomTopCards[data-client-expanded=true]>.ecom-channel>.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}}
-
-body.client-compact #uxNav a{color:var(--muted)}body.client-compact #uxNav a.active{color:var(--client-link)}
 
 body.client-compact #uxFunnel .panel{padding:16px}body.client-compact .ux-funnel-grid{gap:12px}body.client-compact #openWeekly{display:none}
-body.client-compact .ecom-channel-title{color:var(--client-link)}
-html[data-theme=light] body.client-compact .platform-notice[data-error=true]{color:#b4233a}
 @media(max-width:760px){
  body.client-compact #controls .seg,body.client-compact .controls .seg{width:100%}
  body.client-compact .seg button{flex:1 1 auto;padding:8px}
- body.client-compact .client-crm-basis summary,body.client-compact .client-campaign-comparison summary,body.client-compact .campaign-method-details summary,body.client-compact .monthly-calculation summary{min-height:44px;box-sizing:border-box;align-content:center}
 }
+body.client-compact #mainCards,body.client-compact #cards{display:grid;gap:10px;margin-bottom:10px}
+body.client-compact #ecomTopCards>.ecom-channel>.cards{gap:10px}
+body.client-compact .ux-overview-grid{gap:12px}
+body.client-compact .ux-insight{padding:12px 14px;gap:12px;margin-bottom:12px;border-radius:12px;box-shadow:none}
+body.client-compact .ux-insight-icon{width:32px;height:32px;border-radius:9px;font-size:18px}
+body.client-compact .ux-insight strong{font-size:14px;line-height:1.4}
+body.client-compact .ux-insight p{font-size:11px;line-height:1.5}
+body.client-compact .ux-period-metrics{gap:8px;margin-top:12px}
+body.client-compact .ux-period-metrics>div{padding:10px;border-radius:9px}
+body.client-compact .ux-period-metrics strong{font-size:14px}
+@media(max-width:760px){body.client-compact :is(#mainCards,#cards),body.client-compact #ecomTopCards>.ecom-channel>.cards{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}body.client-compact .ux-insight>div:nth-child(2){flex-basis:calc(100% - 44px)}body.client-compact .ux-insight button{margin-left:44px}}
+body.client-compact .ux-insight-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
