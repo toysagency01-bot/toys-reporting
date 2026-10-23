@@ -6,7 +6,7 @@ import {mountKanban} from './kanban.js';
 import {moveOnBoard} from './kanban-state.js';
 import projectRegistry from '../projects.json' with {type:'json'};
 import {mountClientAccess} from './client-access.js';
-import {nextRefreshAt,adsAreStale} from '../imports/refresh-policy.js';
+import {nextRefreshAt} from '../imports/refresh-policy.js';
 import {makeConnection} from './make-connection.js';
 import {directMetaConnection,bindDirectMeta} from './direct-meta.js';
 import {escapeHtml as h,dateShift} from '../unified/model.js';
@@ -17,6 +17,7 @@ import {mountMasterMobileControls} from '../native/mobile-navigation.js';
 import {mountAudit} from './audit-ui.js';
 import {mountDocuments} from '../documents/ui.js';
 import {mountDailyReview} from './daily-review.js';
+import {overviewMarkup} from './overview.js';
 export function mountMaster({root=document,client=null,embedded=false,isVisible=()=>true,onChange=()=>{},asset=null}={}){
 const $=id=>root.getElementById(id),prefix='',api=prefix+'/api/v2';
 const cache=memoryCache(),overviewCache=responseCache({prefix:api+'/master/projects/'});
@@ -75,14 +76,14 @@ async function refresh(){
 }
 function selected(){return state.projects.filter(p=>!state.slug||p.slug===state.slug);}
 function renderOverview(){
- const projects=selected(),summaries=projects.filter(p=>state.slug||!projectRegistry[p.slug]?.synthetic).map(p=>state.summaries.get(p.slug)).filter(Boolean),moneyMap=new Map();let conversions=0,qualified=0,sales=0;
- for(const s of summaries){for(const a of s.ads||[]){if(a.spend!=null)moneyMap.set(a.currency,(moneyMap.get(a.currency)||0)+a.spend);if(a.conversions!=null)conversions+=a.conversions;}qualified+=s.crm?.qualified||0;sales+=s.crm?.sales||0;}
- $('metrics').innerHTML=card('Проекты',fmt(projects.length))+card('Расход',money([...moneyMap].map(([currency,value])=>({currency,value}))))+card('Конверсии рекламы',summaries.length?fmt(conversions):'—')+card('Квал-лиды CRM',summaries.length?fmt(qualified):'—')+card('Продажи CRM',summaries.length?fmt(sales):'—');
- let basis=$('masterCRMBasis');if(!basis){basis=document.createElement('p');basis.id='masterCRMBasis';basis.className='note';$('metrics').after(basis);}basis.hidden=!summaries.some(s=>s.crm?.available);basis.textContent='Квалы — по дате поступления лидов. Продажи — по дате продажи. Прошлые периоды уточняются по мере квалификации.';
- $('projectsTable').innerHTML=projects.map(p=>{const s=state.summaries.get(p.slug);return `<tr><td><button class="text-button" data-project="${h(p.slug)}">${h(p.name)}</button><small>${h(p.type)}</small></td><td>${s?money(s.ads||[]):'—'}</td><td>${s?fmt(s.ads.reduce((n,a)=>n+(a.conversions||0),0)):'—'}</td><td>${s?.crm?.available?fmt(s.crm.qualified):'—'}</td><td>${s?.crm?.available?fmt(s.crm.sales):'—'}</td><td>${p.integrations.filter(i=>['google_ads','meta_ads'].includes(i.provider)).map(i=>`<span class="badge">${i.provider==='meta_ads'?'Meta':'Google'} · ${h(i.status==='active'?'подключён':i.status)}</span>`).join(' ')||'Не подключены'}</td><td>${p.canCRM===false?'<span class="note">CRM · только администраторы</span>':`<button class="text-button" data-crm="${h(p.slug)}">Открыть CRM</button>`}<br><a class="text-button" href="#documents?project=${encodeURIComponent(p.slug)}">Документация</a></td></tr>`;}).join('');
- $('attention').innerHTML=projects.map(p=>{const issues=(state.summaries.get(p.slug)?.imports||p.imports||[]).filter(i=>i.state==='error'||!i.lastSuccessAt||adsAreStale(i.lastSuccessAt,Date.now(),20));return issues.map(i=>`<p>${h(p.name)} · ${i.provider==='meta_ads'?'Meta':'Google'}: ${i.lastSuccessAt?'данные обновлены '+h(new Date(i.lastSuccessAt).toLocaleString('ru-RU')):'ожидается первый импорт'}. ${i.state==='error'?'Ошибка загрузки; повтор запланирован.':'Проверяем свежесть данных.'}</p>`).join('')+(p.deliveryIssues?`<p>${h(p.name)}: ${p.deliveryIssues} событий требуют проверки в «CRM → Источники и CAPI».</p>`:'');}).join('')||'<p class="note">Нет зафиксированных ошибок импорта и отправки CRM.</p>';
- const panel=$('projectFeatures');panel.hidden=!state.slug;if(state.slug){const slug=encodeURIComponent(state.slug),native=Object.hasOwn(projectRegistry,state.slug),board=native?`${prefix}/${slug}/`:`https://toysagency01-bot.github.io/toys-reporting/${slug}/`;panel.innerHTML=`<h2>Работа с проектом</h2><div class="actions"><a class="secondary" href="#documents?project=${slug}">Документация</a><a class="secondary" href="${board}">Дашборд</a><a class="secondary" href="${board}#weekly">Итоги и комментарии</a><a class="secondary" href="${board}#meta">План и креативы Meta</a>${state.projects.find(p=>p.slug===state.slug)?.canCRM===false?'':`<button class="primary" data-crm="${h(state.slug)}">Открыть CRM</button>`}</div>`;}
+ const view=overviewMarkup({projects:selected(),summaries:state.summaries,slug:state.slug});
+ $('home').classList.toggle('overview-single',!!view.single);$('metrics').innerHTML=view.metrics;
+ $('projectFeatures').hidden=!view.single;$('projectFeatures').innerHTML=view.projectPanel;
+ $('projectResults').hidden=!!view.single;$('projectsTable').innerHTML=view.rows;$('attention').innerHTML=view.health;
+ if(state.view==='home')$('heading').textContent=view.single?'Обзор проекта':state.platformRole==='team'?'Мои проекты':'Все проекты';
+ let basis=$('masterCRMBasis');if(!basis){basis=document.createElement('details');basis.id='masterCRMBasis';basis.className='overview-basis';$('metrics').after(basis);}basis.hidden=!view.crmAvailable;basis.innerHTML='<summary>Как считаются показатели CRM</summary><p>Квалы — по дате поступления лидов. Продажи — по дате продажи. Прошлые периоды уточняются по мере квалификации.</p>';
 }
+
 let overviewScope;
 async function overview(){const seq=++state.seq,scope=dates()+state.provider;if(overviewScope!==scope){state.summaries.clear();overviewScope=scope;}const queue=[...selected()];for(const p of queue){const hit=await overviewCache.load(`${api}/master/projects/${encodeURIComponent(p.slug)}/summary?${dates()}&provider=${state.provider}&crmBasis=received-v1&adsBasis=daily-v2`);if(seq!==state.seq)return;if(hit)state.summaries.set(p.slug,hit.value);}renderOverview();let failed=0;message('');await Promise.all(Array.from({length:3},async()=>{while(queue.length&&seq===state.seq){const p=queue.shift();try{const d=await cached(`${api}/master/projects/${encodeURIComponent(p.slug)}/summary?${dates()}&provider=${state.provider}&crmBasis=received-v1&adsBasis=daily-v2`,overviewCache);if(seq!==state.seq)return;state.summaries.set(p.slug,d);renderOverview();}catch{failed++;}}}));if(seq===state.seq){$('updated').textContent='Обновлено '+date(new Date());if(failed)message(`Не удалось загрузить показатели ${failed} проектов. Остальные данные доступны.`,true);}}
 let boardData=null,moveRevision=0;
