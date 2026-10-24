@@ -176,7 +176,7 @@ async function boot(){
  const controls=$('controls')||document.querySelector('.controls');
  const n=document.createElement('div');n.id='platformNotice';n.className='platform-notice';n.setAttribute('role','status');controls.after(n);notice(dashboard.coverage?.warning||'Опубликованные данные проекта.');
  ready=true;mountTools();mountMonthlyReports({slug,entryHash});clientUX=mountClientUX();
- if(slug==='nova-sales-demo')mountNovaDesign({slug});
+ mountNovaDesign({slug});
  maskUnavailable();
  if(!allRows.length&&$('updated'))$('updated').textContent='Нет рекламной активности в загруженном периоде';
  clientNavigation=mountClientNavigation({slug,api,prefix,asset,initialCRM,onChange:async()=>{await refreshCRM();await refreshCreatives();if(projectConfig.synthetic)campaignBrowser?.refresh();}});

@@ -14,6 +14,7 @@ if(process.env.TOYS_TEST_CRM_TEMPLATE==='toys_agency')db.exec("UPDATE projects S
 if(process.env.TOYS_TEST_REPORT_STORAGE==='true'){const files=new Map();env.REPORT_ATTACHMENTS={put:async(k,v)=>files.set(k,v),get:async k=>files.has(k)?{body:files.get(k)}:null};}
 if(process.env.TOYS_TEST_SALES_DEMO==='true')db.exec(readFileSync('dist/sales-demo/import.sql','utf8'));
 if(process.env.TOYS_TEST_MONTHLY==='true'){seedMonthly(db);if(process.env.TOYS_TEST_MONTHLY_SOURCE==='true'){db.exec('DELETE FROM project_monthly_reports');db.exec(readFileSync('dist/bsclinic-monthly/import.sql','utf8'));}}
+if(process.env.TOYS_TEST_PROJECT_DESIGN==='true'){const registry=JSON.parse(readFileSync('projects.json','utf8'));env.MVP_EDITOR_PROJECTS=Object.keys(registry).join(',')+',__master';env.MVP_VIEW_PROJECTS=env.MVP_EDITOR_PROJECTS;}
 const roleTokens=process.env.TOYS_TEST_PLATFORM_ROLES==='true'?roleBrowserFixture(env,db):null;
 if(process.env.TOYS_TEST_MONTHLY==='true'&&roleTokens){for(const [id,role]of [['team','buyer'],['client','client_manager']])db.prepare('INSERT INTO project_memberships(project_id,user_id,role) VALUES(?,?,?)').run('prj_bs_clinic_a5b4','role-'+id,role);}
 if(process.env.TOYS_TEST_ADMIN_CRM==='true')db.prepare("INSERT INTO crm_projects(project_id,enabled_at,timezone,updated_at,access_mode) VALUES('prj_housevip_cxp7',?,'Asia/Tbilisi',?,'admin')").run(new Date().toISOString(),new Date().toISOString());

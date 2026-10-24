@@ -1,4 +1,4 @@
-/* Opt-in presentation for NOVA only. No selector affects another project. */
+/* Project presentation approved in NOVA; applied only by the project adapter. */
 html.nova-demo-design,html.nova-demo-design[data-theme=dark]{
  --bg:#090909;--panel:#141414;--panel-2:#191919;--panel2:#191919;--line:#ffffff12;--text:#f3f3f3;
  --muted:#aaa;--accent:#2ad7c0;--accent-dim:#ffffff09;--nova-tile:#ffffff04;--nova-tile-line:#ffffff0d;
@@ -47,9 +47,9 @@ html body.nova-demo-design .nova-nav-glass{position:absolute;z-index:0;top:4px;b
 html body.nova-demo-design :is(#metricsView,#projectView){width:calc(100% - 90px);margin:0 auto}
 html body.nova-demo-design #salesDemoNotice{margin:14px 54px 0;padding:0;color:var(--muted);font-size:9px;line-height:1.55}
 html body.nova-demo-design .platform-notice{font-size:10px;color:var(--muted)}
-html body.nova-demo-design #controls{min-height:62px;display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0;padding:12px 0 5px;border:0;border-radius:0;background:none;box-shadow:none}
-html body.nova-demo-design #controls :is(#platformSeg,#periodSeg):not(.hidden){display:flex}
-html body.nova-demo-design #controls .platform-date-range{flex:none}
+html body.nova-demo-design :is(#controls,.controls){min-height:62px;display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0;padding:12px 0 5px;border:0;border-radius:0;background:none;box-shadow:none}
+html body.nova-demo-design :is(#controls,.controls) :is(#platformSeg,#periodSeg):not(.hidden){display:flex}
+html body.nova-demo-design :is(#controls,.controls) .platform-date-range{flex:none}
 html body.nova-demo-design #platformCalendar{min-height:40px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--nova-control);font-size:11px;box-shadow:none}
 html body.nova-demo-design #platformNotice{margin:1px 0 0;font-size:9px}
 html body.nova-demo-design .ux-page-heading{padding:0;margin:20px 0 26px}
@@ -60,11 +60,13 @@ html body.nova-demo-design #clientMetricGroups{display:none!important}
 html body.nova-demo-design #uxOverview:not(.active){display:none}
 html body.nova-demo-design #novaMetricGroups{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.65fr);gap:20px;margin:0 0 20px;min-width:0}
 html body.nova-demo-design #novaMetricGroups[hidden]{display:none}
+html body.nova-demo-design #novaMetricGroups.nova-without-feature{grid-template-columns:minmax(0,1fr)}
+html body.nova-demo-design .nova-without-feature .nova-support{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none}
 html body.nova-demo-design .nova-lead-feature{display:flex;flex-direction:column;min-width:0;min-height:350px;padding:26px 31px 29px;border:0;border-radius:27px;background:#38ccb7;color:#000;box-shadow:inset 0 1px 0 #d7fff480,var(--nova-shadow)}
 html body.nova-demo-design .nova-lead-feature h2{font-size:13px;font-weight:500;line-height:1.4;letter-spacing:0;margin:0 0 28px;color:#093b32}
 html body.nova-demo-design .nova-metric{min-width:0}
 html body.nova-demo-design .nova-metric-label{display:block;font-size:11px;font-weight:400;line-height:1.45;color:var(--muted);letter-spacing:0}
-html body.nova-demo-design .nova-metric-value{display:block;font-size:26px;line-height:1.1;font-weight:500;letter-spacing:-.045em;font-variant-numeric:tabular-nums;color:var(--text)}
+html body.nova-demo-design .nova-metric-value{display:block;font-size:26px;line-height:1.1;font-weight:500;letter-spacing:-.045em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;color:var(--text)}
 html body.nova-demo-design .nova-primary-metric .nova-metric-label{font-size:13px;color:#093b32;margin-bottom:2px}
 html body.nova-demo-design .nova-primary-metric .nova-metric-value{font-size:clamp(72px,7.8vw,112px);line-height:1.06;letter-spacing:-.075em;font-weight:400;color:#000}
 html body.nova-demo-design .nova-feature-secondary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:auto;padding-top:21px;border-top:1px solid #075f4e40}
@@ -130,8 +132,8 @@ html body.nova-demo-design :is(a,button,select):focus-visible{outline:2px solid 
  html body.nova-demo-design .client-section-picker>span{font-size:11px}
  html body.nova-demo-design :is(#metricsView,#projectView){width:calc(100% - 30px)}
  html body.nova-demo-design #salesDemoNotice{margin:12px 15px 0;font-size:9px}
- html body.nova-demo-design #controls{display:flex;flex-wrap:wrap;padding:8px 0 0;min-height:0;gap:8px}
- html body.nova-demo-design #controls .platform-date-range{width:100%;flex:0 0 100%}
+ html body.nova-demo-design :is(#controls,.controls){display:flex;flex-wrap:wrap;padding:8px 0 0;min-height:0;gap:8px}
+ html body.nova-demo-design :is(#controls,.controls) .platform-date-range{width:100%;flex:0 0 100%}
  html body.nova-demo-design #platformCalendar{width:100%;min-height:44px;font-size:11px;padding:8px 10px}
  html body.nova-demo-design .ux-page-heading{margin:16px 0}
  html body.nova-demo-design .ux-page-heading h1{font-size:23px;line-height:1.17}
@@ -170,11 +172,11 @@ html body.nova-demo-design :is(a,button,select):focus-visible{outline:2px solid 
 /* Clear neutral glass: crisp specular edges, without tinted frosted fills. */
 html body.nova-demo-design .nova-nav-glass::before{content:'';position:absolute;inset:1px 1px 48%;border-radius:8px 8px 30% 30%;background:linear-gradient(180deg,#ffffff20,#ffffff00);pointer-events:none}
 html body.nova-demo-design .nova-nav-glass::after{content:'';position:absolute;top:0;left:12%;right:12%;height:1px;background:linear-gradient(90deg,transparent,#ffffffd9,transparent);pointer-events:none}
-html body.nova-demo-design #controls .seg{display:flex;align-items:stretch;gap:3px;padding:4px;border:1px solid var(--line);border-radius:13px;background:var(--nova-control);box-shadow:inset 0 1px 0 #ffffff08}
-html body.nova-demo-design #controls .seg button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:8px 13px;border:1px solid transparent;border-radius:9px;background:none;font:400 12px/1.3 'Golos Text',sans-serif;color:var(--muted);white-space:nowrap;transition:background-color 200ms ease,color 200ms ease}
-html body.nova-demo-design #controls .seg button svg{width:18px;height:18px;flex:none}
-html body.nova-demo-design #controls .seg button.active{color:var(--text);background:var(--nova-glass);border-color:var(--nova-glass-line);box-shadow:var(--nova-glass-shadow)}
-html body.nova-demo-design #controls .seg button:hover{color:var(--text)}
+html body.nova-demo-design :is(#controls,.controls) .seg{display:flex;align-items:stretch;gap:3px;padding:4px;border:1px solid var(--line);border-radius:13px;background:var(--nova-control);box-shadow:inset 0 1px 0 #ffffff08}
+html body.nova-demo-design :is(#controls,.controls) .seg button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:8px 13px;border:1px solid transparent;border-radius:9px;background:none;font:400 12px/1.3 'Golos Text',sans-serif;color:var(--muted);white-space:nowrap;transition:background-color 200ms ease,color 200ms ease}
+html body.nova-demo-design :is(#controls,.controls) .seg button svg{width:18px;height:18px;flex:none}
+html body.nova-demo-design :is(#controls,.controls) .seg button.active{color:var(--text);background:var(--nova-glass);border-color:var(--nova-glass-line);box-shadow:var(--nova-glass-shadow)}
+html body.nova-demo-design :is(#controls,.controls) .seg button:hover{color:var(--text)}
 html body.nova-demo-design #platformCalendar{display:flex;align-items:center;justify-content:center;gap:10px;min-height:46px;padding:10px 13px;border-radius:13px;font-size:11px;font-weight:400}
 html body.nova-demo-design #platformCalendar::before{content:'';width:16px;height:16px;flex:none;background:var(--muted);mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round'%3E%3Crect x='4' y='5' width='16' height='16' rx='3'/%3E%3Cpath d='M8 3v4m8-4v4M4 10h16'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat}
 html body.nova-demo-design #platformCalendar::after,html body.nova-demo-design .client-section-picker::after{content:'';width:12px;height:12px;flex:none;background:var(--muted);mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat}
@@ -190,10 +192,10 @@ html body.nova-demo-design .platform-calendar::backdrop{background:#0006;backdro
 html body.nova-demo-design .platform-calendar :is(.calendar-month button,[data-cancel]){border-radius:10px;background:var(--nova-control);color:var(--text);border-color:var(--line)}
 html body.nova-demo-design .platform-calendar .calendar-days button{border-radius:10px}
 html body.nova-demo-design .platform-calendar .calendar-days .in-range{background:var(--accent-dim)}
-@media(min-width:761px) and (max-width:1100px){html body.nova-demo-design #controls{flex-wrap:wrap}}
+@media(min-width:761px) and (max-width:1100px){html body.nova-demo-design :is(#controls,.controls){flex-wrap:wrap}}
 @media(max-width:760px){
- html body.nova-demo-design #controls .seg{width:100%;padding:3px;gap:3px}
- html body.nova-demo-design #controls .seg button{flex:1;min-width:0;min-height:38px;padding:8px 7px;font-size:12px}
+ html body.nova-demo-design :is(#controls,.controls) .seg{width:100%;padding:3px;gap:3px}
+ html body.nova-demo-design :is(#controls,.controls) .seg button{flex:1;min-width:0;min-height:38px;padding:8px 7px;font-size:12px}
  html body.nova-demo-design #platformCalendar{min-height:44px}
  html body.nova-demo-design .client-section-picker{gap:8px}
  html body.nova-demo-design #uxOverview>.ux-insight{display:block;padding:21px 23px;margin:0 0 16px}
@@ -281,7 +283,7 @@ html body.nova-demo-design .nova-glass-caustic{background:radial-gradient(ellips
 html body.nova-demo-design .nova-slider-group{position:relative;isolation:isolate}
 html body.nova-demo-design .nova-slider-group>:is(button,a){position:relative;z-index:1}
 html body.nova-demo-design .nova-control-slider{position:absolute;z-index:0;left:0;top:4px;bottom:4px;pointer-events:none;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);box-shadow:none;will-change:transform,width}
-html body.nova-demo-design :is(#controls,.ux-overview-grid) .seg button.active,html body.nova-demo-design #projectSubNav button.active,html body.nova-demo-design .ux-project-channels button.active,html body.nova-demo-design .top-switches button[aria-pressed=true]{background:transparent;border-color:transparent;box-shadow:none;color:var(--text)}
+html body.nova-demo-design :is(:is(#controls,.controls),.ux-overview-grid) .seg button.active,html body.nova-demo-design #projectSubNav button.active,html body.nova-demo-design .ux-project-channels button.active,html body.nova-demo-design .top-switches button[aria-pressed=true]{background:transparent;border-color:transparent;box-shadow:none;color:var(--text)}
 html body.nova-demo-design #uxOverview>.ux-insight button{border-color:var(--line);background:var(--nova-control);box-shadow:none}
 html body.nova-demo-design #platformCalendar{background:var(--nova-control);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
 html body.nova-demo-design .platform-calendar::backdrop{backdrop-filter:none;-webkit-backdrop-filter:none}
@@ -308,7 +310,7 @@ html body.nova-demo-design #demoSalesFunnel .demo-funnel-step{position:relative;
 html body.nova-demo-design #demoSalesFunnel .demo-funnel-step:not([data-stage=sales])::after{content:'';position:absolute;left:16px;bottom:-9px;width:5px;height:5px;border-right:1px solid var(--muted);border-bottom:1px solid var(--muted);transform:rotate(45deg);opacity:.55}
 html body.nova-demo-design #demoSalesFunnel .demo-funnel-step>div{padding-left:14px;border-left:1px solid var(--line)}
 @media(max-width:760px){
- html body.nova-demo-design #controls .nova-control-slider{top:3px;bottom:3px}
+ html body.nova-demo-design :is(#controls,.controls) .nova-control-slider{top:3px;bottom:3px}
  html body.nova-demo-design #demoSalesFunnel .demo-funnel-step{row-gap:17px}
  html body.nova-demo-design #demoSalesFunnel .demo-funnel-step>div{border:0;padding-left:0}
 }
@@ -316,3 +318,26 @@ html body.nova-demo-design #demoSalesFunnel .demo-funnel-step>div{padding-left:1
 @media(prefers-reduced-motion:reduce){html body.nova-demo-design :is(.nova-nav-glass,.nova-control-slider)>span{will-change:auto}}
 /* Blur the stationary capsule once; the moving lens animates cached textures. */
 @media(min-width:761px){html body.nova-demo-design .nova-nav-glass{backdrop-filter:none;-webkit-backdrop-filter:none}}
+/* Instashop's native renderer has no metricsView wrapper. */
+html body.nova-demo-design.instashop-ux-v2:not(.platform-show-crm)>#content{width:calc(100% - 90px);margin:0 auto}
+html body.nova-demo-design .nova-metric-value .money-secondary{display:block;font-size:12px;font-weight:400;line-height:1.4;margin-top:5px;color:var(--muted)}
+html body.nova-demo-design .nova-metric-value>small{display:block;font-size:12px;font-weight:400;line-height:1.4;letter-spacing:0;white-space:normal;overflow-wrap:anywhere;margin-top:5px;color:var(--muted)}
+html body.nova-demo-design .nova-metric-value .money-primary{white-space:inherit}
+html body.nova-demo-design .nova-lead-feature .nova-metric-value small{color:#093b32}
+/* Native leadgen, commerce and Instashop funnels keep their own stages/ratios. */
+html body.nova-demo-design #funnel .funnel-step{--stage-accent:#8595a6;position:relative;margin:12px 0;padding:16px 17px;border:1px solid var(--nova-tile-line);border-left:3px solid var(--stage-accent);border-radius:14px;background:var(--nova-tile)}
+html body.nova-demo-design #funnel .funnel-step:nth-child(2){--stage-accent:#729fdf}
+html body.nova-demo-design #funnel .funnel-step:nth-child(3){--stage-accent:#27bda9}
+html body.nova-demo-design #funnel .funnel-step:nth-child(4){--stage-accent:#a18bd4}
+html body.nova-demo-design #funnel .funnel-step:nth-child(n+5){--stage-accent:#cba45c}
+html body.nova-demo-design #funnel :is(.funnel-value,.funnel-number){font-size:24px;font-weight:500;letter-spacing:-.04em}
+html body.nova-demo-design #funnel :is(.funnel-bar-wrap,.bar-bg){height:5px;background:var(--line)}
+html body.nova-demo-design #funnel :is(.funnel-bar,.bar){background:var(--stage-accent)}
+html body.nova-demo-design #funnel :is(.funnel-rate,.rate){font-size:11px;color:var(--muted);margin-top:8px}
+html body.nova-demo-design #funnel .funnel-summary{display:flex;flex-wrap:wrap;gap:10px}
+html body.nova-demo-design #funnel .funnel-summary>span{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--nova-tile)}
+@media(min-width:761px) and (max-width:1240px){html body.nova-demo-design.instashop-ux-v2:not(.platform-show-crm)>#content{width:calc(100% - 50px)}}
+@media(max-width:760px){
+ html body.nova-demo-design .nova-without-feature .nova-support{grid-template-columns:minmax(0,1fr)}
+ html body.nova-demo-design.instashop-ux-v2:not(.platform-show-crm)>#content{width:calc(100% - 30px)}
+}

@@ -1,7 +1,7 @@
 // The native renderer replaces body contents. Preserve the initial loading
-// screen until the complete NOVA presentation is ready, including cold loads.
+// screen until the project presentation is ready, including cold loads.
 export function holdNovaLoading(slug){
- const screen=slug==='nova-sales-demo'?document.getElementById('novaBootScreen'):null;
+ const screen=document.getElementById('novaBootScreen');
  if(!screen)return ()=>{};
  const observer=new MutationObserver(()=>{if(!screen.isConnected)document.body.append(screen);});
  observer.observe(document.body,{childList:true});

@@ -1,4 +1,4 @@
-/* Present in the initial NOVA document, before the native renderer runs. */
+/* Present in the initial project document, before the native renderer runs. */
 html[data-nova-boot]{background:#090909;color-scheme:dark;overflow:hidden}
 html[data-nova-boot][data-theme=light]{background:#f5f5f5;color-scheme:light}
 html[data-nova-boot] body>:not(#novaBootScreen):not(script):not(style):not(link){visibility:hidden!important;pointer-events:none!important}

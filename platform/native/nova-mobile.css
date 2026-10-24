@@ -1,4 +1,4 @@
-/* NOVA only. Keep native browser widget painting out of the phone shell. */
+/* Project shell. Keep native browser widget painting out of the phone shell. */
 html body.nova-demo-design{-webkit-tap-highlight-color:transparent}
 html body.nova-demo-design :is(button,input,textarea,select){font-family:'Golos Text',system-ui,sans-serif;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 html body.nova-demo-design button{appearance:none;-webkit-appearance:none}
@@ -27,8 +27,8 @@ html body.nova-demo-design .nova-section-menu a:focus-visible{outline:none;box-s
  html body.nova-demo-design #novaSectionToggle:focus-visible{box-shadow:none}
  html body.nova-demo-design :is(input,textarea,select):focus-visible{outline:none!important;box-shadow:inset 0 0 0 1px var(--field-focus)!important;border-color:var(--field-focus)!important}
  html body.nova-demo-design .client-section-picker[hidden]{display:none!important}
- html body.nova-demo-design #controls .seg{padding:2px}
- html body.nova-demo-design #controls .seg button{min-height:44px}
+ html body.nova-demo-design :is(#controls,.controls) .seg{padding:2px}
+ html body.nova-demo-design :is(#controls,.controls) .seg button{min-height:44px}
  html body.nova-demo-design .ux-page-heading{margin:12px 0 14px}
  html body.nova-demo-design .toys-tools :is(input,textarea,select){font-size:16px;min-height:44px}
  html body.nova-demo-design .toys-tools textarea{min-height:90px}

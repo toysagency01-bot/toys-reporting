@@ -1,3 +1,4 @@
+import {selectNovaSection} from './nova-browser-helpers.mjs';
 import {test,expect} from '@playwright/test';
 for(const slug of ['housevip-cxp7','bs-clinic-a5b4','profkit-instashop-r4vk'])test(slug+' section menu supports native tabs and ordinary desktop/mobile navigation',async({page,context,request})=>{
  await context.addInitScript(()=>{const OriginalDate=Date,fixed=Date.parse('2026-10-08T06:07:00Z');globalThis.Date=class extends OriginalDate{constructor(...args){super(...(args.length?args:[fixed]));}static now(){return fixed;}};});
@@ -28,6 +29,6 @@ for(const slug of ['housevip-cxp7','bs-clinic-a5b4','profkit-instashop-r4vk'])te
   const popup=context.waitForEvent('page');await page.locator(`#uxNav [data-ux-view=${view}]`).click(options);const tab=await popup;await expect(tab.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(tab.locator(`#uxNav [data-ux-view=${view}]`)).toHaveClass(/active/);expect(page.url()).toBe(before);await tab.close();
  }
  await page.screenshot({path:'/tmp/toys-section-menu-'+slug+'-desktop.png'});
- await page.setViewportSize({width:390,height:844});await page.locator('#clientSectionSelect').selectOption('campaigns');await expect(panel('campaigns')).toBeVisible();await page.locator('#clientSectionSelect').selectOption('weekly');await expect(panel('weekly')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.setViewportSize({width:390,height:844});await selectNovaSection(page,'campaigns');await expect(panel('campaigns')).toBeVisible();await selectNovaSection(page,'weekly');await expect(panel('weekly')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:'/tmp/toys-section-menu-'+slug+'-mobile.png'});expect(errors).toEqual([]);
 });

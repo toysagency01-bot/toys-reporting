@@ -1,5 +1,6 @@
 import {test,expect} from '@playwright/test';
 import {rankCreatives} from '../native/top-creatives.js';
+import {selectNovaSection} from './nova-browser-helpers.mjs';
 const portal='/api/v2/projects/housevip-cxp7/content-project';
 
 async function mockCampaignBrowser(page){
@@ -25,7 +26,7 @@ test('native password invitation opens CRM, signs out and signs back in',async({
  await page.goto(link.replace('https://reports.toys-agency.com','http://127.0.0.1:4173'));
  await page.locator('[name=password]').fill('Test browser long password 123');await page.locator('[name=confirm]').fill('Test browser long password 123');
  await page.getByRole('button',{name:'Сохранить пароль и войти'}).click();await expect(page).toHaveURL(/\/housevip-cxp7\/(?:#overview)?$/);
- await page.locator('#platformCRMNav').click();await expect(page.locator('#platformClientCRM #newLead')).toBeVisible();
+ await page.locator('#platformCRMLink:visible,#platformCRMNav:visible').first().click();await expect(page.locator('#platformClientCRM #newLead')).toBeVisible();
  await page.goto('/api/v2/portal/session?choose=1');await page.getByRole('link',{name:'Выйти из аккаунта'}).click();await expect(page).toHaveURL(/\/login$/);expect(await page.evaluate(()=>Object.keys(sessionStorage).filter(k=>k.startsWith('toys-dashboard-cache:')).length)).toBe(0);expect(await page.evaluate(async()=>(await caches.keys()).filter(k=>k.startsWith('toys-dashboard-cache:')).length)).toBe(0);
  await page.locator('[name=email]').fill('password-browser@example.test');await page.locator('[name=password]').fill('Test browser long password 123');await page.getByRole('button',{name:'Войти',exact:true}).click();await expect(page).toHaveURL(/\/housevip-cxp7\/(?:#overview)?$/);
 });
@@ -103,7 +104,7 @@ test('master creates a client invitation, preserves assignments and disables acc
  await page.getByRole('button',{name:'Закрыть',exact:true}).click();await page.reload();const row=page.locator('#accessUsers tr').filter({hasText:'browser-client@example.test'});await expect(row).toContainText('HOUSEVIP');await expect(row).toContainText('Ожидает первого входа');await row.getByRole('button',{name:'Настроить'}).click();await page.locator('#accessForm [name=enabled]').uncheck();await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#accessFormStatus')).toContainText('Доступ отключён');await expect(page.locator('#accessInvitation')).toBeHidden();await page.getByRole('button',{name:'Закрыть',exact:true}).click();await expect(row).toContainText('Доступ отключён');
 });
 test('client viewer gets published weekly reports and an account link without agency editors',async({page})=>{
- await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyContent')).not.toContainText('Для этого действия войдите');await expect(page.locator('#weeklyForm')).toHaveCount(0);await expect(page.locator('#platformAccountNav')).toHaveAttribute('href','/api/v2/portal/session?choose=1');await page.locator('#platformCRMNav').click();await expect(page.locator('#platformClientCRM #newLead')).toBeVisible();await expect(page.locator('#platformClientCRM #accessNav')).toBeHidden();
+ await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('[data-ux-view="weekly"]').click();await expect(page.locator('#weeklyContent')).not.toContainText('Для этого действия войдите');await expect(page.locator('#weeklyForm')).toHaveCount(0);await expect(page.locator('#platformAccountNav')).toHaveAttribute('href','/api/v2/portal/session?choose=1');await page.locator('#platformCRMLink:visible,#platformCRMNav:visible').first().click();await expect(page.locator('#platformClientCRM #newLead')).toBeVisible();await expect(page.locator('#platformClientCRM #accessNav')).toBeHidden();
 });
 test('mounted portal renders Golos with the generic asset route unavailable',async({page})=>{
  // Match the dated advertising fixture; keep CRM tests on the server's current day.
@@ -235,13 +236,13 @@ test('public short board requests creative rankings without requesting private h
  await page.route('**/top-creatives?*',r=>r.fulfill({json:{ok:true,rankings:{leads:[{provider:'meta_ads',rows:[{name:'Публичный креатив',score:4,ctr:2,spend:100,currency:'IDR',freshness:'fresh'}]}]}}}));
  await page.goto('/housevip-cxp7/#overview');await expect(page.locator('.top-creative h3')).toHaveText('Публичный креатив');expect(seen.some(u=>u.includes('/top-creatives?'))).toBe(true);expect(seen.some(u=>u.includes('/ads/hierarchy'))).toBe(false);
 });
-test('dashboard shell is visible while data is pending, without an entry loading screen',async({page})=>{
+test('project loading shell stays visible while data is pending without painting the previous design',async({page})=>{
  // Match the dated advertising fixture; keep CRM tests on the server's current day.
  await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  let release;const gate=new Promise(resolve=>release=resolve);await page.route('**/dashboard',async route=>{await gate;await route.continue();});
  await page.goto('/housevip-cxp7/#overview',{waitUntil:'domcontentloaded'});
- await expect(page.locator('header')).toBeVisible();await expect(page.locator('#uxNav')).toBeVisible();await expect(page.locator('#uxOverview')).toBeVisible();await expect(page.locator('#mainCards')).toBeVisible();await expect(page.getByText('Загружаю данные…',{exact:true})).not.toBeVisible();
- await expect(page.locator('body')).toHaveAttribute('data-platform-loading','true');release();await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.locator('#kClicks')).toHaveText('25');
+ await expect(page.locator('#novaBootScreen')).toBeVisible();await expect(page.locator('#uxNav')).toBeHidden();await expect(page.locator('#mainCards')).toBeHidden();
+ await expect(page.locator('body')).toHaveAttribute('data-platform-loading','true');release();await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.locator('#novaBootScreen')).toHaveCount(0);await expect(page.locator('#novaMetricGroups')).toBeVisible();await expect(page.locator('#kClicks')).toHaveText('25');
 });
 
 test('Today in the public board loads current-day advertising instead of stopping at the snapshot',async({page})=>{
@@ -279,7 +280,7 @@ test('client keeps Home and CRM mounted, caches leads and preserves period and f
  const calls=[],documents=[],urls=[];page.on('request',r=>{calls.push(new URL(r.url()).pathname);urls.push(r.url());if(r.isNavigationRequest())documents.push(r.url());});
  await page.goto(portal);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
  const marker=await page.evaluate(()=>window.navigationTestMarker=crypto.randomUUID());const period=await page.locator('body > :not(#platformClientCRM) #dateFrom').inputValue();
- await page.locator('#platformCRMNav').click();await expect(page.locator('#heading')).toHaveText('CRM');
+ await page.locator('#platformCRMLink:visible,#platformCRMNav:visible').first().click();await expect(page.locator('#heading')).toHaveText('CRM');
  await expect(page.locator('#projectSelect')).toBeHidden();await expect(page.locator('#connections')).toBeHidden();
  await expect(page.locator('#leadsBoard')).not.toBeEmpty();expect(calls.some(p=>p.includes('/master'))).toBe(false);
  await page.locator('#statusFilter').selectOption('Квалифицирован');await expect(page.locator('#leadsBoard')).not.toBeEmpty();
@@ -288,19 +289,19 @@ test('client keeps Home and CRM mounted, caches leads and preserves period and f
  const requests=calls.length;
  await page.getByRole('link',{name:'Главная',exact:true}).click();await expect(page).toHaveURL(/\/housevip-cxp7\/(?:#overview)?$/);
  await expect(page.locator('body > :not(#platformClientCRM) #dateFrom')).toHaveValue(period);
- await page.locator('#platformCRMNav').click();await expect(page.locator('#statusFilter')).toHaveValue('Квалифицирован');await expect(page.locator('#leadsBoard')).not.toBeEmpty();
+ await page.locator('#platformCRMLink:visible,#platformCRMNav:visible').first().click();await expect(page.locator('#statusFilter')).toHaveValue('Квалифицирован');await expect(page.locator('#leadsBoard')).not.toBeEmpty();
  expect(await page.evaluate(()=>window.navigationTestMarker)).toBe(marker);expect(documents).toHaveLength(1);expect(urls.slice(requests)).toEqual([]);
  await page.goBack();await expect(page.locator('#platformClientCRM')).toBeHidden();await page.goForward();await expect(page.locator('#platformClientCRM')).toBeVisible();expect(documents).toHaveLength(1);
  await page.screenshot({path:'dist/client-crm-cached.png',fullPage:true,animations:'disabled'});
  await page.locator('#platformClientCRM #theme').click();await expect(page.locator('html')).toHaveAttribute('data-theme','light');await page.getByRole('link',{name:'Главная',exact:true}).click();await expect(page.locator('header img[alt="TOYS"]')).toHaveAttribute('src',/toys-black/);
- await page.locator('#platformCRMNav').click();await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.locator('#platformCRMLink:visible,#platformCRMNav:visible').first().click();await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 
 test('HOUSEVIP CRM navigation and old lead hashes open CRM without falling back to the project plan',async({page})=>{
  const documents=[];page.on('request',r=>{if(r.isNavigationRequest())documents.push(r.url());});
  await page.setExtraHTTPHeaders({'x-test-viewer':'true'});await page.goto('/housevip-cxp7/#overview');
  await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
- await expect(page.locator('[data-ux-view="leads"]')).toBeHidden();await page.locator('#platformCRMNav').click();
+ await expect(page.locator('[data-ux-view="leads"]')).toBeHidden();await page.locator('#platformCRMLink:visible,#platformCRMNav:visible').first().click();
  await expect(page.locator('#platformClientCRM')).toBeVisible();await expect(page.locator('#heading')).toHaveText('CRM');
  await expect(page).toHaveURL(/\/content-crm$/);expect(documents).toHaveLength(1);
  for(const hash of ['#leads','#meta/'+encodeURIComponent('ЛИДЫ')]){
@@ -313,7 +314,7 @@ test('direct client CRM link opens the unified screen, writes invalidate lead ca
  await page.goto('/api/v2/projects/housevip-cxp7/content-crm');await expect(page.locator('#heading')).toHaveText('CRM');await expect(page.locator('#leadsBoard')).not.toBeEmpty();
  await page.locator('#newLead').click();await page.locator('[name="name"]').fill('Cache invalidation lead');await page.locator('[name="email"]').fill('cache@example.test');await page.getByRole('button',{name:'Добавить',exact:true}).click();
  await expect(page.locator('#leadsBoard')).toContainText('Cache invalidation lead');await page.getByRole('button',{name:'Cache invalidation lead',exact:true}).click();await page.locator('[name="status"]').selectOption('Квалифицирован');await page.getByRole('button',{name:'Сохранить',exact:true}).click();await expect(page.locator('#leadsBoard')).toContainText('Квалифицирован');
- await page.getByRole('link',{name:'Главная',exact:true}).click();await expect(page.locator('#platformCRMStats')).toContainText('Квал-лиды CRM');await page.locator('#platformCRMNav').click();await expect(page.locator('#leadsBoard')).toContainText('Cache invalidation lead');
+ await page.getByRole('link',{name:'Главная',exact:true}).click();await expect(page.locator('#platformCRMStats')).toContainText('Квал-лиды CRM');await page.locator('#platformCRMLink:visible,#platformCRMNav:visible').first().click();await expect(page.locator('#leadsBoard')).toContainText('Cache invalidation lead');
 });
 
 test('agency connection settings explain Make intake and do not require the direct Meta webhook',async({page})=>{
@@ -378,7 +379,7 @@ test('campaign hierarchy fetches and renders only opened levels, paginates ads a
  await page.locator('[data-ux-view="campaigns"]').click();await expect(page.locator('.campaign-entity')).toHaveCount(1);expect(fixture.calls.length).toBe(1);
  await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(2);expect(fixture.calls.length).toBe(2);
  await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(52);
- await page.getByRole('button',{name:'Показать ещё · 50 из 105'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(102);
+ await page.getByRole('button',{name:/^Показать ещё.*50 из 105$/}).click();await expect(page.locator('.campaign-entity')).toHaveCount(102);
  await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(2);
  await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(102);expect(fixture.calls.length).toBe(4);
  await page.getByRole('button',{name:'Открыть объявление: Lazy ad 0',exact:true}).click();await expect(page.getByRole('dialog')).toContainText('Полный текст объявления');await page.keyboard.press('Escape');expect(fixture.creativeCalls).toBe(1);
@@ -392,7 +393,7 @@ test('mobile campaigns use breadcrumbs, cached drill-in and preserve viewport an
  // Match the dated advertising fixture; keep CRM tests on the server's current day.
  await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));
  await page.setViewportSize({width:390,height:844});const fixture=await mockCampaignBrowser(page);
- await page.goto(portal);await page.locator('#clientSectionSelect').selectOption('campaigns');await expect(page.locator('.campaign-entity')).toHaveCount(1);
+ await page.goto(portal);await selectNovaSection(page,'campaigns');await expect(page.locator('.campaign-entity')).toHaveCount(1);
  await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(1);await expect(page.locator('.campaign-breadcrumbs')).toContainText('Lazy campaign');
  await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(50);await expect(page.locator('.campaign-breadcrumbs')).toContainText('Lazy group');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await expect(page.locator('#platformCRMNav')).toBeVisible();
@@ -573,7 +574,7 @@ test('large history restores after reload without another dashboard download',as
 });
 test('CRM writes update CRM summaries without invalidating advertising statistics',async({page})=>{
  await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const stats=await mockCachedStatistics(page);await page.goto(portal);await expect(page.locator('#kClicks')).toHaveText('77');
- await page.locator('#platformCRMNav').click();await page.locator('#newLead').click();await page.locator('[name=name]').fill('Saved cache invalidation');await page.locator('[name=phone]').fill('+995555019922');stats.clicks=88;
+ await page.locator('#platformCRMLink:visible,#platformCRMNav:visible').first().click();await page.locator('#newLead').click();await page.locator('[name=name]').fill('Saved cache invalidation');await page.locator('[name=phone]').fill('+995555019922');stats.clicks=88;
  await page.getByRole('button',{name:'Добавить',exact:true}).click();await expect(page.locator('#leadsBoard')).toContainText('Saved cache invalidation');
  await page.getByRole('link',{name:'Главная',exact:true}).click();
  await page.reload();await expect(page.locator('#kClicks')).toHaveText('77');expect(stats.calls).toBe(1);
@@ -615,7 +616,7 @@ test('partial history stays cached through navigation and reloads until the next
  await page.clock.install({time:new Date('2026-10-14T06:03:00Z')});let reads=0;
  await page.route('**/content-project/ads/hierarchy?*',route=>{reads++;return route.fulfill({json:{ok:true,refreshing:false,providers:[{provider:'meta_ads',freshness:'partial',hierarchy:null}]}});});
  await page.goto(portal);await expect.poll(()=>reads).toBe(1);await page.clock.fastForward(3*60000);
- await page.locator('#platformCRMNav').click();await page.getByRole('link',{name:'Главная',exact:true}).click();await page.reload();await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');expect(reads).toBe(1);
+ await page.locator('#platformCRMLink:visible,#platformCRMNav:visible').first().click();await page.getByRole('link',{name:'Главная',exact:true}).click();await page.reload();await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');expect(reads).toBe(1);
  await page.clock.fastForward(16*60000);await expect.poll(()=>reads).toBe(2);
 });
 test('returning to a cached campaign search reuses its completed response',async({page})=>{

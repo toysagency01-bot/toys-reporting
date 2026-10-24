@@ -1,3 +1,4 @@
+import {selectNovaSection} from './nova-browser-helpers.mjs';
 import {test,expect} from '@playwright/test';
 const key='a'.repeat(64);
 async function campaigns(page,{client=false,failure=false}={}){
@@ -13,7 +14,7 @@ async function campaigns(page,{client=false,failure=false}={}){
 }
 for(const width of [1440,390])test(`campaign control fresh status, confirmation, single write and focus return at ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:900});const errors=[];page.on('pageerror',e=>errors.push(e.message));const state=await campaigns(page);
- await page.goto('/housevip-cxp7/');if(width<=760)await page.locator('#clientSectionSelect').selectOption('campaigns');else await page.locator('[data-ux-view=campaigns]').click();const control=page.getByRole('button',{name:/Управлять кампанией/});await expect(control).toBeVisible();expect(state.gets).toBe(0);expect(state.posts).toBe(0);
+ await page.goto('/housevip-cxp7/');if(width<=760)await selectNovaSection(page,'campaigns');else await page.locator('[data-ux-view=campaigns]').click();const control=page.getByRole('button',{name:/Управлять кампанией/});await expect(control).toBeVisible();expect(state.gets).toBe(0);expect(state.posts).toBe(0);
  await control.click();const dialog=page.locator('.campaign-control-dialog');await expect(dialog).toBeVisible();await expect(dialog).toContainText('На паузе');await expect(dialog).toContainText('расход бюджета');await expect(dialog).toContainText('HOUSEVIP');expect(state.posts).toBe(0);
  const confirm=dialog.getByRole('button',{name:'Включить кампанию',exact:true});await expect(confirm).toBeEnabled();await page.screenshot({path:`/tmp/toys-campaign-controls-${width}.png`});await confirm.click();await expect(dialog).toContainText('Кампания включена.');expect(state.posts).toBe(1);await expect(dialog.locator('[data-confirm]')).toBeDisabled();
  await dialog.getByRole('button',{name:'Закрыть',exact:true}).click();await expect(dialog).toHaveCount(0);await expect(control).toBeFocused();await expect(page.locator('.campaign-name')).toContainText('Активно');expect(errors).toEqual([]);
@@ -27,7 +28,7 @@ test('clients see campaign statistics without controls',async({page})=>{
 });
 for(const width of [1440,390,320])test(`admin journal filters, expands report/CRM changes and fits ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:900});const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto('/master/#audit');await expect(page.locator('#auditNav')).toBeVisible();await expect(page.locator('#audit .audit-event').first()).toBeVisible();
+ await page.goto('/master/#audit');if(width<=760)await page.locator('.master-more-nav>summary').click();await expect(page.locator('#auditNav')).toBeVisible();if(width<=760)await page.locator('#auditNav').click();await expect(page.locator('#audit .audit-event').first()).toBeVisible();
  await page.locator('#audit .audit-event').first().locator('summary').click();await expect(page.locator('#audit .audit-details').first()).toContainText('До');
  await page.locator('#audit [name=category]').selectOption('reports');await page.locator('#audit').getByRole('button',{name:'Показать',exact:true}).click();await expect(page.locator('#audit .audit-event').first()).toBeVisible();
  await page.locator('#audit [name=actor]').fill('nonexistent@example.test');await page.locator('#audit').getByRole('button',{name:'Показать',exact:true}).click();await expect(page.locator('.audit-status')).toContainText('событий нет');await page.locator('#audit').getByRole('button',{name:'Сбросить',exact:true}).click();await expect(page.locator('.audit-event').first()).toBeVisible();
