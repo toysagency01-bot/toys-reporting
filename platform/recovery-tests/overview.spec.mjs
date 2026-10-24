@@ -38,3 +38,32 @@ test('mobile master menu keeps complete labels and secondary destinations in Mor
  await page.locator('[data-view=home]').click();await page.locator('#theme').click();await trigger.click();await page.screenshot({path:'/tmp/toys-master-mobile-menu-light.png'});
  await page.setViewportSize({width:1440,height:900});await expect(page.locator('#reviewsNav')).toBeVisible();await expect(page.locator('#accessNav')).toBeVisible();await expect(trigger).toBeHidden();await expect(page.locator('#masterCRMBasis')).toHaveCount(0);expect(await page.locator('.master-sidebar nav>button[data-view]').evaluateAll(nodes=>nodes.map(n=>n.dataset.view))).toEqual(['home','reviews','crm','documents','access','audit']);await page.locator('.master-sidebar nav').screenshot({path:'/tmp/toys-master-desktop-menu.png'});
 });
+
+test('long mobile project list keeps every number labelled through scrolling, themes and period changes',async({browser,baseURL})=>{
+ const context=await browser.newContext({baseURL,viewport:{width:390,height:700},isMobile:true,hasTouch:true});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const names=['AM Klinika','BSCLINIC',...Array.from({length:10},(_,i)=>`Отдел ${i+1} — проект с длинным названием`)];
+ await page.route('**/api/v2/master',async route=>{const response=await route.fetch(),data=await response.json(),base=data.projects[0];data.projects=names.map((name,i)=>({...base,id:'qa-list-'+i,slug:i===0?'amklinika-k8m2':i===1?'bs-clinic-a5b4':'qa-list-'+i,name,canCRM:i!==1,integrations:[{provider:'meta_ads',status:'active'},{provider:'google_ads',status:'active'}]}));await route.fulfill({response,json:data});});
+ await page.route('**/api/v2/master/projects/*/summary?*',route=>{const url=new URL(route.request().url()),bs=url.pathname.includes('bs-clinic'),ads=[{provider:'meta_ads',currency:'CZK',spend:18839.61,conversions:166},{provider:'google_ads',currency:'USD',spend:45.2,conversions:2}].filter(a=>!url.searchParams.get('provider')||a.provider===url.searchParams.get('provider'));return route.fulfill({json:{ok:true,ads,crm:bs?{available:false,restricted:true}:{available:true,qualified:0,sales:0},imports:[]}});});
+ await page.goto('/master/');const rows=page.locator('#projectsTable>tr');await expect(rows).toHaveCount(12);await expect(rows.last().locator('.overview-cell-value').nth(1)).toHaveText('168');
+ const labels=['Расход','Конверсии рекламы','Квал-лиды CRM','Продажи CRM'];
+ for(const theme of ['dark','light']){
+  if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#theme').click();
+  for(const width of [360,390,430]){
+   await page.setViewportSize({width,height:700});
+   for(const row of [rows.first(),rows.nth(1),rows.nth(6),rows.last()]){
+    await row.scrollIntoViewIfNeeded();await expect(row.locator('.overview-cell-label')).toHaveText(labels);
+    for(const label of await row.locator('.overview-cell-label').all())await expect(label).toBeVisible();
+    const bounds=await row.evaluate(e=>{const r=e.getBoundingClientRect();return {height:r.height,left:r.left,right:r.right,values:[...e.querySelectorAll('.overview-row-metric')].every(cell=>{const c=cell.getBoundingClientRect(),label=cell.querySelector('.overview-cell-label').getBoundingClientRect(),value=cell.querySelector('.overview-cell-value').getBoundingClientRect();return label.width>0&&label.height>0&&value.top>=label.bottom&&value.bottom<=c.bottom+1&&cell.scrollWidth<=cell.clientWidth+1;})};});
+    expect(bounds.height).toBeLessThan(420);expect(bounds.left).toBeGreaterThanOrEqual(0);expect(bounds.right).toBeLessThanOrEqual(width);expect(bounds.values).toBe(true);
+   }
+   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+  }
+  await page.setViewportSize({width:390,height:700});await rows.nth(1).scrollIntoViewIfNeeded();await page.screenshot({path:`/tmp/toys-project-list-${theme}-bsclinic.png`,animations:'disabled'});
+  await rows.last().scrollIntoViewIfNeeded();await page.screenshot({path:`/tmp/toys-project-list-${theme}-last.png`,animations:'disabled'});
+ }
+ await expect(rows.nth(1).locator('.overview-cell-value').nth(2)).toHaveText('—');await expect(rows.nth(1).locator('a[href^="#crm"]')).toHaveCount(0);await expect(rows.last().locator('.overview-cell-value').nth(2)).toHaveText('0');
+ await page.locator('#periodSeg [data-days="30"]').click();await expect(rows.last().locator('.overview-cell-label')).toHaveText(labels);await page.locator('#channels [data-provider=meta_ads]').click();await expect(rows.last().locator('.overview-cell-value').first()).not.toContainText('USD');
+ await rows.last().locator('[data-project]').click();await expect(page.locator('#projectFeatures h2')).toHaveText(names.at(-1));await expect(page.locator('#projectResults')).toBeHidden();await page.locator('#projectSelect').selectOption('');await expect(rows).toHaveCount(12);
+ await page.setViewportSize({width:1440,height:900});await expect(page.locator('#projectResults thead')).toBeVisible();await expect(rows.first().locator('.overview-cell-label').first()).toBeHidden();expect(await rows.first().evaluate(e=>getComputedStyle(e).display)).toBe('table-row');await page.screenshot({path:'/tmp/toys-project-list-desktop.png',animations:'disabled'});
+ expect(errors).toEqual([]);await context.close();
+});

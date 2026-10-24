@@ -135,7 +135,7 @@ html[data-theme=light] #home{--overview-link:#00766e}
 #home .overview-projects td,#home .overview-projects th{padding:12px 10px}
 #home .overview-projects th{font-size:10px;line-height:1.5}
 #home .overview-projects tbody tr:last-child td{border-bottom:0}
-#home .overview-table-money>span{display:block;white-space:nowrap;line-height:1.5}
+#home .overview-table-money .overview-cell-value>span{display:block;white-space:nowrap;line-height:1.5}
 #home .overview-table-money .overview-currency{font-size:11px}
 #home .overview-row-actions{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:12px}
 #home .overview-row-actions a,#home .text-button{color:var(--overview-link);text-decoration:none;min-height:28px;display:inline-flex;align-items:center}
@@ -202,4 +202,33 @@ html[data-theme=light] #home{--overview-link:#00766e}
  .master-more-nav:not([open])>.master-more-panel{display:none}
  .master-more-nav[open]>.master-more-panel{display:grid;gap:4px}
  .master-sidebar nav .master-more-panel button{flex-direction:row;justify-content:flex-start;gap:12px;min-height:48px;padding:12px;font-size:14px;line-height:1.4;white-space:nowrap;word-break:normal;overflow-wrap:normal;text-align:left}
+}
+
+/* Project rows have their own labelled phone layout, independent of the native
+   dashboard's generic table-to-list fallback. */
+#home .overview-cell-label{display:none}
+@media(max-width:760px){
+ #home .overview-projects{padding:0;border:0;background:transparent;box-shadow:none}
+ #home .overview-projects h2{margin:0 2px 10px}
+ #home .overview-projects .table-wrap{overflow:visible}
+ #home .overview-projects table{display:block;width:100%;min-width:0;table-layout:auto}
+ #home .overview-projects thead{display:none}
+ #home .overview-projects tbody{display:grid;gap:12px}
+ #home .overview-projects tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+ #home .overview-projects tbody td{display:block;min-width:0;width:auto;max-width:none;padding:0;border:0;text-align:left;white-space:normal;background:transparent}
+ #home .overview-projects tbody td::before{display:none}
+ #home .overview-project-cell{grid-column:1/-1;padding-bottom:4px!important}
+ #home .overview-project-cell .text-button{font-size:15px;font-weight:600;line-height:1.4;min-height:44px;max-width:100%;padding:0;white-space:normal;overflow-wrap:anywhere;text-align:left}
+ #home .overview-project-cell small{font-size:11px;line-height:1.4;margin:0}
+ #home .overview-projects tbody .overview-row-metric{padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2)}
+ #home .overview-cell-label{display:block;font-size:10px;line-height:1.4;color:var(--muted);margin-bottom:6px;overflow-wrap:normal}
+ #home .overview-cell-value{font-size:18px;line-height:1.3;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+ #home .overview-table-money .overview-cell-value>span{white-space:normal}
+ #home .overview-row-sources,#home .overview-row-links{grid-column:1/-1}
+ #home .overview-row-sources{padding-top:4px!important}
+ #home .overview-row-sources .overview-sources{gap:4px 12px}
+ #home .overview-row-sources .overview-source{flex-wrap:wrap;white-space:normal;font-size:11px;gap:4px}
+ #home .overview-row-sources .overview-source>span{font-size:10px}
+ #home .overview-row-links .overview-row-actions{gap:8px 16px}
+ #home .overview-row-links a{font-size:12px;min-height:44px}
 }
