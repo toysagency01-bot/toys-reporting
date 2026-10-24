@@ -25,7 +25,7 @@ export function mountNovaDesign({slug}){
  const reduced=matchMedia('(prefers-reduced-motion:reduce)');
  const sections=mountNovaSections(nav);
  const sliders=new Map();
- sliders.set(nav,mountNovaSlider(nav,{indicatorClass:'nova-nav-glass',active:'[data-ux-view].active',reduced,duration:()=>matchMedia('(min-width:761px)').matches?Math.round(480/1.3):480,schedule,onChange(active,previous){
+ sliders.set(nav,mountNovaSlider(nav,{indicatorClass:'nova-nav-glass',active:'[data-ux-view].active',reduced,pulse:true,duration:()=>matchMedia('(min-width:761px)').matches?Math.round(480/1.3):480,schedule,onChange(active,previous){
   if(previous&&!reduced.matches&&matchMedia('(min-width:761px)').matches){const view=active.dataset.uxView,panel=view==='project'?document.getElementById('projectView'):document.querySelector('.ux-section.active');panel?.animate([{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:150,easing:'ease-out'});}
  }}));
  function metric(card,primary=false){

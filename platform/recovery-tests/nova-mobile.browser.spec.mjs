@@ -85,9 +85,8 @@ test('NOVA calendar is opaque on phone and desktop and supports touch date selec
  const dialog=page.locator('.platform-calendar');await dialog.locator('[data-next]').tap();await dialog.locator('[data-next]').tap();
  await dialog.locator('[data-date="2026-10-13"]').tap();await dialog.locator('[data-date="2026-10-19"]').tap();await dialog.locator('[data-apply]').tap();
  await expect(page.locator('#dateFrom')).toHaveValue('2026-10-13');await expect(page.locator('#dateTo')).toHaveValue('2026-10-19');
- // Point 2 was explicitly deferred: keep the existing comparison badge treatment.
  await expect(page.locator('.nova-lead-feature .nova-delta').first()).toBeVisible();
- expect(await page.locator('.nova-lead-feature .nova-delta').first().evaluate(e=>getComputedStyle(e).backgroundColor)).toBe('rgb(13, 37, 33)');
+ expect(await page.locator('.nova-lead-feature .nova-delta').first().evaluate(e=>{const s=getComputedStyle(e);return parseFloat(s.fontSize)>=12&&!s.backgroundColor.startsWith('rgba');})).toBe(true);
  await context.close();
 });
 

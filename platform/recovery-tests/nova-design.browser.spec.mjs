@@ -144,8 +144,64 @@ test('NOVA restores the native comparison percentages and cost-direction colors'
  await expect.poll(async()=>JSON.stringify(await source())===JSON.stringify(await shown())).toBe(true);
  for(const theme of ['dark','light']){
   if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toysThemeToggle').click();
-  const colors=await page.locator('.nova-delta').evaluateAll(nodes=>nodes.map(e=>({kind:[...e.classList].find(c=>c.startsWith('delta-')),color:getComputedStyle(e).color})));for(const c of colors){const [r,g,b]=c.color.match(/[\d.]+/g).map(Number);if(c.kind==='delta-good')expect(g).toBeGreaterThan(r);if(c.kind==='delta-bad')expect(r).toBeGreaterThan(g);}
+  await expect.poll(()=>page.evaluate(()=>{const nodes=[...document.querySelectorAll('#novaMetricGroups .nova-delta')];return nodes.length>0&&nodes.every(e=>{const rgb=getComputedStyle(e).color.match(/[\d.]+/g)?.map(Number);return rgb?.length>=3&&(!e.classList.contains('delta-good')||rgb[1]>rgb[0])&&(!e.classList.contains('delta-bad')||rgb[0]>rgb[1]);});})).toBe(true);
   await page.screenshot({path:`dist/nova-trends-${theme}.png`,animations:'disabled'});
  }
  await page.locator('#periodSeg [data-days=max]').click();await expect(page.locator('#novaMetricGroups .nova-delta')).toHaveCount(0);
+});
+
+test('NOVA glass swells once during a section change, settles exactly and stops for reduced motion',async({page})=>{
+ await page.setViewportSize({width:1440,height:1000});await page.goto('/nova-sales-demo/');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);
+ const glass=page.locator('.nova-nav-glass');
+ for(const theme of ['dark','light']){
+  if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toysThemeToggle').click();
+  await expect.poll(()=>glass.evaluate(e=>e.getAnimations({subtree:true}).length)).toBe(0);
+  await page.locator('#uxNav [data-ux-view=project]').click();
+  await expect.poll(()=>glass.evaluate(e=>e.getAnimations({subtree:true}).length)).toBe(3);
+  const peak=await glass.evaluate(e=>{const animations=e.getAnimations({subtree:true});animations.forEach(a=>{a.pause();a.currentTime=a.effect.getTiming().duration*.25;});const r=e.getBoundingClientRect(),nav=e.parentElement.getBoundingClientRect();return {scaleY:new DOMMatrixReadOnly(getComputedStyle(e).transform).m22,rim:+getComputedStyle(e.querySelector('.nova-glass-rim')).opacity,inside:r.top>=nav.top-1&&r.bottom<=nav.bottom+1,iterations:animations.map(a=>a.effect.getTiming().iterations)};});
+  expect(peak.scaleY).toBeGreaterThan(1.1);expect(peak.rim).toBeGreaterThan(.5);expect(peak.inside).toBe(true);expect(peak.iterations).toEqual([1,1,1]);
+  await page.screenshot({path:`dist/nova-glass-pulse-${theme}.png`,clip:await page.locator('body>header').boundingBox()});
+  const paused=await glass.boundingBox();
+  await page.locator('#uxNav [data-ux-view=campaigns]').click();await page.evaluate(()=>new Promise(requestAnimationFrame));
+  const resumed=await glass.evaluate(e=>{e.getAnimations({subtree:true}).forEach(a=>{a.pause();a.currentTime=0;});const r=e.getBoundingClientRect();return {x:r.x,width:r.width,height:r.height};});
+  for(const key of ['x','width','height'])expect(Math.abs(resumed[key]-paused[key]),key+' stays continuous on interruption').toBeLessThan(1);
+  await glass.evaluate(e=>e.getAnimations({subtree:true}).forEach(a=>a.finish()));
+  await expect.poll(()=>glass.evaluate(e=>e.getAnimations({subtree:true}).length)).toBe(0);
+  const settled=await glass.boundingBox(),active=await page.locator('#uxNav a.active').boundingBox();
+  for(const key of ['x','y','width','height'])expect(Math.abs(settled[key]-active[key]),key+' settles on the selected tab').toBeLessThan(1);
+  expect(await glass.locator('.nova-glass-rim').evaluate(e=>getComputedStyle(e).opacity)).toBe('0');
+  await page.locator('#uxNav [data-ux-view=overview]').hover();expect(await glass.evaluate(e=>e.getAnimations({subtree:true}).length)).toBe(0);
+  await page.locator('#uxNav [data-ux-view=overview]').click();
+  await expect.poll(()=>glass.evaluate(e=>e.getAnimations({subtree:true}).length)).toBe(3);
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await expect.poll(()=>glass.evaluate(e=>e.getAnimations({subtree:true}).length)).toBe(0);
+  expect(await glass.locator('.nova-glass-rim').evaluate(e=>getComputedStyle(e).opacity)).toBe('0');
+  await page.emulateMedia({reducedMotion:'no-preference'});
+ }
+ await expect(page.locator('.nova-control-slider .nova-glass-rim')).toHaveCount(0);
+});
+
+test('NOVA comparison chips stay readable on turquoise in both themes and narrow layouts',async({page})=>{
+ await page.clock.setFixedTime(new Date('2026-10-19T08:00:00Z'));await page.goto('/nova-sales-demo/');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);await page.locator('#periodSeg [data-days="7"]').click();
+ await expect.poll(()=>page.locator('.nova-lead-feature .nova-delta').count()).toBeGreaterThan(0);
+ for(const theme of ['dark','light']){
+  if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toysThemeToggle').click();
+  for(const width of [320,360,390,768,1440]){
+   await page.setViewportSize({width,height:1000});
+   const chips=await page.evaluate(()=>[...document.querySelectorAll('.nova-lead-feature .nova-delta')].map(e=>{
+    const style=getComputedStyle(e),box=e.getBoundingClientRect(),tile=e.closest('.nova-metric').getBoundingClientRect();
+    const rgb=c=>c.match(/[\d.]+/g).map(Number),luminance=c=>rgb(c).slice(0,3).map(n=>{n/=255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;}).reduce((sum,n,i)=>sum+n*[.2126,.7152,.0722][i],0);
+    const fg=luminance(style.color),bg=luminance(style.backgroundColor);
+    return {contrast:(Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05),font:parseFloat(style.fontSize),alpha:rgb(style.backgroundColor)[3]??1,clipped:box.right>tile.right+1||e.scrollWidth>e.clientWidth+1};
+   }));
+   for(const chip of chips){expect(chip.contrast,theme+' '+width).toBeGreaterThanOrEqual(4.5);expect(chip.font).toBeGreaterThanOrEqual(12);expect(chip.alpha).toBe(1);expect(chip.clipped).toBe(false);}
+   if([390,1440].includes(width))await page.screenshot({path:`dist/nova-contrast-${theme}-${width}.png`,animations:'disabled'});
+  }
+  // Exercise the native negative comparison as well as a positive one; this is
+  // a local presentation probe, with the actual source parity checked above.
+  const negative=await page.evaluate(()=>{const e=document.querySelector('.nova-lead-feature .nova-delta');
+   const probe=e.cloneNode(true);probe.classList.remove('delta-good','delta-neutral');probe.classList.add('delta-bad');e.after(probe);
+   const s=getComputedStyle(probe),rgb=c=>c.match(/[\d.]+/g).slice(0,3).map(Number),lum=c=>rgb(c).map(n=>{n/=255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;}).reduce((sum,n,i)=>sum+n*[.2126,.7152,.0722][i],0),fg=lum(s.color),bg=lum(s.backgroundColor),color=rgb(s.color);probe.remove();return {contrast:(Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05),red:color[0]>color[1]};
+  });expect(negative.contrast).toBeGreaterThanOrEqual(4.5);expect(negative.red).toBe(true);
+ }
 });

@@ -274,6 +274,10 @@ html body.nova-demo-design .nova-nav-glass::before{inset:1px 8px 53%;border-radi
 html body.nova-demo-design .nova-nav-glass::after{left:18%;right:18%;opacity:.3}
 html.nova-demo-design[data-theme=dark] body.nova-demo-design #uxNav{background:linear-gradient(180deg,#ffffff19,#ffffff11);border:1px solid #ffffff20;box-shadow:inset 0 1px 0 #ffffff16,inset 0 -1px 0 #ffffff08,0 0 0 1px #0008;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 html.nova-demo-design[data-theme=dark] body.nova-demo-design .nova-nav-glass{background:linear-gradient(180deg,#ffffff20,#ffffff17);border:1px solid #ffffff0a;box-shadow:inset 0 1px 0 #ffffff0d,0 1px 2px #0000000c}
+/* One passing caustic and a refracted edge accompany each move, then disappear. */
+html body.nova-demo-design .nova-nav-glass>span{position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;opacity:0;will-change:transform,opacity}
+html body.nova-demo-design .nova-glass-rim{padding:1.5px;background:conic-gradient(from 70deg,#ffffff00 0deg,#e4fbffcc 42deg,#8acfffcc 62deg,#c5a3ff99 80deg,#ffffff00 110deg,#ffffff00 175deg,#b6fff4cc 205deg,#b3cfffcc 225deg,#ffffffee 245deg,#ffffff00 285deg);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude}
+html body.nova-demo-design .nova-glass-caustic{background:radial-gradient(ellipse at 10% 50%,#ffffff70,transparent 28%),radial-gradient(ellipse at 95% 58%,#ffffff90,transparent 25%),linear-gradient(120deg,transparent 20%,#ffffff38 43%,transparent 64%);box-shadow:inset 0 1px 1px #ffffffaa,inset 0 -1px 1px #ffffff50}
 html body.nova-demo-design .nova-slider-group{position:relative;isolation:isolate}
 html body.nova-demo-design .nova-slider-group>button{position:relative;z-index:1}
 html body.nova-demo-design .nova-control-slider{position:absolute;z-index:0;left:0;top:4px;bottom:4px;pointer-events:none;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);box-shadow:none;will-change:transform,width}
@@ -290,9 +294,9 @@ html.nova-demo-design[data-theme=light] body.nova-demo-design .nova-delta.delta-
 html.nova-demo-design[data-theme=light] body.nova-demo-design .nova-delta.delta-bad{color:#c63851}
 html body.nova-demo-design .nova-metric-grid>.nova-metric:has(.nova-delta){gap:6px}
 html body.nova-demo-design .nova-primary-metric .nova-delta,html body.nova-demo-design .nova-feature-secondary .nova-delta{margin-top:7px}
-html body.nova-demo-design .nova-lead-feature .nova-delta{width:fit-content;padding:3px 7px;border-radius:6px;background:#0d2521;color:#c6d9d3}
-html body.nova-demo-design .nova-lead-feature .nova-delta.delta-good{color:#32dfc4}
-html body.nova-demo-design .nova-lead-feature .nova-delta.delta-bad{color:#ff8294}
+html body.nova-demo-design .nova-lead-feature .nova-delta{width:fit-content;padding:4px 8px;border:1px solid #ffffff90;border-radius:7px;background:#f4fffc;color:#435852;font-size:12px;font-weight:600;line-height:1.35}
+html.nova-demo-design body.nova-demo-design .nova-lead-feature .nova-delta.delta-good{color:#006657}
+html.nova-demo-design body.nova-demo-design .nova-lead-feature .nova-delta.delta-bad{color:#a32340}
 html body.nova-demo-design #platformCampaignBrowser .campaign-chevron:empty{display:none}
 /* Stage accents encode sequence/meaning, without invented proportional bars. */
 html body.nova-demo-design #demoSalesFunnel [data-stage=impressions]{--stage-accent:#8595a6}
@@ -309,3 +313,4 @@ html body.nova-demo-design #demoSalesFunnel .demo-funnel-step>div{padding-left:1
  html body.nova-demo-design #demoSalesFunnel .demo-funnel-step>div{border:0;padding-left:0}
 }
 @media(prefers-reduced-motion:reduce){html body.nova-demo-design .nova-control-slider{will-change:auto}}
+@media(prefers-reduced-motion:reduce){html body.nova-demo-design .nova-nav-glass>span{will-change:auto}}
