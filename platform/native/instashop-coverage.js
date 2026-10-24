@@ -5,7 +5,7 @@ export function syncInstashopCoverage({dashboard,rows,ads,range,root=document}){
  const last=dates=>dates.filter(Boolean).sort().at(-1);
  const salesEnd=last(sales.map(r=>r.date)),adsEnd=last([...rows.map(r=>r.date),...(ads?.providers||[]).flatMap(p=>p.coveredDates||[])]);
  const header=root.getElementById('updated');
- if(header)header.textContent=`Реклама: ${adsEnd||'нет данных'} · Продажи: ${salesEnd||'нет данных'}`;
+ if(header)header.textContent=`Реклама: ${adsEnd||'нет данных'} / Продажи: ${salesEnd||'нет данных'}`;
  const fields=['instashop.direct_inquiries','instashop.qualified_inquiries','instashop.unqualified_inquiries','instashop.sales_count','instashop.revenue_uah'];
  const complete=new Set(sales.filter(r=>fields.every(code=>valueOf(r.metrics?.find(m=>m.metricCode===code))!==null)).map(r=>r.date));
  const dates=[];for(let d=range.from;d&&d<=range.to&&dates.length<366;d=dateShift(d,1))dates.push(d);

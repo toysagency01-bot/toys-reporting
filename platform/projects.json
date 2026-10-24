@@ -130,7 +130,7 @@
     "defaultLastDays": 7
   },
   "nova-sales-demo": {
-    "title": "NOVA Business Services · DEMO",
+    "title": "NOVA Business Services DEMO",
     "periodTimezone": "Asia/Tbilisi",
     "channels": [
       "project",

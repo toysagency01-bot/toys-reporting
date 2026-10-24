@@ -91,3 +91,23 @@ body.client-compact .client-crm-method summary{width:fit-content;max-width:100%;
 body.client-compact .client-crm-method summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 body.client-compact .client-crm-method p{font-size:12px;line-height:1.6;margin:4px 0 8px;overflow-wrap:anywhere}
 @media(max-width:760px){body.client-compact .client-crm-method summary{min-height:44px;align-content:center}}
+
+/* Group backgrounds share a grid with the original metric nodes. */
+body.client-compact #clientMetricGroups{display:grid;grid-template-columns:repeat(var(--metric-grid-columns,6),minmax(0,1fr));gap:12px;isolation:isolate;margin:0 0 16px;min-width:0}
+body.client-compact #clientMetricGroups :is(#mainCards,#cards,#ecomTopCards):not(.hidden),body.client-compact #clientMetricGroups #platformCRMStats:not([hidden]),body.client-compact #clientMetricGroups #ecomTopCards .ecom-channel,body.client-compact #clientMetricGroups #ecomTopCards .cards{display:contents!important}
+body.client-compact #clientMetricGroups .ecom-channel-title{display:none}
+body.client-compact #clientMetricGroups .client-metric-group{grid-column:span 2;grid-row:span 3;min-width:0;min-height:224px;background:var(--panel);border:1px solid var(--line);border-radius:18px;position:relative;z-index:0;pointer-events:none;padding:0;box-shadow:none}
+body.client-compact #clientMetricGroups .client-metric-group h2{font:600 13px/1.4 'Golos Text',sans-serif;color:var(--muted);letter-spacing:0;text-transform:none;margin:0;padding:16px 18px;overflow-wrap:anywhere}
+body.client-compact #clientMetricGroups .card{grid-column:var(--metric-col);grid-row:var(--metric-row);position:relative;z-index:1;min-width:0;min-height:72px;margin:0 16px 12px;padding:8px 0;background:transparent;border:0;border-radius:0;box-shadow:none;animation:none;transform:none;transition:none}
+body.client-compact #clientMetricGroups .card::after{display:none}
+body.client-compact #clientMetricGroups .card .label{font-size:10px;line-height:1.5;letter-spacing:.02em;margin-bottom:8px;overflow-wrap:anywhere}
+body.client-compact #clientMetricGroups .card .value{font-size:23px;line-height:1.25;letter-spacing:-.025em;overflow-wrap:anywhere}
+body.client-compact #clientMetricGroups .card .value small{display:block;font-size:10px;line-height:1.5;font-weight:400;color:var(--muted);margin-top:6px;letter-spacing:0}
+body.client-compact #clientMetricGroups .card .delta{font-size:10px;margin:5px 0 0}
+body.client-compact #clientMetricGroups .client-crm-method{grid-column:1/-1;order:10;margin:0}
+body.client-compact #clientMetricGroups .platform-top-creatives{grid-column:1/-1;order:20;margin:0}
+@media(max-width:640px){body.client-compact #clientMetricGroups{gap:10px;margin-bottom:12px}body.client-compact #clientMetricGroups .client-metric-group{min-height:218px;border-radius:16px}body.client-compact #clientMetricGroups .card{margin:0 16px 10px;min-height:70px}body.client-compact #clientMetricGroups .card .value{font-size:23px}}
+
+body.client-compact #clientMetricGroups :is(.client-commerce-sales-source,.client-commerce-sales-channel){display:contents}
+
+body.client-compact .label svg[data-brand-metric]{width:16px;height:16px;flex:0 0 16px;fill:none;stroke:var(--accent);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}

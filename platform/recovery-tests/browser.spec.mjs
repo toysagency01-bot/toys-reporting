@@ -676,7 +676,7 @@ for(const viewer of [false,true])test(`PROFKIT current periods and independent s
  await page.goto('/'+slug+'/#weekly');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
  if(viewer)await expect(page.locator('#openWeekly')).toBeHidden();
  await expect(page.locator('#to')).toHaveValue('2026-10-16');await expect(page.locator('#from')).toHaveValue('2026-10-10');
- await expect(page.locator('#updated')).toHaveText('Реклама: 2026-10-16 · Продажи: 2026-10-15');
+ await expect(page.locator('#updated')).toHaveText('Реклама: 2026-10-16 / Продажи: 2026-10-15');
  await page.locator('#uxNav [data-ux-view="overview"]').click();
  await page.locator('#periodSeg [data-days="max"]').click();await expect(page.locator('#to')).toHaveValue('2026-10-16');await expect(page.locator('#from')).toHaveValue('2026-10-07');
  const metric=label=>page.locator('#cards .card').filter({has:page.locator('.label',{hasText:new RegExp('^'+label+'$')})}).locator('.value');
@@ -690,7 +690,7 @@ for(const viewer of [false,true])test(`PROFKIT current periods and independent s
  await page.locator('#uxNav [data-ux-view="overview"]').click();await page.screenshot({path:'dist/profkit-coverage-desktop.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'dist/profkit-coverage-mobile.png',fullPage:true});
  const initialReads=reads.filter(r=>r.from==='2026-10-10'&&r.to==='2026-10-16').length;
- await page.reload();await expect(page.locator('#to')).toHaveValue('2026-10-16');await expect(page.locator('#updated')).toHaveText('Реклама: 2026-10-16 · Продажи: 2026-10-15');
+ await page.reload();await expect(page.locator('#to')).toHaveValue('2026-10-16');await expect(page.locator('#updated')).toHaveText('Реклама: 2026-10-16 / Продажи: 2026-10-15');
  expect(reads.filter(r=>r.from==='2026-10-10'&&r.to==='2026-10-16').length).toBe(initialReads);
  expect(errors).toEqual([]);
 });

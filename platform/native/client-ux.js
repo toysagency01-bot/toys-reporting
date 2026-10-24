@@ -1,4 +1,6 @@
 import styles from './client-ux.css';
+import {mountMetricGroups} from './metric-groups.js';
+import {decorateMetric} from './metric-icons.js';
 
 // Layout only: retain the native metric nodes and renderer/caching contracts.
 export function mountClientUX(){
@@ -19,8 +21,11 @@ export function mountClientUX(){
  }
  select.onchange=()=>{nav?.querySelector('[data-ux-view="'+CSS.escape(select.value)+'"]')?.click();schedule();};
  const navObserver=new MutationObserver(schedule);if(nav)navObserver.observe(nav,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
- function sync(){syncNavigation();}
+ const normalizeSummary=()=>{for(const node of document.querySelectorAll('#uxInsightTitle,#uxInsightText,#uxSpend,#uxSpendOriginal,#uxCpaOriginal')){const walker=document.createTreeWalker(node,NodeFilter.SHOW_TEXT);let text;while(text=walker.nextNode())if(text.textContent.includes('·'))text.textContent=text.textContent.replace(/\s*·\s*/g,' / ');}};
+ const summaryObserver=new MutationObserver(normalizeSummary);for(const node of document.querySelectorAll('#uxInsightTitle,#uxInsightText,#uxSpend,#uxSpendOriginal,#uxCpaOriginal'))summaryObserver.observe(node,{childList:true,characterData:true,subtree:true});
+ const metricGroups=mountMetricGroups();
+ function sync(){syncNavigation();metricGroups.sync();normalizeSummary();document.querySelectorAll('#uxFunnel .card').forEach(decorateMetric);}
  function schedule(){if(!queued){queued=true;requestAnimationFrame(()=>{queued=false;sync();});}}
- window.addEventListener('hashchange',schedule);document.addEventListener('click',e=>{if(e.target.closest('[data-ux-view],[data-legacy-view],[data-ux-open]'))schedule();});
+ window.addEventListener('resize',schedule);window.addEventListener('hashchange',schedule);document.addEventListener('click',e=>{if(e.target.closest('[data-ux-view],[data-legacy-view],[data-ux-open]'))schedule();});
  sync();return {sync:schedule};
 }
