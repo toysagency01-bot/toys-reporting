@@ -193,3 +193,23 @@ test('NOVA restores the former comparison badge appearance on the turquoise feat
   }
  }
 });
+
+test('NOVA desktop project subtabs have a single moving selection surface',async({page})=>{
+ await page.setViewportSize({width:1440,height:1000});await page.goto('/nova-sales-demo/');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);
+ await page.locator('#uxNav [data-ux-view=project]').click();await page.locator('#uxProjectChannels [data-legacy-view=meta]').click();
+ await expect(page.locator('#projectSubNav button')).toHaveCount(2);
+ for(const theme of ['dark','light']){
+  if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toysThemeToggle').click();
+  const slider=page.locator('#projectSubNav .nova-control-slider');
+  await expect.poll(()=>slider.evaluate(e=>e.getAnimations().length)).toBe(0);
+  await page.locator('#projectSubNav button:not(.active)').click();
+  await expect.poll(()=>slider.evaluate(e=>e.getAnimations().length)).toBeGreaterThan(0);
+  await slider.evaluate(e=>{const a=e.getAnimations()[0];a.pause();a.currentTime=120;});
+  const style=await page.locator('#projectSubNav button.active').evaluate(e=>{const s=getComputedStyle(e);return {fill:s.backgroundColor,image:s.backgroundImage,shadow:s.boxShadow};});
+  expect(style).toEqual({fill:'rgba(0, 0, 0, 0)',image:'none',shadow:'none'});
+  const destination=await page.locator('#projectSubNav button.active').boundingBox(),moving=await slider.boundingBox();expect(Math.abs(destination.x-moving.x)).toBeGreaterThan(3);
+  await page.screenshot({path:`dist/nova-project-single-selection-${theme}.png`,animations:'allow'});
+  await slider.evaluate(e=>e.getAnimations()[0].finish());
+  await expect.poll(()=>page.evaluate(()=>{const a=document.querySelector('#projectSubNav button.active').getBoundingClientRect(),b=document.querySelector('#projectSubNav .nova-control-slider').getBoundingClientRect();return Math.abs(a.x-b.x)<1&&Math.abs(a.width-b.width)<1;})).toBe(true);
+ }
+});

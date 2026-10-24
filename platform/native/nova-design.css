@@ -281,7 +281,7 @@ html body.nova-demo-design .nova-glass-caustic{background:radial-gradient(ellips
 html body.nova-demo-design .nova-slider-group{position:relative;isolation:isolate}
 html body.nova-demo-design .nova-slider-group>:is(button,a){position:relative;z-index:1}
 html body.nova-demo-design .nova-control-slider{position:absolute;z-index:0;left:0;top:4px;bottom:4px;pointer-events:none;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);box-shadow:none;will-change:transform,width}
-html body.nova-demo-design :is(#controls,.ux-overview-grid) .seg button.active,html body.nova-demo-design .ux-project-channels button.active,html body.nova-demo-design .top-switches button[aria-pressed=true]{background:transparent;border-color:transparent;box-shadow:none;color:var(--text)}
+html body.nova-demo-design :is(#controls,.ux-overview-grid) .seg button.active,html body.nova-demo-design #projectSubNav button.active,html body.nova-demo-design .ux-project-channels button.active,html body.nova-demo-design .top-switches button[aria-pressed=true]{background:transparent;border-color:transparent;box-shadow:none;color:var(--text)}
 html body.nova-demo-design #uxOverview>.ux-insight button{border-color:var(--line);background:var(--nova-control);box-shadow:none}
 html body.nova-demo-design #platformCalendar{background:var(--nova-control);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
 html body.nova-demo-design .platform-calendar::backdrop{backdrop-filter:none;-webkit-backdrop-filter:none}
