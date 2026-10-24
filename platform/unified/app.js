@@ -1,3 +1,4 @@
+import {currencySymbol} from './currency.js';
 import {escapeHtml as h, dateShift, validRange, advertisingModel, aggregate, campaignGroups, nodeTotals, businessMetrics, total} from './model.js';
 
 const $ = id => document.getElementById(id);
@@ -9,7 +10,7 @@ const names = {'housevip-cxp7':'HOUSEVIP','profkit-instashop-r4vk':'PROFKIT INST
 const state = {view:'overview',dashboard:null,ads:null,range:null,rows:[],sequence:0,weekly:null,dirty:false,tabs:null,channel:null,tab:null};
 const nf = new Intl.NumberFormat('ru-RU', {maximumFractionDigits:2});
 const number = n => n == null ? '—' : nf.format(n);
-const money = (n,c) => n == null ? '—' : `${number(n)} ${c || ''}`.trim();
+const money = (n,c) => n == null ? '—' : `${number(n)} ${currencySymbol(c)}`.trim();
 const status = (message, error = false) => { $('status').textContent = message; $('status').classList.toggle('error',error); };
 const empty = text => `<div class="empty">${h(text)}</div>`;
 const errors = {admin_role_required:'Удалять отчёты может только администратор.',report_changed:'Отчёт уже изменён в другой вкладке. Обновите список и проверьте актуальную версию.',report_storage_unavailable:'Хранилище скриншотов ещё не подключено.',report_storage_quota:'Лимит вложений проекта исчерпан. Обратитесь к администратору.',attachment_too_large:'Максимальный размер скриншота — 8 МБ.',invalid_image:'Выберите изображение PNG, JPEG или WebP.',attachment_upload_failed:'Не удалось загрузить скриншот. Повторите загрузку.',invalid_report_attachments:'Один из скриншотов недоступен. Загрузите его повторно.',invalid_report_channel:'Выберите Meta Ads, Google Ads или SMM.',revision_conflict:'Отчёт изменился в другой вкладке. Ваш текст сохранён на экране. Обновите историю перед повторным сохранением.',publication_conflict:'Опубликованная версия изменилась. Обновите историю отчёта.',provider_unauthorized:'Рекламный кабинет отклонил доступ.',provider_rate_limited:'Рекламный кабинет ограничил частоту запросов. Повторите позже.',refresh_rate_limited:'Обновление уже выполнялось недавно. Повторите через несколько секунд.',provider_adapter_unavailable:'Прямое подключение этого рекламного источника ещё не завершено.',active_ads_integration_missing:'Рекламный источник не подключён.',storage_quota_not_configured:'Лимит файлового хранилища ещё не настроен.',object_storage_binding_missing:'Файловое хранилище ещё не подключено.',invalid_date_range:'Выберите период не более 90 дней.',no_published_release:'У проекта пока нет опубликованных данных.',not_found:'Данные пока не созданы.'};

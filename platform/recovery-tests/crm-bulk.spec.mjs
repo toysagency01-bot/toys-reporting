@@ -23,7 +23,7 @@ test('sale transfer requests separate amounts, mobile selection stays usable and
  await page.route('**/crm/leads/'+failedId,r=>r.request().method()==='PATCH'?r.fulfill({status:409,json:{ok:false,error:'version_conflict'}}):r.continue(),{times:1});
  expect(await modal.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);await page.screenshot({path:'/tmp/crm-bulk-mobile.png'});
  await modal.getByRole('button',{name:'Перенести',exact:true}).click();await expect(modal.locator('.bulk-progress')).toContainText('Не удалось подтвердить: 1',{timeout:20000});await expect(page.locator('[data-count]')).toHaveText('Выбрано: 1');
- await modal.getByRole('button',{name:'Закрыть',exact:true}).click();await expect(page.locator('#crmSummary .card').nth(1).locator('.value')).toHaveText('2');await expect(page.locator('#crmSummary .card').nth(2).locator('.value')).toHaveText('400 EUR');
+ await modal.getByRole('button',{name:'Закрыть',exact:true}).click();await expect(page.locator('#crmSummary .card').nth(1).locator('.value')).toHaveText('2');await expect(page.locator('#crmSummary .card').nth(2).locator('.value')).toHaveText('400 €');
  await page.locator('#search').fill('no-such-contact');await expect(page.locator('.crm-bulk-actions')).toBeHidden();
 });
 test('board settings rename and reorder stages, transfer occupied removed columns and retain history',async({page,request})=>{

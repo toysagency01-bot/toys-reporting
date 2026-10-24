@@ -9,6 +9,15 @@ function replaceFunction(source,name,body){const start=source.indexOf('function 
 for(const path of ['core/core.js','housevip-cxp7/core.js','core/instashop.js']){
  let source=await read(path);
  const isShop=path==='core/instashop.js';
+ if(!isShop){
+  source=replaceOnce(source,"const sym = c => CUR[c] || (c ? c+' ' : '');","const sym = c => window.TOYS_PLATFORM.currencySymbol(c);");
+  source=source.replaceAll("label:'Расход, '+c,", "label:'Расход, '+sym(c),").replaceAll("label:'CPA, '+c,", "label:'CPA, '+sym(c),");
+  source=source.replaceAll("label:'Расход, '+moneyPrimaryCurrency(c)", "label:'Расход, '+sym(moneyPrimaryCurrency(c))").replaceAll("label:'CPA, '+moneyPrimaryCurrency(c)", "label:'CPA, '+sym(moneyPrimaryCurrency(c))");
+  source=source.replace('`${dataset.originalCurrency}: ${fmtM', '`${sym(dataset.originalCurrency)}: ${fmtM');
+ }else{
+  source=source.replace("label:'Расход, UAH'", "label:'Расход, ₴'");
+ }
+
  source=source.replace(/<link[^>]+https:\/\/fonts\.(?:googleapis|gstatic)\.com[^>]*>\n/g,'');
  source=replaceOnce(source,isShop?'function gviz(sheet, ok, fail){':'function gvizFrom(spreadsheetId, sheetName, ok, fail, raw){',isShop?'function gviz(sheet, ok, fail){\n window.TOYS_PLATFORM.table(sheet).then(ok,fail);return;':'function gvizFrom(spreadsheetId, sheetName, ok, fail, raw){\n window.TOYS_PLATFORM.table(sheetName,raw).then(ok,fail);return;');
  if(path==='housevip-cxp7/core.js')source=source.replace('async function leadSheetValues(sheetName,columns){',"async function leadSheetValues(sheetName,columns){throw new Error('Доступ к персональным лидам на платформе ещё не подключён.');");

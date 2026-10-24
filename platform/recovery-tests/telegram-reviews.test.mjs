@@ -22,7 +22,7 @@ test('readable complete project coverage, priority order, safe text, currencies 
  const messages=formatTelegramReview({reportDate:date,reports});assert.ok(messages.length>1);assert.ok(messages.every(s=>s.length<4096));
  const text=messages.join('\n');for(let i=0;i<40;i++)assert.ok(text.includes(`https://reports.toys-agency.com/project-${i}/`));
  assert.ok(text.indexOf('Project 0 &lt;b&gt;&amp;')<text.indexOf('Project 1 &lt;b&gt;&amp;'));
- assert.ok(text.includes('Расход: <b>123</b>'));assert.ok(text.includes('CTR: 1,5%'));assert.ok(text.includes('CZK'));assert.ok(!text.includes('undefined'));
+ assert.ok(text.includes('Расход: <b>123</b>'));assert.ok(text.includes('CTR: 1,5%'));assert.ok(text.includes('Kč'));assert.ok(!text.includes('undefined'));
  const missing=formatTelegramReview({reportDate:date,reports:[{...report,incomplete:true,accounts:[{...report.accounts[0],issues:['stale']}]}]}).join('');
  assert.ok(missing.includes('данные неполные'));assert.ok(!missing.includes('Расход: <b>123</b>'));
 });

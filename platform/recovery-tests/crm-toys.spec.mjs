@@ -11,7 +11,7 @@ test('TOYS stages work in the kanban, filters, editor, qualification and sale fl
  const move=async status=>{await page.locator('#leadForm [name=status]').selectOption(status);await page.locator('#leadForm button[type=submit]').click();};
  await move('Квалифицирован');await expect(page.locator('#crmSummary .value').first()).toHaveText('1');await card.click();await move('Кикоф митинг');await expect(page.locator('#crmSummary .value').first()).toHaveText('1');
  await card.click();await move('Успешно реализовано');await expect(page.locator('#leadForm [role=status]')).toContainText('сумму');await page.locator('#leadForm [name=value]').fill('1500');await page.locator('#leadForm [name=currency]').fill('EUR');await page.locator('#leadForm button[type=submit]').click();await expect(page.locator('#editor')).toBeHidden();
- await expect(page.locator('#crmSummary .value').first()).toHaveText('1');await expect(page.locator('#crmSummary .value').nth(1)).toHaveText('1');await expect(page.locator('#crmSummary .value').nth(2)).toContainText('EUR');
+ await expect(page.locator('#crmSummary .value').first()).toHaveText('1');await expect(page.locator('#crmSummary .value').nth(1)).toHaveText('1');await expect(page.locator('#crmSummary .value').nth(2)).toContainText('€');
  // Deferred, junk and lost columns must not qualify merely because they are further right.
  for(const status of ['Отложенные (перспективные)','Отложенные (малоперспективные)','Нет ответа, без номера, мусор','Закрыто, но не реализовано']){
   await card.click();await move(status);await expect(page.locator('#crmSummary .value').first()).toHaveText('0');await expect(page.locator('#crmSummary .value').nth(1)).toHaveText('0');

@@ -1,3 +1,4 @@
+import {currencySymbol} from '../unified/currency.js';
 import registry from '../projects.json' with {type:'json'};
 import {escapeHtml as h,validRange} from '../unified/model.js';
 import {responseCache} from './response-cache.js';
@@ -45,7 +46,7 @@ export function mountCampaignBrowser({slug,context}){
   }catch(error){if(seq===generation&&error.name!=='AbortError')errors.set(parent,error.message==='access_denied'?'Войдите в кабинет, чтобы открыть детализацию.':'Не удалось загрузить детализацию. Попробуйте ещё раз.');}
   finally{if(seq===generation){loading.delete(parent);render();}}
  }
- const metric=(row,[key,label])=>`<div class="campaign-cell"><span>${label}</span><b>${number(row.metrics[key])}${row.metrics[key]==null?'':['ctr','qualificationRate','qualifiedSaleRate','saleRate'].includes(key)?'%':['roas','crmRoas'].includes(key)?'×':['spend','cpa','revenue','cpql','cac'].includes(key)?' '+h(row.currency):''}</b></div>`;
+ const metric=(row,[key,label])=>`<div class="campaign-cell"><span>${label}</span><b>${number(row.metrics[key])}${row.metrics[key]==null?'':['ctr','qualificationRate','qualifiedSaleRate','saleRate'].includes(key)?'%':['roas','crmRoas'].includes(key)?'×':['spend','cpa','revenue','cpql','cac'].includes(key)?' '+h(currencySymbol(row.currency)):''}</b></div>`;
  function rowHTML(row,depth){
   row={...row,status:observedStatuses.get(row.key)||row.status};
   const open=expanded.has(row.key),ad=row.level==='ad',expandable=!ad&&!row.history;
@@ -68,12 +69,12 @@ export function mountCampaignBrowser({slug,context}){
   const unavailable=(root?.sources||[]).filter(s=>!s.available).map(s=>providers[s.provider]);
   const partial=(root?.sources||[]).filter(s=>s.available&&s.coverage==='partial');
   note.textContent=demo?'Результаты CRM по каждой кампании. Лиды за выбранный период, квалификации и продажи — по истории этих лидов.':unavailable.length?`Детализация ${[...new Set(unavailable)].join(', ')} пока недоступна. Сохранённая история показана отдельно.`:partial.length?'За часть периода доступна только история кампаний. Такие строки отмечены отдельно.':(root?.sources||[]).some(s=>s.freshness==='stale')?'Показана последняя сохранённая детализация.':root?.refreshing?'Обновляем детализацию. Последние данные сохранены.':'Откройте кампанию, затем группу — чтобы увидеть объявления.';
-  summary.innerHTML=data?.parent?`<div class="campaign-parent-summary"><strong>${h(data.parent.name)}</strong><span>Расход ${number(data.parent.metrics.spend)} ${h(data.parent.currency)} · Результаты ${number(data.parent.metrics.conversions)}</span></div>`:'';
+  summary.innerHTML=data?.parent?`<div class="campaign-parent-summary"><strong>${h(data.parent.name)}</strong><span>Расход ${number(data.parent.metrics.spend)} ${h(currencySymbol(data.parent.currency))} · Результаты ${number(data.parent.metrics.conversions)}</span></div>`:'';
   list.innerHTML=`${!mobile.matches?`<div class="campaign-grid campaign-table-head"><span>Название · ${data?.total??'—'}</span>${columns.map(c=>`<span>${c[1]}</span>`).join('')}</div>`:''}${levelHTML(parent)}`;
   list.querySelectorAll('img').forEach(img=>img.onerror=()=>img.remove());
   if(focusKey)list.querySelector(`[data-key="${focusKey}"]`)?.focus({preventScroll:true});
  }
- if(demo)host.querySelector('.campaign-method').textContent='Конверсии: квалификации / лиды, продажи / квалификации и продажи / лиды. Стоимость квала и продажи — расход / соответствующее количество; ROAS CRM — выручка / расход. Выручка в EUR. При нулевом знаменателе показываем «—».';
+ if(demo)host.querySelector('.campaign-method').textContent='Конверсии: квалификации / лиды, продажи / квалификации и продажи / лиды. Стоимость квала и продажи — расход / соответствующее количество; ROAS CRM — выручка / расход. Выручка в €. При нулевом знаменателе показываем «—».';
  host.addEventListener('click',e=>{
   const button=e.target.closest('[data-action]');if(!button)return;
   const action=button.dataset.action,key=button.dataset.key,row=nodes.get(key);

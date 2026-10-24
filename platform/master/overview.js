@@ -1,3 +1,4 @@
+import {currencySymbol} from '../unified/currency.js';
 import registry from '../projects.json' with {type:'json'};
 import {escapeHtml as h} from '../unified/model.js';
 import {adsAreStale} from '../imports/refresh-policy.js';
@@ -9,14 +10,14 @@ export function spendGroups(ads,byProvider=false){
  const groups=new Map();for(const a of ads){if(!known(a.spend))continue;const key=(byProvider?a.provider+':':'')+a.currency,g=groups.get(key)||{provider:a.provider,currency:a.currency,spend:0};g.spend+=a.spend;groups.set(key,g);}return [...groups.values()];
 }
 const sum=(rows,key)=>{const values=rows.map(r=>r[key]).filter(known);return values.length?values.reduce((a,b)=>a+b,0):null;};
-const money=ads=>spendGroups(ads).map(g=>`<span>${fmt(g.spend)} <span class="overview-currency">${h(g.currency)}</span></span>`).join('')||'—';
+const money=ads=>spendGroups(ads).map(g=>`<span>${fmt(g.spend)} <span class="overview-currency">${h(currencySymbol(g.currency))}</span></span>`).join('')||'—';
 function metric(label,value,hint='',extra=''){return `<article class="card overview-metric ${extra}"><div class="label">${h(label)}</div><div class="value">${value}</div>${hint?`<div class="overview-metric-hint">${hint}</div>`:''}</article>`;}
 function sources(p){const links=(p.integrations||[]).filter(i=>['meta_ads','google_ads'].includes(i.provider));return links.length?links.map(i=>`<span class="overview-source" data-state="${i.status==='active'?'active':'attention'}"><i aria-hidden="true"></i>${providerName(i.provider)}<span>${h(({active:'подключён',pending:'настройка',error:'ошибка',paused:'приостановлен'})[i.status]||'проверить подключение')}</span></span>`).join(''):'<span class="note">Рекламные источники не подключены</span>';}
 const board=p=>Object.hasOwn(registry,p.slug)?'/'+encodeURIComponent(p.slug)+'/':'https://toysagency01-bot.github.io/toys-reporting/'+encodeURIComponent(p.slug)+'/';
 function projectPanel(p){const url=board(p),slug=encodeURIComponent(p.slug);return `<div class="overview-project-heading"><div><div class="overview-eyebrow">${h(typeName(p.type))}</div><h2>${h(p.name)}</h2></div><div class="overview-primary-actions"><a class="primary" href="${url}">Открыть дашборд <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15 15 5M5 5h10v10"/></svg></a>${p.canCRM===false?'<span class="note">CRM · только администраторы</span>':`<a class="secondary" href="#crm?project=${slug}">Открыть CRM</a>`}</div></div><nav class="overview-project-nav" aria-label="Разделы проекта"><a href="${url}#weekly">Итоги и комментарии</a><a href="#documents?project=${slug}">Документация</a><a href="${url}#meta">План и креативы Meta</a></nav><div class="overview-sources" aria-label="Подключённые источники">${sources(p)}</div>`;}
 export function overviewMarkup({projects,summaries,slug,now=Date.now()}){
  const single=projects.find(p=>p.slug===slug),visible=projects.filter(p=>slug||!registry[p.slug]?.synthetic),loaded=visible.map(p=>summaries.get(p.slug)).filter(Boolean),ads=loaded.flatMap(s=>s.ads||[]),crm=loaded.map(s=>s.crm).filter(c=>c?.available),channels=spendGroups(ads,true);
- const breakdown=single?channels.map(g=>`<span><span>${providerName(g.provider)}</span><b>${fmt(g.spend)} ${h(g.currency)}</b></span>`).join(''):'';
+ const breakdown=single?channels.map(g=>`<span><span>${providerName(g.provider)}</span><b>${fmt(g.spend)} ${h(currencySymbol(g.currency))}</b></span>`).join(''):'';
  const crmHint=single?(single.canCRM===false?'Только для администраторов':crm.length?'По данным CRM':'Нет данных CRM'):crm.length&&crm.length<visible.length?`CRM: ${crm.length} из ${visible.length} проектов`:'По данным CRM';
  const metrics=(!single?metric('Проекты',fmt(projects.length),'Доступны в этом кабинете'):'')+metric('Расход',money(ads),breakdown,'overview-spend')+metric('Конверсии рекламы',fmt(sum(ads,'conversions')),'Целевые действия из рекламы')+metric('Квал-лиды CRM',fmt(sum(crm,'qualified')),crmHint)+metric('Продажи CRM',fmt(sum(crm,'sales')),crmHint);
  const cell=(label,value,extra='')=>`<td class="overview-row-metric ${extra}"><span class="overview-cell-label">${h(label)}</span><div class="overview-cell-value">${value}</div></td>`;

@@ -25,6 +25,7 @@ for(const slug of ['housevip-cxp7','bs-clinic-a5b4','profkit-instashop-r4vk','ka
  }else{
   expect(await cards.locator(':scope > .card:visible .value').evaluateAll(nodes=>nodes.map(n=>n.id))).toEqual(['kSpend','kImpr','kClicks','kCtr','kConv','kCpa']);
  }
+ const displayValues=await page.locator('#uxOverview .value,#uxOverview .top-metrics b').allTextContents();expect(displayValues.join(' ')).not.toMatch(/\b(?:EUR|USD|CZK|UAH|IDR)\b/);const chartLabels=await page.evaluate(()=>window.Chart?.getChart(document.querySelector('#chart'))?.data.datasets.map(d=>d.label)||[]);expect(chartLabels.join(' ')).not.toMatch(/\b(?:EUR|USD|CZK|UAH|IDR)\b/);
  const metricCards=slug.startsWith('karl')?page.locator('#ecomTopCards .card'):cards.locator(':scope > .card:visible');
  expect(await page.locator('.client-metric-group').first().evaluate(e=>e.getBoundingClientRect().height)).toBeLessThan(340);
  if(!slug.includes('instashop'))await expect(page.locator('#uxOverview .ux-period-panel')).toBeVisible();
@@ -52,7 +53,7 @@ for(const slug of ['housevip-cxp7','bs-clinic-a5b4','profkit-instashop-r4vk','ka
  await page.screenshot({path:'/tmp/restored-'+slug+'-mobile-light.png',fullPage:true});
  await page.locator('#clientSectionSelect').selectOption('weekly');await expect(page.locator('#controls,.controls').first()).toBeHidden();await expect(page.locator('#clientSectionSelect')).toHaveValue('weekly');
  await page.locator('#clientSectionSelect').selectOption('campaigns');await expect(page.locator('.campaign-entity')).toHaveCount(1);const count=campaignReads;
- const cells=page.locator('.campaign-row .campaign-cell');await expect(cells).toHaveCount(slug.startsWith('karl')?8:6);for(const cell of await cells.all())await expect(cell).toBeVisible();expect(campaignReads).toBe(count);
+ await expect(page.locator('.campaign-list')).toContainText('€');expect((await page.locator('.campaign-cell b').allTextContents()).join(' ')).not.toMatch(/\b(?:EUR|USD|CZK|UAH|IDR)\b/);const cells=page.locator('.campaign-row .campaign-cell');await expect(cells).toHaveCount(slug.startsWith('karl')?8:6);for(const cell of await cells.all())await expect(cell).toBeVisible();expect(campaignReads).toBe(count);
  await page.setViewportSize({width:1440,height:1000});await page.locator('#uxNav [data-ux-view=overview]').click();await page.screenshot({path:'/tmp/restored-'+slug+'-desktop-light.png',fullPage:true});if(slug.startsWith('karl')){data.dashboard.ecommerce.account.rows[0].date='2025-01-01';await page.evaluate(async()=>{sessionStorage.clear();for(const key of await caches.keys())await caches.delete(key);});await page.reload();await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.locator('[data-metric-group^=commerce-sales]')).toHaveCount(0);}
  expect(errors).toEqual([]);
 });

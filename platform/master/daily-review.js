@@ -1,3 +1,4 @@
+import {currencySymbol,currencyText} from '../unified/currency.js';
 import {escapeHtml as h} from '../unified/model.js';
 import {responseCache} from '../native/response-cache.js';
 import {reviewProjectIncluded} from './review-scope.js';
@@ -13,20 +14,20 @@ function finding(f){
  return `<li class="review-finding review-${h(f.severity)}"><div class="review-finding-head">${badge(f.severity)}<strong>${h(f.title)}</strong></div>
  ${f.provider?`<p class="review-context">${provider(f.provider)} · ${f.path?.length?f.path.map(p=>h(p.name)).join(' → '):'Весь кабинет'}</p>`:''}
  ${f.period?`<p class="review-context">${period(f.period)} · сравнение: ${period(f.comparison)}</p>`:''}
- <p>${h(f.evidence||'')}</p><p class="review-action">${h(f.recommendation)}</p>
+ <p>${h(currencyText(f.evidence))}</p><p class="review-action">${h(f.recommendation)}</p>
  ${f.hypothesis?`<p class="review-context">Гипотеза: ${h(f.hypothesis)}</p>`:''}
  <p class="review-context">Уверенность: ${h(confidence[f.confidence]||'низкая')}${f.checkpoint?' · '+h(f.checkpoint):''}</p>
  ${f.hold?`<p class="review-context">${h(f.hold)}</p>`:''}</li>`;
 }
 function account(a){
  const metrics=a.day;
- return `<div class="review-account"><div><strong>${provider(a.provider)}</strong><small>${period(a.periods.day)} · ${h(a.timeZone)}${a.currency?' · '+h(a.currency):''}</small></div>
- ${!metrics?'<p class="note">Нет подтверждённого среза за этот день.</p>':`<dl class="review-numbers"><div><dt>Расход</dt><dd>${number(metrics.spend)} ${h(a.currency||'')}</dd></div><div><dt>Результаты рекламы</dt><dd>${number(metrics.conversions)}</dd></div><div><dt>Цена результата</dt><dd>${number(metrics.cpa)} ${h(a.currency||'')}</dd></div>${metrics.roas!=null?`<div><dt>ROAS покупок</dt><dd>${number(metrics.roas)}×</dd></div>`:''}</dl>`}
+ return `<div class="review-account"><div><strong>${provider(a.provider)}</strong><small>${period(a.periods.day)} · ${h(a.timeZone)}${a.currency?' · '+h(currencySymbol(a.currency)):''}</small></div>
+ ${!metrics?'<p class="note">Нет подтверждённого среза за этот день.</p>':`<dl class="review-numbers"><div><dt>Расход</dt><dd>${number(metrics.spend)} ${h(currencySymbol(a.currency))}</dd></div><div><dt>Результаты рекламы</dt><dd>${number(metrics.conversions)}</dd></div><div><dt>Цена результата</dt><dd>${number(metrics.cpa)} ${h(currencySymbol(a.currency))}</dd></div>${metrics.roas!=null?`<div><dt>ROAS покупок</dt><dd>${number(metrics.roas)}×</dd></div>`:''}</dl>`}
  ${a.checkedAt?`<small>Срез проверен ${h(new Date(a.checkedAt).toLocaleString('ru-RU',{timeZone:'Asia/Tbilisi',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))} · Тбилиси</small>`:''}</div>`;
 }
 function crmBlock(crm){
  if(!crm?.available)return '<p class="review-context">CRM: '+(crm?.error?'результаты временно недоступны.':'нет подключённых данных о квалификациях и продажах.')+'</p>';
- return `<div class="review-crm"><strong>CRM · ${period(crm.period)}</strong><p>Квалификации: ${number(crm.qualified)} · Продажи: ${number(crm.sales)} · Выручка: ${crm.revenue.length?crm.revenue.map(r=>number(r.value)+' '+h(r.currency)).join(' / '):'—'}</p><small>По дате первого перехода в статус · ${h(crm.timeZone)}. Это события за день, а не текущие количества в воронке. Сопоставлено с рекламой: ${number(crm.matched)}; без подтверждённой привязки: ${number(crm.unmatched)}.</small></div>`;
+ return `<div class="review-crm"><strong>CRM · ${period(crm.period)}</strong><p>Квалификации: ${number(crm.qualified)} · Продажи: ${number(crm.sales)} · Выручка: ${crm.revenue.length?crm.revenue.map(r=>number(r.value)+' '+h(currencySymbol(r.currency))).join(' / '):'—'}</p><small>По дате первого перехода в статус · ${h(crm.timeZone)}. Это события за день, а не текущие количества в воронке. Сопоставлено с рекламой: ${number(crm.matched)}; без подтверждённой привязки: ${number(crm.unmatched)}.</small></div>`;
 }
 function projectCard(report,filterProvider){
  const findings=report.findings.filter(f=>!filterProvider||!f.provider||f.provider===filterProvider),accounts=report.accounts.filter(a=>!filterProvider||a.provider===filterProvider);

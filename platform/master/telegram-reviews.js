@@ -1,3 +1,4 @@
+import {currencySymbol,currencyText} from '../unified/currency.js';
 import {dailyReviewResponse} from './review-service.js';
 import {localDay,PRIORITY} from './review-model.js';
 import {reviewProjectIncluded} from './review-scope.js';
@@ -24,7 +25,7 @@ export function formatTelegramReview(review){
   const finding=report.findings?.[0],scope=finding?.level==='ad'?'объявление':finding?.level==='group'?'группа объявлений':finding?.level==='campaign'?'кампания':'кабинет';
   const lines=[`<b>${html(report.project.name,120)}</b> · <b>${labels[report.priority]||labels.insufficient}</b>`,`<b>${html(report.headline,240)}</b>`,''];
   for(const account of (report.accounts||[]).slice(0,4)){
-   lines.push(`<b>${channel(account.provider)}</b> · ${day(account.periods?.day?.to)} · ${html(account.currency||'валюта не подтверждена',45)}`);
+   lines.push(`<b>${channel(account.provider)}</b> · ${day(account.periods?.day?.to)} · ${html(currencySymbol(account.currency)||'валюта не подтверждена',45)}`);
    if(!account.available||!account.day||account.issues?.length){lines.push('данные неполные — оценка эффективности отложена.','');continue;}
    const d=account.day;
    lines.push(`Расход: <b>${n(d.spend)}</b> · Результаты: <b>${n(d.conversions)}</b>`,
@@ -34,7 +35,7 @@ export function formatTelegramReview(review){
   if(finding){
    lines.push(`<b>На что обратить внимание</b>${finding.provider?' · '+channel(finding.provider)+' · '+scope:''}`);
    if(finding.path?.length)lines.push(html(finding.path.map(p=>p.name).join(' → '),280));
-   if(finding.evidence)lines.push(html(finding.evidence,520));
+   if(finding.evidence)lines.push(html(currencyText(finding.evidence),520));
    if(finding.period)lines.push(`<i>Период: ${day(finding.period.from)} — ${day(finding.period.to)}</i>`);
    lines.push('');
   }
