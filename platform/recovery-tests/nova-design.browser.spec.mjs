@@ -29,21 +29,21 @@ test('NOVA dark and light layouts keep existing metrics readable and CRM reachab
 
 test('NOVA filters, calendar, glass navigation and CRM use the native workflows',async({page})=>{
  await page.setViewportSize({width:1440,height:1000});await page.goto('/nova-sales-demo/');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);
- await page.locator('#novaChannelSelect').selectOption('Google Ads');await expect(page.locator('#platformSeg [data-platform="Google Ads"]')).toHaveClass(/active/);
+ await page.locator('#platformSeg [data-platform="Google Ads"]').click();await expect(page.locator('#platformSeg [data-platform="Google Ads"]')).toHaveClass(/active/);
  await expect(page.locator('.nova-support-group').filter({hasText:'Продажи CRM'}).locator('.nova-metric').first().locator('strong')).toHaveText('23');
  await expect.poll(async()=>JSON.stringify(await values(page))===JSON.stringify(await native(page))).toBe(true);
- await page.locator('#novaPeriodSelect').selectOption('7');await expect(page.locator('#periodSeg [data-days="7"]')).toHaveClass(/active/);
- await page.locator('#novaPeriodSelect').selectOption('max');await page.locator('#novaChannelSelect').selectOption('__all');
+ await page.locator('#periodSeg [data-days="7"]').click();await expect(page.locator('#periodSeg [data-days="7"]')).toHaveClass(/active/);
+ await page.locator('#periodSeg [data-days="max"]').click();await page.locator('#platformSeg [data-platform="__all"]').click();
  await expect(page.locator('.nova-primary-metric strong')).toHaveText('1 416',{useInnerText:true});
  await expect.poll(async()=>JSON.stringify(await values(page))===JSON.stringify(await native(page))).toBe(true);
  await page.locator('#platformCalendar').click();await expect(page.locator('.platform-calendar')).toBeVisible();await page.keyboard.press('Escape');
  for(const view of ['campaigns','funnel','weekly','project','overview']){
   await page.locator(`#uxNav [data-ux-view=${view}]`).click();await expect(page.locator(`#uxNav [data-ux-view=${view}]`)).toHaveAttribute('aria-current','page');
-  await page.waitForTimeout(480);
+  await page.waitForTimeout(780);
   const aligned=await page.evaluate(()=>{const active=document.querySelector('#uxNav a.active').getBoundingClientRect(),glass=document.querySelector('.nova-nav-glass').getBoundingClientRect();return Math.abs(active.left-glass.left)<1&&Math.abs(active.width-glass.width)<1;});expect(aligned).toBe(true);
  }
  await page.locator('#uxNav [data-ux-view=campaigns]').click();expect(await page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations().length)).toBeGreaterThan(0);
- await page.waitForTimeout(480);await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#uxNav [data-ux-view=funnel]').click();expect(await page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations().length)).toBe(0);
+ await page.waitForTimeout(780);await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#uxNav [data-ux-view=funnel]').click();expect(await page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations().length)).toBe(0);
  await page.locator('#toysThemeToggle').click();await expect(page.locator('#uxNav [data-ux-view=funnel]')).toHaveAttribute('aria-current','page');
  await page.locator('#platformCRMLink').click();await expect(page.locator('#platformClientCRM .kanban-column').first()).toBeVisible();await expect(page.locator('#platformHomeNav')).toBeVisible();
  await page.locator('#platformHomeNav').click();await expect(page.locator('#uxNav')).toBeVisible();await expect(page.locator('#uxNav [data-ux-view=funnel]')).toHaveAttribute('aria-current','page');
@@ -56,4 +56,24 @@ test('NOVA section links keep native browser navigation',async({page,context})=>
  const tab=page.locator('#uxNav [data-ux-view=campaigns]');await expect(tab).toHaveAttribute('href','#campaigns');
  const popupPromise=context.waitForEvent('page');await tab.click({button:'middle'});const popup=await popupPromise;
  await popup.waitForLoadState();await expect(popup.locator('#uxCampaigns')).toBeVisible();await expect(page.locator('#uxOverview')).toBeVisible();await popup.close();
+});
+
+test('NOVA glass stays neutral and continues smoothly when tabs change mid-slide',async({page})=>{
+ await page.setViewportSize({width:1440,height:1000});await page.goto('/nova-sales-demo/');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);
+ for(const theme of ['dark','light']){
+  if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toysThemeToggle').click();
+  const palette=await page.evaluate(()=>({bg:getComputedStyle(document.body).backgroundColor,glass:getComputedStyle(document.querySelector('.nova-nav-glass')).backgroundImage}));
+  const rgb=palette.bg.match(/[\d.]+/g).slice(0,3).map(Number);expect(rgb[0]).toBe(rgb[1]);expect(rgb[1]).toBe(rgb[2]);
+  expect(palette.glass).toContain('gradient');
+  if(theme==='light')expect(palette.glass.match(/rgba?\([^)]+\)/g).every(c=>{const numbers=c.match(/[\d.]+/g).slice(0,3).map(Number);return numbers[0]===numbers[1]&&numbers[1]===numbers[2];})).toBe(true);
+  await expect(page.locator('#platformSeg [data-platform="Google Ads"] svg')).toBeVisible();await expect(page.locator('#platformSeg [data-platform="Meta Ads"] svg')).toBeVisible();
+  await page.locator('#uxNav [data-ux-view=overview]').click();await page.waitForTimeout(780);
+  const from=(await page.locator('.nova-nav-glass').boundingBox()).x;
+  await page.locator('#uxNav [data-ux-view=project]').click();await expect.poll(()=>page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations().length)).toBeGreaterThan(0);
+  const middle=await page.locator('.nova-nav-glass').evaluate(e=>{const a=e.getAnimations()[0];a.pause();a.currentTime=180;return e.getBoundingClientRect().left;});
+  const to=(await page.locator('#uxNav [data-ux-view=project]').boundingBox()).x;expect(middle).toBeGreaterThan(from+2);expect(middle).toBeLessThan(to-2);
+  await page.locator('#uxNav [data-ux-view=campaigns]').click();
+  const resumed=await page.locator('.nova-nav-glass').evaluate(e=>{const a=e.getAnimations()[0];a.pause();a.currentTime=0;return e.getBoundingClientRect().left;});expect(Math.abs(resumed-middle)).toBeLessThan(2);
+  await page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations()[0].finish());
+ }
 });

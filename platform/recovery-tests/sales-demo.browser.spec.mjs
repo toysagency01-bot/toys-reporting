@@ -27,10 +27,10 @@ test('demo is excluded from agency totals and private for team and client',async
 });
 
 test('demo channel filters keep the funnel, CRM cards and campaign sales consistent',async({page})=>{
- await page.goto('/nova-sales-demo/');await expect(page.locator('#demoSalesFunnel [data-stage=sales] b')).toHaveText('203');await page.locator('[data-ux-view=funnel]').click();await page.locator('#novaChannelSelect').selectOption('Google Ads');await expect(page.locator('#demoSalesFunnel [data-stage=sales] b')).toHaveText('23');
+ await page.goto('/nova-sales-demo/');await expect(page.locator('#demoSalesFunnel [data-stage=sales] b')).toHaveText('203');await page.locator('[data-ux-view=funnel]').click();await page.locator('#platformSeg [data-platform="Google Ads"]').click();await expect(page.locator('#demoSalesFunnel [data-stage=sales] b')).toHaveText('23');
  await page.locator('[data-ux-view=overview]').click();const sales=page.locator('#platformCRMStats .card').filter({has:page.getByText('Продажи CRM',{exact:true})});await expect(sales.locator('.value')).toHaveText('23');
  await page.locator('[data-ux-view=campaigns]').click();await expect(page.locator('.campaign-entity')).toHaveCount(2);await expect(page.locator('.campaign-name').filter({hasText:'Meta'})).toHaveCount(0);
- await page.locator('#novaChannelSelect').selectOption('__all');await expect(page.locator('.campaign-entity')).toHaveCount(5);await expect(page.locator('#demoSalesFunnel [data-stage=sales] b')).toHaveText('203');
+ await page.locator('#platformSeg [data-platform="__all"]').click();await expect(page.locator('.campaign-entity')).toHaveCount(5);await expect(page.locator('#demoSalesFunnel [data-stage=sales] b')).toHaveText('203');
 });
 
 test('a new CRM qualification updates cached funnel and campaign metrics on returning to the dashboard',async({page})=>{

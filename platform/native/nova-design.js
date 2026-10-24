@@ -14,17 +14,9 @@ export function mountNovaDesign({slug}){
  if(crm){const link=document.createElement('a');link.id='platformCRMLink';link.className='nova-crm-link';link.href=crm.href;link.append(document.createTextNode('CRM'));const arrow=document.createElementNS('http://www.w3.org/2000/svg','svg');arrow.setAttribute('viewBox','0 0 20 20');arrow.setAttribute('aria-hidden','true');const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d','M5 15 15 5M5 5h10v10');arrow.append(path);link.append(arrow);header.insertBefore(link,account);}
  const display=document.createElement('div');display.id='novaMetricGroups';display.setAttribute('aria-label',source.getAttribute('aria-label'));source.after(display);
  const insight=document.querySelector('#uxOverview>.ux-insight'),analysis=document.querySelector('#uxOverview>.ux-overview-grid');
- if(insight&&analysis)analysis.after(insight);
- // These selects dispatch the existing native controls; they do not implement
- // a second date/channel state or request data on their own.
- const pickers=[];
- for(const [id,key,title]of [['platformSeg','platform','Канал'],['periodSeg','days','Период']]){
-  const group=document.getElementById(id);if(!group)continue;
-  const select=document.createElement('select');select.id=id==='platformSeg'?'novaChannelSelect':'novaPeriodSelect';select.className='nova-filter';select.setAttribute('aria-label',title);
-  if(key==='days'){const option=new Option('Выбрать период','');option.hidden=true;select.append(option);}
-  for(const button of group.querySelectorAll('button'))select.append(new Option(button.textContent.trim(),button.dataset[key]));
-  group.before(select);select.onchange=()=>group.querySelector(`[data-${key}="${CSS.escape(select.value)}"]`)?.click();pickers.push({select,group,key});
- }
+ if(insight&&analysis)analysis.before(insight);
+ // Keep the native branded channel buttons, date presets and calendar. They
+ // already own the selected range/provider and the corresponding data updates.
  const glass=document.createElement('span');glass.className='nova-nav-glass';glass.setAttribute('aria-hidden','true');nav.prepend(glass);
  let frame=0,signature='',lastView='',position=null,animation;
  const reduced=matchMedia('(prefers-reduced-motion:reduce)');
@@ -58,18 +50,25 @@ export function mountNovaDesign({slug}){
   const active=nav.querySelector('[data-ux-view].active');if(!active)return;
   const view=active.dataset.uxView;
   if(nav.offsetWidth){
-   const next={left:active.offsetLeft,width:active.offsetWidth};glass.style.transform=`translateX(${next.left}px)`;glass.style.width=next.width+'px';
-   if(position&&lastView!==view&&!reduced.matches){animation?.cancel();animation=glass.animate([{transform:`translateX(${position.left}px)`,width:position.width+'px'},{transform:`translateX(${next.left}px)`,width:next.width+'px'}],{duration:440,easing:'cubic-bezier(.22,.75,.18,1)'});}
+   const next={left:active.offsetLeft,width:active.offsetWidth};
+   // Start from the currently visible glass position, even during a previous
+   // slide, so rapid consecutive clicks do not jump back to its old target.
+   if(position&&lastView!==view){
+    const start={left:new DOMMatrixReadOnly(getComputedStyle(glass).transform).m41,width:glass.getBoundingClientRect().width};
+    animation?.cancel();glass.style.transform=`translateX(${next.left}px)`;glass.style.width=next.width+'px';
+    if(!reduced.matches){animation=glass.animate([{transform:`translateX(${start.left}px)`,width:start.width+'px'},{transform:`translateX(${next.left}px)`,width:next.width+'px'}],{duration:720,easing:'cubic-bezier(.25,.1,.25,1)'});animation.onfinish=schedule;}
+   }else if(!animation||animation.playState!=='running'){
+    glass.style.transform=`translateX(${next.left}px)`;glass.style.width=next.width+'px';
+   }
    position=next;
   }
   if(lastView&&lastView!==view&&!reduced.matches){const panel=view==='project'?document.getElementById('projectView'):document.querySelector('.ux-section.active');panel?.animate([{opacity:0,transform:'translateY(7px)'},{opacity:1,transform:'translateY(0)'}],{duration:230,easing:'ease-out'});}
   lastView=view;
  }
- function sync(){syncMetrics();syncNav();for(const {select,group,key}of pickers){select.hidden=group.classList.contains('hidden');const selected=group.querySelector('button.active')?.dataset[key]||'';if(select.value!==selected)select.value=selected;}}
+ function sync(){syncMetrics();syncNav();}
  function schedule(){if(!frame)frame=requestAnimationFrame(()=>{frame=0;sync();});}
  new MutationObserver(schedule).observe(source,{childList:true,subtree:true,characterData:true});
  new MutationObserver(schedule).observe(nav,{subtree:true,attributes:true,attributeFilter:['class']});
- for(const {group}of pickers)new MutationObserver(schedule).observe(group,{subtree:true,attributes:true,attributeFilter:['class']});
  new ResizeObserver(schedule).observe(header);
  window.addEventListener('resize',schedule);window.addEventListener('toys-theme-change',schedule);
  reduced.addEventListener('change',()=>{if(reduced.matches)animation?.cancel();});
