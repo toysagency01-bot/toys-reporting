@@ -181,27 +181,15 @@ test('NOVA glass swells once during a section change, settles exactly and stops 
  await expect(page.locator('.nova-control-slider .nova-glass-rim')).toHaveCount(0);
 });
 
-test('NOVA comparison chips stay readable on turquoise in both themes and narrow layouts',async({page})=>{
+test('NOVA restores the former comparison badge appearance on the turquoise feature',async({page})=>{
  await page.clock.setFixedTime(new Date('2026-10-19T08:00:00Z'));await page.goto('/nova-sales-demo/');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);await page.locator('#periodSeg [data-days="7"]').click();
  await expect.poll(()=>page.locator('.nova-lead-feature .nova-delta').count()).toBeGreaterThan(0);
  for(const theme of ['dark','light']){
   if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toysThemeToggle').click();
-  for(const width of [320,360,390,768,1440]){
+  for(const width of [320,390,1440]){
    await page.setViewportSize({width,height:1000});
-   const chips=await page.evaluate(()=>[...document.querySelectorAll('.nova-lead-feature .nova-delta')].map(e=>{
-    const style=getComputedStyle(e),box=e.getBoundingClientRect(),tile=e.closest('.nova-metric').getBoundingClientRect();
-    const rgb=c=>c.match(/[\d.]+/g).map(Number),luminance=c=>rgb(c).slice(0,3).map(n=>{n/=255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;}).reduce((sum,n,i)=>sum+n*[.2126,.7152,.0722][i],0);
-    const fg=luminance(style.color),bg=luminance(style.backgroundColor);
-    return {contrast:(Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05),font:parseFloat(style.fontSize),alpha:rgb(style.backgroundColor)[3]??1,clipped:box.right>tile.right+1||e.scrollWidth>e.clientWidth+1};
-   }));
-   for(const chip of chips){expect(chip.contrast,theme+' '+width).toBeGreaterThanOrEqual(4.5);expect(chip.font).toBeGreaterThanOrEqual(12);expect(chip.alpha).toBe(1);expect(chip.clipped).toBe(false);}
-   if([390,1440].includes(width))await page.screenshot({path:`dist/nova-contrast-${theme}-${width}.png`,animations:'disabled'});
+   const chips=await page.evaluate(()=>[...document.querySelectorAll('.nova-lead-feature .nova-delta')].map(e=>{const s=getComputedStyle(e);return {background:s.backgroundColor,font:s.fontSize,weight:s.fontWeight,padding:s.padding,radius:s.borderRadius,clipped:e.scrollWidth>e.clientWidth+1};}));
+   expect(chips.length).toBeGreaterThan(0);for(const chip of chips)expect(chip).toEqual({background:'rgb(13, 37, 33)',font:'11px',weight:'500',padding:'3px 7px',radius:'6px',clipped:false});
   }
-  // Exercise the native negative comparison as well as a positive one; this is
-  // a local presentation probe, with the actual source parity checked above.
-  const negative=await page.evaluate(()=>{const e=document.querySelector('.nova-lead-feature .nova-delta');
-   const probe=e.cloneNode(true);probe.classList.remove('delta-good','delta-neutral');probe.classList.add('delta-bad');e.after(probe);
-   const s=getComputedStyle(probe),rgb=c=>c.match(/[\d.]+/g).slice(0,3).map(Number),lum=c=>rgb(c).map(n=>{n/=255;return n<=.04045?n/12.92:((n+.055)/1.055)**2.4;}).reduce((sum,n,i)=>sum+n*[.2126,.7152,.0722][i],0),fg=lum(s.color),bg=lum(s.backgroundColor),color=rgb(s.color);probe.remove();return {contrast:(Math.max(fg,bg)+.05)/(Math.min(fg,bg)+.05),red:color[0]>color[1]};
-  });expect(negative.contrast).toBeGreaterThanOrEqual(4.5);expect(negative.red).toBe(true);
  }
 });

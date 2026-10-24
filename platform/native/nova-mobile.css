@@ -18,6 +18,11 @@ html body.nova-demo-design .nova-section-menu a{display:flex;align-items:center;
 html body.nova-demo-design .nova-section-menu a[aria-current=page]{background:var(--panel-2)}
 html body.nova-demo-design .nova-section-menu a:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--field-focus)}
 @media(max-width:760px){
+ html body.nova-demo-design .nova-control-slider{background:var(--nova-glass);border-color:var(--nova-glass-line);box-shadow:var(--nova-glass-shadow)}
+ html.nova-demo-design[data-theme=dark] body.nova-demo-design .nova-control-slider{background:linear-gradient(180deg,#ffffff20,#ffffff17);border-color:#ffffff0a;box-shadow:inset 0 1px 0 #ffffff0d,0 1px 2px #0000000c}
+ html body.nova-demo-design #platformClientNav{position:fixed;isolation:isolate}
+ html body.nova-demo-design #platformClientNav a.active,html body.nova-demo-design #platformClientNav a:hover{background:transparent}
+ html body.nova-demo-design #platformClientNav .nova-control-slider{border-radius:10px}
  html body.nova-demo-design :is(button,a):focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--field-focus)}
  html body.nova-demo-design #novaSectionToggle:focus-visible{box-shadow:none}
  html body.nova-demo-design :is(input,textarea,select):focus-visible{outline:none!important;box-shadow:inset 0 0 0 1px var(--field-focus)!important;border-color:var(--field-focus)!important}

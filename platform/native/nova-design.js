@@ -23,11 +23,10 @@ export function mountNovaDesign({slug}){
  // already own the selected range/provider and the corresponding data updates.
  let frame=0,signature='';
  const reduced=matchMedia('(prefers-reduced-motion:reduce)');
+ const mobile=matchMedia('(max-width:760px)');
  const sections=mountNovaSections(nav);
  const sliders=new Map();
- sliders.set(nav,mountNovaSlider(nav,{indicatorClass:'nova-nav-glass',active:'[data-ux-view].active',reduced,pulse:true,duration:()=>matchMedia('(min-width:761px)').matches?Math.round(480/1.3):480,schedule,onChange(active,previous){
-  if(previous&&!reduced.matches&&matchMedia('(min-width:761px)').matches){const view=active.dataset.uxView,panel=view==='project'?document.getElementById('projectView'):document.querySelector('.ux-section.active');panel?.animate([{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:150,easing:'ease-out'});}
- }}));
+ sliders.set(nav,mountNovaSlider(nav,{indicatorClass:'nova-nav-glass',active:'[data-ux-view].active',reduced,pulse:true,duration:()=>matchMedia('(min-width:761px)').matches?Math.round(480/1.3):480,schedule}));
  function metric(card,primary=false){
   const item=document.createElement('div');item.className='nova-metric'+(primary?' nova-primary-metric':'');
   const label=document.createElement('span');label.className='nova-metric-label';label.textContent=card.querySelector('.label')?.textContent.trim()||'';
@@ -56,15 +55,18 @@ export function mountNovaDesign({slug}){
   display.replaceChildren(...(lead?[group(lead,true)]:[]),support);display.hidden=!panels.length;
  }
  function syncSliders(){
-  for(const root of document.querySelectorAll('#controls .seg,.ux-overview-grid .seg,.ux-project-channels,#projectSubNav,.top-switches')){
+  for(const root of document.querySelectorAll('#controls .seg,.ux-overview-grid .seg,.ux-project-channels,#projectSubNav,.top-switches,#platformClientNav')){
    if(sliders.has(root))continue;root.classList.add('nova-slider-group');
-   sliders.set(root,mountNovaSlider(root,{indicatorClass:'nova-control-slider',active:'.active,button[aria-pressed="true"]',reduced,schedule}));
+   const bottom=root.id==='platformClientNav';
+   sliders.set(root,mountNovaSlider(root,{indicatorClass:'nova-control-slider',active:'.active,button[aria-pressed="true"]',reduced,pulse:()=>mobile.matches,enabled:()=>!bottom||mobile.matches,schedule}));
   }
   for(const [root,slider]of sliders){if(!root.isConnected){slider.destroy();sliders.delete(root);}else slider.sync();}
  }
+ let fittedWidths=new WeakMap();
  function fitRevenue(){
   for(const value of display.querySelectorAll('[data-full-value]')){
-   if(!value.clientWidth)continue;
+   const width=value.clientWidth;if(!width||fittedWidths.get(value)===width)continue;
+   fittedWidths.set(value,width);
    const full=value.dataset.fullValue;value.textContent=full;value.removeAttribute('title');value.removeAttribute('aria-label');
    const compact=value.scrollWidth>value.clientWidth+1?compactRevenue(full):null;
    if(compact){value.textContent=compact;value.title=full;value.setAttribute('aria-label',full);}
@@ -77,6 +79,9 @@ export function mountNovaDesign({slug}){
  new ResizeObserver(schedule).observe(display);
  window.addEventListener('resize',schedule);window.addEventListener('toys-theme-change',schedule);
  document.addEventListener('click',e=>{if(e.target.closest('.seg,.ux-project-channels,.top-switches'))schedule();});
- nav.addEventListener('pointermove',e=>{const r=nav.getBoundingClientRect();nav.style.setProperty('--light-x',(e.clientX-r.left)+'px');nav.style.setProperty('--light-y',(e.clientY-r.top)+'px');});
- document.fonts.ready.then(schedule);sync();return {sync:schedule};
+ // Keep moving glass on cached compositor layers: no pointer-driven gradient
+ // repaint while it travels, and at most one stationary glint update per frame.
+ let lightFrame=0,lightPoint;
+ nav.addEventListener('pointermove',e=>{lightPoint={x:e.clientX,y:e.clientY};if(lightFrame)return;lightFrame=requestAnimationFrame(()=>{lightFrame=0;if(nav.querySelector('.nova-nav-glass')?.getAnimations().some(a=>a.playState==='running'))return;const r=nav.getBoundingClientRect();nav.style.setProperty('--light-x',(lightPoint.x-r.left)+'px');nav.style.setProperty('--light-y',(lightPoint.y-r.top)+'px');});});
+ document.fonts.ready.then(()=>{fittedWidths=new WeakMap();schedule();});sync();return {sync:schedule};
 }

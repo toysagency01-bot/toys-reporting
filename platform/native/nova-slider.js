@@ -1,15 +1,17 @@
-// All NOVA selectors use the same interruptible motion. Only the header's
-// indicator is glass; control indicators below it are plain flat surfaces.
-export function mountNovaSlider(root,{indicatorClass,active='button.active',reduced,duration=480,pulse=false,onChange=()=>{},schedule=()=>{}}){
+// Shared compositor motion; glass can be enabled by viewport without changing
+// native selection/navigation handlers.
+export function mountNovaSlider(root,{indicatorClass,active='button.active',reduced,duration=480,pulse=false,enabled=()=>true,onChange=()=>{},schedule=()=>{}}){
  const indicator=document.createElement('span');indicator.className=indicatorClass;indicator.setAttribute('aria-hidden','true');root.prepend(indicator);
- const highlights=pulse?['nova-glass-rim','nova-glass-caustic'].map(className=>{const layer=document.createElement('span');layer.className=className;indicator.append(layer);return layer;}):[];
- let current=null,currentKey='',animation,lightAnimations=[];
+ const highlights=[];
+ let current=null,currentKey='',animation,lightAnimations=[],lastPulse;
  function cancel(){animation?.cancel();lightAnimations.forEach(a=>a.cancel());lightAnimations=[];}
  function sync(){
   if(!root.contains(indicator))root.prepend(indicator);
   const selected=root.querySelector(active);
   const key=selected?JSON.stringify(selected.dataset)+':'+selected.textContent.trim():'';
-  if(!selected||!root.offsetWidth){cancel();indicator.hidden=true;current=selected;currentKey=key;return;}
+  const pulsing=typeof pulse==='function'?pulse():pulse;
+  if(lastPulse!==pulsing){cancel();highlights.splice(0).forEach(layer=>layer.remove());if(pulsing)for(const className of ['nova-glass-rim','nova-glass-caustic']){const layer=document.createElement('span');layer.className=className;indicator.append(layer);highlights.push(layer);}lastPulse=pulsing;}
+  if(!enabled()||!selected||!root.offsetWidth){cancel();indicator.hidden=true;current=selected;currentKey=key;return;}
   indicator.hidden=false;
   indicator.style.top=selected.offsetTop+'px';indicator.style.height=selected.offsetHeight+'px';indicator.style.bottom='auto';
   const next={left:selected.offsetLeft,width:selected.offsetWidth};
@@ -21,7 +23,7 @@ export function mountNovaSlider(root,{indicatorClass,active='button.active',redu
    if(!reduced.matches){
     const timing={duration:typeof duration==='function'?duration():duration,easing:'cubic-bezier(.25,.1,.25,1)'};
     const shape=(offset,stretch=1,height=1)=>{const width=start.width+(next.width-start.width)*offset;return {offset,transform:`translate3d(${start.left+(next.left-start.left)*offset-width*(stretch-1)/2}px,0,0) scale(${width/next.width*stretch},${height})`};};
-    const frames=pulse?[shape(0,1,start.height),shape(.38,1.035,1.18),shape(.74,1.012,1.055),shape(1)]:[shape(0),shape(1)];
+    const frames=pulsing?[shape(0,1,start.height),shape(.38,1.035,1.18),shape(.74,1.012,1.055),shape(1)]:[shape(0),shape(1)];
     animation=indicator.animate(frames,timing);animation.onfinish=schedule;
     lightAnimations=highlights.map((layer,i)=>layer.animate([
      {offset:0,...lightStart[i]},

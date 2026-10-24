@@ -86,7 +86,7 @@ test('NOVA calendar is opaque on phone and desktop and supports touch date selec
  await dialog.locator('[data-date="2026-10-13"]').tap();await dialog.locator('[data-date="2026-10-19"]').tap();await dialog.locator('[data-apply]').tap();
  await expect(page.locator('#dateFrom')).toHaveValue('2026-10-13');await expect(page.locator('#dateTo')).toHaveValue('2026-10-19');
  await expect(page.locator('.nova-lead-feature .nova-delta').first()).toBeVisible();
- expect(await page.locator('.nova-lead-feature .nova-delta').first().evaluate(e=>{const s=getComputedStyle(e);return parseFloat(s.fontSize)>=12&&!s.backgroundColor.startsWith('rgba');})).toBe(true);
+ expect(await page.locator('.nova-lead-feature .nova-delta').first().evaluate(e=>{const s=getComputedStyle(e);return s.backgroundColor==='rgb(13, 37, 33)'&&parseFloat(s.fontSize)===11;})).toBe(true);
  await context.close();
 });
 
@@ -102,5 +102,38 @@ test('NOVA phone menu and calendar stay inside short screens after rotation',asy
   expect(await calendar.evaluate(e=>getComputedStyle(e).backgroundColor)).toBe('rgb(255, 255, 255)');await page.keyboard.press('Escape');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  }
+ await context.close();
+});
+
+test('NOVA mobile glass pulses in channels, dates, project tabs and Home/CRM without disrupting navigation',async({browser,baseURL})=>{
+ const context=await browser.newContext({baseURL,viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:2});
+ const page=await context.newPage();await page.goto('/nova-sales-demo/');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);
+ async function switchAndCheck(root,target){
+  const slider=page.locator(root+' .nova-control-slider');await expect(slider).toBeVisible();
+  await page.locator(root+' '+target).first().tap();
+  await expect.poll(()=>slider.evaluate(e=>e.getAnimations({subtree:true}).length)).toBe(3);
+  const peak=await slider.evaluate(e=>{e.getAnimations({subtree:true}).forEach(a=>{a.pause();a.currentTime=a.effect.getTiming().duration*.25;});return {scale:new DOMMatrixReadOnly(getComputedStyle(e).transform).m22,glint:+getComputedStyle(e.querySelector('.nova-glass-caustic')).opacity,fill:getComputedStyle(e).backgroundImage};});
+  expect(peak.scale).toBeGreaterThan(1.1);expect(peak.glint).toBeGreaterThan(.4);expect(peak.fill).toContain('gradient');
+  await slider.evaluate(e=>e.getAnimations({subtree:true}).forEach(a=>a.finish()));
+  await expect.poll(()=>page.evaluate(selector=>{const root=document.querySelector(selector),a=root.querySelector('.active,button[aria-pressed=true]').getBoundingClientRect(),r=root.querySelector('.nova-control-slider').getBoundingClientRect();return Math.abs(a.x-r.x)<1&&Math.abs(a.width-r.width)<1&&Math.abs(a.height-r.height)<1;},root)).toBe(true);
+ }
+ for(const theme of ['dark','light']){
+  if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toysThemeToggle').tap();
+  await page.locator('#controls #platformSeg [data-platform="__all"]').tap();await page.locator('#controls #periodSeg [data-days="7"]').tap();
+  await switchAndCheck('#controls #platformSeg','[data-platform="Google Ads"]');await switchAndCheck('#controls #periodSeg','[data-days="30"]');
+  await section(page,'project');await settledProject(page);
+  const channels=await page.locator('#uxProjectChannels button').count();
+  if(channels>1){await switchAndCheck('#uxProjectChannels','button:not(.active)');await settledProject(page);}
+  if(await page.locator('#projectSubNav button').count()>1)await switchAndCheck('#projectSubNav','button:not(.active)');
+  await page.screenshot({path:`dist/nova-mobile-glass-project-${theme}.png`,animations:'disabled'});
+  await switchAndCheck('#platformClientNav','#platformCRMNav');await expect(page.locator('#platformClientCRM .kanban-column').first()).toBeVisible();
+  await switchAndCheck('#platformClientNav','#platformHomeNav');await expect(page.locator('#projectView')).toBeVisible();
+  await section(page,'overview');await page.screenshot({path:`dist/nova-mobile-glass-controls-${theme}.png`,animations:'disabled'});
+ }
+ await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#platformCRMNav').tap();
+ expect(await page.locator('#platformClientNav .nova-control-slider').evaluate(e=>e.getAnimations({subtree:true}).length)).toBe(0);
+ await page.locator('#platformHomeNav').tap();await page.setViewportSize({width:1440,height:1000});
+ await expect(page.locator('#platformClientNav .nova-control-slider')).toBeHidden();
+ await expect.poll(()=>page.locator('#controls #platformSeg .nova-control-slider').evaluate(e=>getComputedStyle(e).backgroundImage)).toBe('none');
  await context.close();
 });
