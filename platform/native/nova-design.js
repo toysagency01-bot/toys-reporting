@@ -1,6 +1,8 @@
 import styles from './nova-design.css';
 import {compactRevenue} from './nova-number.js';
 import {mountNovaSlider} from './nova-slider.js';
+import {mountNovaSections} from './nova-sections.js';
+import mobileStyles from './nova-mobile.css';
 
 // A presentation adapter for this private demo only. Native metric IDs, source
 // parents, calculators, summary observers and navigation handlers stay intact.
@@ -9,7 +11,7 @@ export function mountNovaDesign({slug}){
  const header=document.querySelector('body>header'),nav=document.getElementById('uxNav'),source=document.getElementById('clientMetricGroups');
  if(!header||!nav||!source)return {sync(){}};
  document.documentElement.classList.add('nova-demo-design');document.body.classList.add('nova-demo-design');
- const style=document.createElement('style');style.id='novaDemoDesignStyles';style.textContent=styles;document.head.append(style);
+ const style=document.createElement('style');style.id='novaDemoDesignStyles';style.textContent=styles+'\n'+mobileStyles;document.head.append(style);
  header.insertBefore(nav,header.querySelector('.theme-actions'));
  const account=document.getElementById('platformMobileAccount');
  const crm=document.getElementById('platformCRMNav');
@@ -21,9 +23,10 @@ export function mountNovaDesign({slug}){
  // already own the selected range/provider and the corresponding data updates.
  let frame=0,signature='';
  const reduced=matchMedia('(prefers-reduced-motion:reduce)');
+ const sections=mountNovaSections(nav);
  const sliders=new Map();
- sliders.set(nav,mountNovaSlider(nav,{indicatorClass:'nova-nav-glass',active:'[data-ux-view].active',reduced,schedule,onChange(active,previous){
-  if(previous&&!reduced.matches){const view=active.dataset.uxView,panel=view==='project'?document.getElementById('projectView'):document.querySelector('.ux-section.active');panel?.animate([{opacity:0,transform:'translateY(7px)'},{opacity:1,transform:'translateY(0)'}],{duration:230,easing:'ease-out'});}
+ sliders.set(nav,mountNovaSlider(nav,{indicatorClass:'nova-nav-glass',active:'[data-ux-view].active',reduced,duration:()=>matchMedia('(min-width:761px)').matches?Math.round(480/1.3):480,schedule,onChange(active,previous){
+  if(previous&&!reduced.matches&&matchMedia('(min-width:761px)').matches){const view=active.dataset.uxView,panel=view==='project'?document.getElementById('projectView'):document.querySelector('.ux-section.active');panel?.animate([{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:150,easing:'ease-out'});}
  }}));
  function metric(card,primary=false){
   const item=document.createElement('div');item.className='nova-metric'+(primary?' nova-primary-metric':'');
@@ -53,7 +56,7 @@ export function mountNovaDesign({slug}){
   display.replaceChildren(...(lead?[group(lead,true)]:[]),support);display.hidden=!panels.length;
  }
  function syncSliders(){
-  for(const root of document.querySelectorAll('#controls .seg,.ux-overview-grid .seg,.ux-project-channels,.top-switches')){
+  for(const root of document.querySelectorAll('#controls .seg,.ux-overview-grid .seg,.ux-project-channels,#projectSubNav,.top-switches')){
    if(sliders.has(root))continue;root.classList.add('nova-slider-group');
    sliders.set(root,mountNovaSlider(root,{indicatorClass:'nova-control-slider',active:'.active,button[aria-pressed="true"]',reduced,schedule}));
   }
@@ -67,7 +70,7 @@ export function mountNovaDesign({slug}){
    if(compact){value.textContent=compact;value.title=full;value.setAttribute('aria-label',full);}
   }
  }
- function sync(){syncMetrics();fitRevenue();syncSliders();}
+ function sync(){syncMetrics();fitRevenue();sections.sync();syncSliders();}
  function schedule(){if(!frame)frame=requestAnimationFrame(()=>{frame=0;sync();});}
  new MutationObserver(schedule).observe(source,{childList:true,subtree:true,characterData:true});
  new ResizeObserver(schedule).observe(header);

@@ -1,3 +1,4 @@
+import {selectNovaSection} from './nova-browser-helpers.mjs';
 import {test,expect} from '@playwright/test';
 for(const width of [1440,390])test(`admin sales demo dashboard, reports and CRM work at ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:900});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/nova-sales-demo/');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.locator('#salesDemoNotice')).toBeVisible();await expect(page.locator('#platformCRMStats')).toContainText('822');await expect(page.locator('#platformCRMStats')).toContainText('203');await expect(page.locator('#platformCRMStats')).toContainText('313');
@@ -6,17 +7,17 @@ for(const width of [1440,390])test(`admin sales demo dashboard, reports and CRM 
  if(width<=760){
   for(const phone of [360,390,430]){
    await page.setViewportSize({width:phone,height:744});
-   const layout=await page.evaluate(()=>{const rect=s=>document.querySelector(s).getBoundingClientRect();return {header:rect('body>header').height,first:rect('.nova-primary-metric').top,groups:rect('#novaMetricGroups').bottom,insight:rect('#uxOverview>.ux-insight').top,select:rect('#clientSectionSelect').height,theme:rect('#toysThemeToggle').height,account:rect('#platformMobileAccount').height};});
+   const layout=await page.evaluate(()=>{const rect=s=>document.querySelector(s).getBoundingClientRect();return {header:rect('body>header').height,first:rect('.nova-primary-metric').top,groups:rect('#novaMetricGroups').bottom,insight:rect('#uxOverview>.ux-insight').top,select:rect('#novaSectionToggle').height,theme:rect('#toysThemeToggle').height,account:rect('#platformMobileAccount').height};});
    expect(layout.header).toBeLessThan(115);expect(layout.first).toBeLessThan(500);expect(layout.insight).toBeGreaterThanOrEqual(layout.groups);for(const key of ['select','theme','account'])expect(layout[key]).toBeGreaterThanOrEqual(44);
    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
   }
   await page.setViewportSize({width,height:900});await page.locator('#toysThemeToggle').click();await page.screenshot({path:'/tmp/toys-mobile-dashboard-light.png',animations:'disabled'});await page.locator('#toysThemeToggle').click();
  }
  await page.screenshot({path:`/tmp/toys-sales-demo-dashboard-${width}.png`,fullPage:true,animations:'disabled'});
- if(width<=760)await page.locator('#clientSectionSelect').selectOption('funnel');else await page.locator('[data-ux-view=funnel]' ).click();await expect(page.locator('#demoSalesFunnel [data-stage=sales]')).toContainText('203');await expect(page.locator('#demoSalesFunnel')).not.toContainText('EUR');await expect(page.locator('#demoSalesFunnel')).toContainText('€');await expect(page.locator('#demoSalesFunnel')).toContainText('58,05%');await expect(page.locator('#demoSalesFunnel')).toContainText('24,7%');await page.screenshot({path:`/tmp/toys-sales-funnel-${width}.png`,fullPage:true});
- if(width<=760)await page.locator('#clientSectionSelect').selectOption('campaigns');else await page.locator('[data-ux-view=campaigns]' ).click();await expect(page.locator('.campaign-entity')).toHaveCount(5);await expect(page.locator('.campaign-entity').first()).toContainText('Продажи');await expect(page.locator('.campaign-entity').first()).toContainText('Выручка CRM');await page.screenshot({path:`/tmp/toys-sales-campaigns-${width}.png`,fullPage:true});
- if(width<=760)await page.locator('#clientSectionSelect').selectOption('weekly');else await page.locator('[data-ux-view=weekly]' ).click();await expect(page.locator('#weeklyContent')).toBeVisible();await expect(page.locator('#weeklyContent')).toContainText('ДЕМО');
- if(width<=760)await page.locator('#clientSectionSelect').selectOption('project');else await page.locator('[data-ux-view=project]' ).click();await expect(page.locator('#projectView')).toContainText('О проекте');await expect(page.locator('#projectView')).not.toContainText('Сценарий демонстрации');
+ if(width<=760)await selectNovaSection(page,'funnel');else await page.locator('[data-ux-view=funnel]' ).click();await expect(page.locator('#demoSalesFunnel [data-stage=sales]')).toContainText('203');await expect(page.locator('#demoSalesFunnel')).not.toContainText('EUR');await expect(page.locator('#demoSalesFunnel')).toContainText('€');await expect(page.locator('#demoSalesFunnel')).toContainText('58,05%');await expect(page.locator('#demoSalesFunnel')).toContainText('24,7%');await page.screenshot({path:`/tmp/toys-sales-funnel-${width}.png`,fullPage:true});
+ if(width<=760)await selectNovaSection(page,'campaigns');else await page.locator('[data-ux-view=campaigns]' ).click();await expect(page.locator('.campaign-entity')).toHaveCount(5);await expect(page.locator('.campaign-entity').first()).toContainText('Продажи');await expect(page.locator('.campaign-entity').first()).toContainText('Выручка CRM');await page.screenshot({path:`/tmp/toys-sales-campaigns-${width}.png`,fullPage:true});
+ if(width<=760)await selectNovaSection(page,'weekly');else await page.locator('[data-ux-view=weekly]' ).click();await expect(page.locator('#weeklyContent')).toBeVisible();await expect(page.locator('#weeklyContent')).toContainText('ДЕМО');
+ if(width<=760)await selectNovaSection(page,'project');else await page.locator('[data-ux-view=project]' ).click();await expect(page.locator('#projectView')).toContainText('О проекте');await expect(page.locator('#projectView')).not.toContainText('Сценарий демонстрации');
  await page.locator(width>760?'#platformCRMLink':'#platformCRMNav').click();await expect(page.locator('#platformClientCRM #leadCount')).toContainText('1');await expect(page.locator('#platformClientCRM .kanban-column').first()).toBeVisible();
  const crm=page.locator('#platformClientCRM');await crm.locator('#search').fill('Демо-клиент 0001');await expect(crm.locator('.lead-card')).toHaveCount(1);await crm.locator('.lead-card').first().click();await expect(crm.locator('#editor')).toBeVisible();await expect(crm.locator('#editor')).toContainText('Демо-клиент 0001');await page.keyboard.press('Escape');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2)).toBe(true);expect(errors).toEqual([]);
@@ -42,10 +43,10 @@ test('touch phone first screen keeps results visible and the native section sele
  const context=await browser.newContext({baseURL,viewport:{width:390,height:700},isMobile:true,hasTouch:true,deviceScaleFactor:2});
  const page=await context.newPage();await page.goto('/nova-sales-demo/');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
  await expect(page.locator('#novaMetricGroups .nova-primary-metric')).toBeInViewport({ratio:1});await expect(page.locator('#platformCRMMethod')).toHaveCount(0);
- expect(await page.locator('#clientSectionSelect').evaluate(e=>getComputedStyle(e).fontSize)).toBe('16px');
+ expect(await page.locator('#novaSectionToggle').evaluate(e=>getComputedStyle(e).fontSize)).toBe('16px');
  await page.screenshot({path:'/tmp/toys-mobile-touch-dark.png',animations:'disabled'});
- await page.locator('#clientSectionSelect').selectOption('weekly');await expect(page.locator('#weeklyContent')).toBeVisible();await expect(page.locator('#controls')).toBeHidden();
- await page.locator('#clientSectionSelect').selectOption('overview');await expect(page.locator('#novaMetricGroups')).toBeVisible();await page.locator('#toysThemeToggle').click();
+ await selectNovaSection(page,'weekly');await expect(page.locator('#weeklyContent')).toBeVisible();await expect(page.locator('#controls')).toBeHidden();
+ await selectNovaSection(page,'overview');await expect(page.locator('#novaMetricGroups')).toBeVisible();await page.locator('#toysThemeToggle').click();
  await page.screenshot({path:'/tmp/toys-mobile-touch-light.png',animations:'disabled'});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);await context.close();
 });

@@ -1,0 +1,49 @@
+/* NOVA only. Keep native browser widget painting out of the phone shell. */
+html body.nova-demo-design{-webkit-tap-highlight-color:transparent}
+html body.nova-demo-design :is(button,input,textarea,select){font-family:'Golos Text',system-ui,sans-serif;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+html body.nova-demo-design button{appearance:none;-webkit-appearance:none}
+html body.nova-demo-design .nova-nav-glass,html body.nova-demo-design .nova-control-slider{transform-origin:left center;will-change:transform;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+html.nova-demo-design[data-theme=light] body.nova-demo-design .platform-calendar{background:#fff}
+html.nova-demo-design[data-theme=dark] body.nova-demo-design .platform-calendar{background:#161616}
+html body.nova-demo-design .platform-calendar{max-height:calc(100dvh - 28px);overflow:auto}
+html body.nova-demo-design .platform-calendar :is(.calendar-month button,.calendar-heading>button){min-width:44px;min-height:44px}
+html body.nova-demo-design #novaSectionToggle{display:flex;align-items:center;flex:1;min-width:0;min-height:44px;padding:9px 10px;border:0;border-left:1px solid var(--line);border-radius:0;background:none;box-shadow:none;color:var(--text);font:400 16px/1.4 'Golos Text',system-ui,sans-serif;text-align:left}
+html body.nova-demo-design .nova-section-picker:focus-within{border-color:var(--field-focus);outline:none;box-shadow:none}
+html body.nova-demo-design #novaSectionToggle:focus-visible{outline:none;box-shadow:none}
+html body.nova-demo-design .nova-section-menu{position:fixed;margin:0;padding:7px;border:1px solid var(--line);border-radius:15px;background:#171717;color:var(--text);box-shadow:0 15px 45px #0003;overflow:auto;font:400 16px/1.4 'Golos Text',system-ui,sans-serif}
+html.nova-demo-design[data-theme=light] body.nova-demo-design .nova-section-menu{background:#fff}
+html body.nova-demo-design .nova-section-menu::backdrop{background:#0002}
+html body.nova-demo-design .nova-section-menu nav{display:grid;gap:4px}
+html body.nova-demo-design .nova-section-menu a{display:flex;align-items:center;min-height:46px;padding:11px 13px;border:0;border-radius:9px;color:var(--text);text-decoration:none;overflow-wrap:anywhere;font:400 16px/1.4 'Golos Text',system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+html body.nova-demo-design .nova-section-menu a[aria-current=page]{background:var(--panel-2)}
+html body.nova-demo-design .nova-section-menu a:focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--field-focus)}
+@media(max-width:760px){
+ html body.nova-demo-design :is(button,a):focus-visible{outline:none;box-shadow:inset 0 0 0 2px var(--field-focus)}
+ html body.nova-demo-design #novaSectionToggle:focus-visible{box-shadow:none}
+ html body.nova-demo-design :is(input,textarea,select):focus-visible{outline:none!important;box-shadow:inset 0 0 0 1px var(--field-focus)!important;border-color:var(--field-focus)!important}
+ html body.nova-demo-design .client-section-picker[hidden]{display:none!important}
+ html body.nova-demo-design #controls .seg{padding:2px}
+ html body.nova-demo-design #controls .seg button{min-height:44px}
+ html body.nova-demo-design .ux-page-heading{margin:12px 0 14px}
+ html body.nova-demo-design .toys-tools :is(input,textarea,select){font-size:16px;min-height:44px}
+ html body.nova-demo-design .toys-tools textarea{min-height:90px}
+ html.nova-demo-design[data-theme=light] body.nova-demo-design #platformClientNav{background:#fff}
+ html body.nova-demo-design #projectSubNav{display:flex;flex-wrap:nowrap;align-items:stretch;gap:4px;padding:4px;max-width:100%;width:100%;overflow-x:auto;overscroll-behavior-x:contain;border:1px solid var(--line);border-radius:12px;background:var(--nova-control);scrollbar-width:none}
+ html body.nova-demo-design #projectSubNav::-webkit-scrollbar{display:none}
+ html body.nova-demo-design #projectSubNav button{flex:0 0 auto;min-width:max-content;min-height:44px;padding:10px 13px;border:0;border-radius:8px;font:400 13px/1.4 'Golos Text',system-ui,sans-serif;white-space:nowrap;overflow:visible}
+ html body.nova-demo-design #projectSubNav button.active{background:transparent;color:var(--text)}
+ html body.nova-demo-design #projectView .ux-page-heading>div,html body.nova-demo-design #projectView :is(.task-main,.task-name,.task-meta,.wait,.wmeta,.wtask,.tname){min-width:0;max-width:100%;overflow-wrap:anywhere;white-space:normal}
+ html body.nova-demo-design #projectView .task-row{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+ html body.nova-demo-design #projectView .task-row>.badge{justify-self:start;max-width:100%;white-space:normal}
+ html body.nova-demo-design #projectView .ptopic{grid-template-columns:minmax(0,1fr) auto}
+ html body.nova-demo-design #projectView .table-wrap{width:100%;max-width:100%;overflow:visible}
+ html body.nova-demo-design #projectView .table-wrap table{display:block;width:100%;min-width:0;table-layout:auto}
+ html body.nova-demo-design #projectView .table-wrap :is(colgroup,thead){display:none}
+ html body.nova-demo-design #projectView .table-wrap :is(tbody,tr){display:block;width:100%;min-width:0}
+ html body.nova-demo-design #projectView .table-wrap td{display:block;width:100%;max-width:none;min-width:0;white-space:normal;overflow-wrap:anywhere;text-align:left}
+ html body.nova-demo-design #projectView .table-wrap tr{padding:13px 0;border-bottom:1px solid var(--line)}
+ html body.nova-demo-design #projectView .table-wrap td+td{margin-top:10px}
+ html body.nova-demo-design #projectView .table-wrap td::before{font:400 10px/1.4 'Golos Text',system-ui,sans-serif;letter-spacing:.04em;color:var(--muted)}
+ html body.nova-demo-design #projectView .table-wrap td p{max-width:100%;overflow-wrap:anywhere}
+}
+@media(prefers-reduced-motion:reduce){html body.nova-demo-design .nova-nav-glass,html body.nova-demo-design .nova-control-slider{will-change:auto}}

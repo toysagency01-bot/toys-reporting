@@ -1,3 +1,4 @@
+import {selectNovaSection} from './nova-browser-helpers.mjs';
 import {test,expect} from '@playwright/test';
 
 const values=page=>page.locator('#novaMetricGroups .nova-metric').evaluateAll(nodes=>nodes.map(n=>[n.querySelector('.nova-metric-label').textContent.trim(),n.querySelector('.nova-metric-value').dataset.fullValue||n.querySelector('.nova-metric-value').textContent.trim()]).sort());
@@ -46,7 +47,7 @@ test('NOVA filters, calendar, glass navigation and CRM use the native workflows'
  await page.locator('#toysThemeToggle').click();await expect(page.locator('#uxNav [data-ux-view=funnel]')).toHaveAttribute('aria-current','page');
  await page.locator('#platformCRMLink').click();await expect(page.locator('#platformClientCRM .kanban-column').first()).toBeVisible();await expect(page.locator('#platformHomeNav')).toBeVisible();
  await page.locator('#platformHomeNav').click();await expect(page.locator('#uxNav')).toBeVisible();await expect(page.locator('#uxNav [data-ux-view=funnel]')).toHaveAttribute('aria-current','page');
- await page.setViewportSize({width:390,height:844});await page.locator('#clientSectionSelect').selectOption('overview');await expect(page.locator('#novaMetricGroups')).toBeVisible();
+ await page.setViewportSize({width:390,height:844});await selectNovaSection(page,'overview');await expect(page.locator('#novaMetricGroups')).toBeVisible();
  await page.locator('#platformCRMNav').click();await expect(page.locator('#platformClientCRM .kanban-column').first()).toBeVisible();await page.locator('#platformHomeNav').click();await expect(page.locator('#novaMetricGroups')).toBeVisible();
 });
 
@@ -72,6 +73,7 @@ test('NOVA glass stays neutral and continues smoothly when tabs change mid-slide
   const middle=await page.locator('.nova-nav-glass').evaluate(e=>{const a=e.getAnimations()[0];a.pause();a.currentTime=180;return e.getBoundingClientRect().left;});
   const to=(await page.locator('#uxNav [data-ux-view=project]').boundingBox()).x;expect(middle).toBeGreaterThan(from+2);expect(middle).toBeLessThan(to-2);
   await page.locator('#uxNav [data-ux-view=campaigns]').click();
+  await page.evaluate(()=>new Promise(requestAnimationFrame));
   const resumed=await page.locator('.nova-nav-glass').evaluate(e=>{const a=e.getAnimations()[0];a.pause();a.currentTime=0;return e.getBoundingClientRect().left;});expect(Math.abs(resumed-middle)).toBeLessThan(2);
   await page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations()[0].finish());
  }
@@ -84,7 +86,7 @@ test('NOVA secondary blocks fit both themes and preserve campaign, funnel and re
   for(const width of [1440,768,390,360]){
    await page.setViewportSize({width,height:900});
    for(const view of ['overview','campaigns','funnel','weekly','project']){
-    if(width<=760)await page.locator('#clientSectionSelect').selectOption(view);else await page.locator(`#uxNav [data-ux-view=${view}]`).click();
+    if(width<=760)await selectNovaSection(page,view);else await page.locator(`#uxNav [data-ux-view=${view}]`).click();
     await expect(page.locator('.ux-section:visible')).toHaveCount(view==='project'?0:1);
     const section=view==='project'?'#projectView':'#ux'+view[0].toUpperCase()+view.slice(1);
     await expect(page.locator(section+' .ux-page-heading h1').first()).toBeInViewport({ratio:1});
@@ -119,9 +121,9 @@ test('NOVA revenue compacts only when it overflows and restores full amounts whe
  }
 });
 
-test('NOVA flat control sliders share faster header motion and respect reduced motion',async({page})=>{
+test('NOVA flat control sliders preserve smooth motion with a faster desktop header and respect reduced motion',async({page})=>{
  await page.setViewportSize({width:1440,height:1000});await page.goto('/nova-sales-demo/');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);
- await page.locator('#uxNav [data-ux-view=funnel]').click();await expect.poll(()=>page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations()[0]?.effect.getTiming().duration||0)).toBe(480);
+ await page.locator('#uxNav [data-ux-view=funnel]').click();await expect.poll(()=>page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations()[0]?.effect.getTiming().duration||0)).toBe(369);
  await page.locator('#platformSeg [data-platform="Google Ads"]').click();
  const channel=page.locator('#platformSeg .nova-control-slider');await expect.poll(()=>channel.evaluate(e=>e.getAnimations()[0]?.effect.getTiming().duration||0)).toBe(480);
  const material=await channel.evaluate(e=>({blur:getComputedStyle(e).backdropFilter,fill:getComputedStyle(e).backgroundImage}));expect(material).toEqual({blur:'none',fill:'none'});
