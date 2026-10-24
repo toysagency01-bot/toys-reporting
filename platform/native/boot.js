@@ -47,7 +47,7 @@ const readJSON=async(url,options={})=>{const r=await fetch(url,{credentials:'sam
 const json=(url,options={})=>dataCache.get(url,()=>readJSON(url,options));
 const salesContext=()=>({range:range(),provider:document.querySelector('#platformSeg .active')?.dataset.platform==='Google Ads'?'google_ads':document.querySelector('#platformSeg .active')?.dataset.platform==='Meta Ads'?'meta_ads':''});
 const range=()=>({from:$(shop?'from':'dateFrom')?.value||'',to:$(shop?'to':'dateTo')?.value||''});
-function notice(text,error=false){const n=$('platformNotice');if(n){n.textContent=text;n.dataset.error=String(error);}}
+function notice(text,error=false){const n=$('platformNotice');if(n){n.textContent=text;n.hidden=!text;n.dataset.error=String(error);}}
 const load=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_SCRIPTS?.[path]){try{window.TOYS_BUNDLED_SCRIPTS[path]();resolve();}catch(e){reject(e);}return;}const s=document.createElement('script');s.src=asset(path);s.onload=resolve;s.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(s);});
 const css=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_STYLES?.[path]){const style=document.createElement('style');style.textContent=window.TOYS_BUNDLED_STYLES[path];document.head.append(style);resolve();return;}const l=document.createElement('link');l.rel='stylesheet';l.href=asset(path);l.onload=resolve;l.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(l);});
 const metric=r=>r.metrics||[];
@@ -98,7 +98,7 @@ async function refresh(){
   if(names.length||commerce){if(shop){const mapped=shopLiveRows(all);if(mapped.some(r=>r===null)){notice('Детализация получена. Для сводки в гривнах не хватает подтверждённого курса; сохранены опубликованные показатели.',true);attachHierarchy();return;}allRows=all;applyAds(mapped);}
   else {allRows=all;applyAds(all.map(r=>({date:r.date,platform:r.provider==='google_ads'?'Google Ads':'Meta Ads',account:title,accountId:r.integrationId||'',currency:r.currency,campaign:r.name,campaignId:r.campaignId,impr:r.impressions,clicks:r.clicks,cost:r.spend,conv:r.conversions})),commerce);}}
   if(result.refreshing){notice('Показаны сохранённые данные. Импорт по расписанию ещё выполняется.');}
-  else{notice(result.providers?.map(p=>`${p.provider==='google_ads'?'Google Ads':'Meta Ads'}: ${p.hierarchy?(p.freshness==='fresh'?'обновлено':p.freshness==='partial'?'история + данные API':'сохранённые данные')+(p.fetchedAt?' — '+new Date(p.fetchedAt).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}):''):'подключение не завершено'}`).join('; ')||'Показаны опубликованные данные.');}maskUnavailable();
+  else{notice(result.providers?.map(p=>`${p.provider==='google_ads'?'Google Ads':'Meta Ads'}: ${p.hierarchy?(p.freshness==='fresh'?'обновлено':p.freshness==='partial'?'история + данные API':'сохранённые данные')+(p.fetchedAt?' — '+new Date(p.fetchedAt).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}):''):'подключение не завершено'}`).join('; ')||'');}maskUnavailable();
  };
  try{const saved=await dataCache.load(address);if(saved){apply(saved.value,true);if(saved.fresh)return;notice('Показаны сохранённые данные. Обновляем в фоне…');}else notice('Обновляем данные…');apply(await json(address));}
  catch(e){notice('Не удалось обновить кабинет. Последние данные сохранены. Повторим по расписанию.',true);}finally{refreshing=false;renderCreatives();if(JSON.stringify(range())!==JSON.stringify(requested))queueRefresh();}
@@ -174,7 +174,7 @@ async function boot(){
  await snapshotPromise;allRows=snapshotRows(dashboard);await tabsPromise;
  await new Promise((resolve,reject)=>{const start=Date.now();const poll=()=>{if(['content','emptyState'].some(id=>$(id)&&!$(id).classList.contains('hidden')))resolve();else if(Date.now()-start>15000)reject(new Error('Данные не загрузились'));else setTimeout(poll,50);};poll();});
  const controls=$('controls')||document.querySelector('.controls');
- const n=document.createElement('div');n.id='platformNotice';n.className='platform-notice';n.setAttribute('role','status');controls.after(n);notice(dashboard.coverage?.warning||'Опубликованные данные проекта.');
+ const n=document.createElement('div');n.id='platformNotice';n.className='platform-notice';n.setAttribute('role','status');controls.after(n);notice(dashboard.coverage?.warning||'');
  ready=true;mountTools();mountMonthlyReports({slug,entryHash});clientUX=mountClientUX();
  mountNovaDesign({slug});
  maskUnavailable();

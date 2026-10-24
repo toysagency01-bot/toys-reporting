@@ -12,8 +12,7 @@
 .campaign-breadcrumbs button[aria-current]{color:var(--accent)}
 .campaign-filters{display:flex;gap:8px;flex-wrap:wrap;max-width:100%}.campaign-search{flex:1;min-width:180px}
 .campaign-filters input,.campaign-filters select{width:100%;max-width:100%;background:var(--panel-2,var(--panel2));color:var(--text);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font:400 13px 'Golos Text'}
-.campaign-source-note,.campaign-method{color:var(--muted);font-size:12px;line-height:1.6;margin:12px 0}
-.campaign-method{font-size:11px;margin-top:18px}
+.campaign-source-note{color:var(--muted);font-size:12px;line-height:1.6;margin:12px 0}
 .campaign-list{overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin}
 .campaign-grid{display:grid;grid-template-columns:minmax(240px,2.5fr) repeat(var(--campaign-columns),minmax(88px,1fr));align-items:center;gap:12px;min-width:calc(240px + var(--campaign-columns)*100px);padding:14px 12px}
 .campaign-table-head{font-size:10px;color:var(--muted);border-bottom:1px solid var(--line)}

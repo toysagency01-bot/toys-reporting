@@ -11,6 +11,8 @@ export function mountNovaDesign({slug}){
  if(!header||!nav||!source)return {sync(){}};
  document.documentElement.classList.add('nova-demo-design');document.body.classList.add('nova-demo-design');
  const style=document.createElement('style');style.id='novaDemoDesignStyles';style.textContent=styles+'\n'+mobileStyles;document.head.append(style);
+ document.querySelectorAll('.ux-page-heading>div>span,.ux-period-panel .ux-panel-heading p').forEach(n=>n.remove());
+ if(document.body.classList.contains('instashop-ux-v2'))document.querySelectorAll('#uxCampaigns .note,#uxFunnel .panel>.note').forEach(n=>n.remove());
  const method=nav.querySelector('[data-ux-view=method]');if(method?.classList.contains('active'))nav.querySelector('[data-ux-view=overview]')?.click();method?.remove();
  header.insertBefore(nav,header.querySelector('.theme-actions'));
  const account=document.getElementById('platformMobileAccount');
