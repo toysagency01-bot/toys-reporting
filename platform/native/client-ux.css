@@ -86,12 +86,6 @@ body.client-compact .ux-period-metrics strong{font-size:14px}
 @media(max-width:760px){body.client-compact :is(#mainCards,#cards),body.client-compact #ecomTopCards>.ecom-channel>.cards{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}body.client-compact .ux-insight>div:nth-child(2){flex-basis:calc(100% - 44px)}body.client-compact .ux-insight button{margin-left:44px}}
 body.client-compact .ux-insight-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
-body.client-compact .client-crm-method{margin:4px 0 12px;font-size:11px;line-height:1.5;color:var(--muted)}
-body.client-compact .client-crm-method summary{width:fit-content;max-width:100%;padding:7px 0;min-height:32px;box-sizing:border-box;cursor:pointer}
-body.client-compact .client-crm-method summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
-body.client-compact .client-crm-method p{font-size:12px;line-height:1.6;margin:4px 0 8px;overflow-wrap:anywhere}
-@media(max-width:760px){body.client-compact .client-crm-method summary{min-height:44px;align-content:center}}
-
 /* Group backgrounds share a grid with the original metric nodes. */
 body.client-compact #clientMetricGroups{display:grid;grid-template-columns:repeat(var(--metric-grid-columns,6),minmax(0,1fr));gap:12px;isolation:isolate;margin:0 0 16px;min-width:0}
 body.client-compact #clientMetricGroups :is(#mainCards,#cards,#ecomTopCards):not(.hidden),body.client-compact #clientMetricGroups #platformCRMStats:not([hidden]),body.client-compact #clientMetricGroups #ecomTopCards .ecom-channel,body.client-compact #clientMetricGroups #ecomTopCards .cards{display:contents!important}
@@ -104,7 +98,6 @@ body.client-compact #clientMetricGroups .card .label{font-size:10px;line-height:
 body.client-compact #clientMetricGroups .card .value{font-size:22px;line-height:1.25;letter-spacing:-.025em;overflow-wrap:anywhere}
 body.client-compact #clientMetricGroups .card .value small{display:block;font-size:10px;line-height:1.5;font-weight:400;color:var(--muted);margin-top:6px;letter-spacing:0}
 body.client-compact #clientMetricGroups .card .delta{font-size:10px;margin:5px 0 0}
-body.client-compact #clientMetricGroups .client-crm-method{grid-column:1/-1;order:10;margin:0}
 body.client-compact #clientMetricGroups .platform-top-creatives{grid-column:1/-1;order:20;margin:0}
 @media(max-width:640px){body.client-compact #clientMetricGroups{gap:10px;margin-bottom:12px}body.client-compact #clientMetricGroups .client-metric-group{min-height:218px;border-radius:16px}body.client-compact #clientMetricGroups .card{min-height:82px}body.client-compact #clientMetricGroups .card .value{font-size:22px}}
 
@@ -118,3 +111,36 @@ body.client-compact :is(#uxOverview,#uxFunnel) .card .label.has-ui-icon{display:
 body.client-compact #clientMetricGroups .card:is([data-metric-index="0"],[data-metric-index="2"]){margin-left:12px}
 body.client-compact #clientMetricGroups .card:is([data-metric-index="1"],[data-metric-index="3"]){margin-right:12px}
 body.client-compact #clientMetricGroups .card:is([data-metric-index="2"],[data-metric-index="3"]){margin-bottom:12px}
+
+/* Keep the mobile first screen focused on the actual results. */
+@media(max-width:760px){
+ body.client-compact.platform-client-shell{padding-top:max(12px,env(safe-area-inset-top,0px))}
+ body.client-compact>header{display:grid;grid-template-columns:minmax(0,1fr) 44px 44px;align-items:center;gap:4px 8px;padding:8px 10px;margin-bottom:8px}
+ body.client-compact>header :is(.logo-row,.brand){grid-column:1;grid-row:1;min-width:0;gap:6px}
+ body.client-compact>header :is(.logo-row,.brand) img{height:24px;max-width:95px;min-width:0;object-fit:contain}
+ body.client-compact>header :is(.sub,.project){grid-column:1/-1;grid-row:2;font-size:13px;line-height:1.4;min-width:0;overflow-wrap:anywhere;padding-bottom:2px}
+ body.client-compact>header .theme-actions{grid-column:2;grid-row:1;margin:0;gap:0}
+ body.client-compact>header .updated{display:none!important}
+ body.client-compact>header #toysThemeToggle{display:inline-flex;justify-content:center;width:44px;height:44px;padding:0;border-radius:10px}
+ body.client-compact>header #toysThemeToggle>span:not([aria-hidden]){display:none}
+ body.client-compact>header #platformMobileAccount{grid-column:3;grid-row:1;width:44px;height:44px;min-width:44px;min-height:44px;margin:0;padding:10px}
+ body.client-compact .client-section-picker{gap:8px;min-height:46px;margin:0 0 8px;padding:0 10px;background:var(--panel);border:1px solid var(--line);border-radius:11px}
+ body.client-compact .client-section-picker>span{font-size:11px;line-height:1.3;letter-spacing:.02em}
+ body.client-compact #clientSectionSelect{flex:1;min-height:44px;padding:8px 26px 8px 10px;border:0;border-left:1px solid var(--line);border-radius:0;background-color:transparent;font:600 16px/1.4 'Golos Text',system-ui,sans-serif;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='m1 1 4 4 4-4' fill='none' stroke='%2387878f' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 2px center;box-shadow:none}
+ body.client-compact .client-section-picker:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+ body.client-compact #clientSectionSelect:focus-visible{outline:none;box-shadow:none}
+ body.client-compact #controls,body.client-compact .controls{padding:6px;gap:6px}
+ body.client-compact #controls .seg,body.client-compact .controls .seg{border-radius:9px}
+ body.client-compact .platform-notice{margin:5px 2px;font-size:10px;line-height:1.4}
+ body.client-compact #platformNotice:empty{display:none}
+ body.client-compact #uxOverview{display:flex;flex-direction:column}
+ body.client-compact #uxOverview>*{order:4}
+ body.client-compact #uxOverview>.ux-page-heading{order:0;padding:10px 2px 8px}
+ body.client-compact #uxOverview>.ux-page-heading h1{font-size:18px;line-height:1.3}
+ body.client-compact #clientMetricGroups{order:1}
+ body.client-compact #uxOverview>.ux-insight{order:2;display:block;padding:10px 12px;margin-bottom:12px}
+ body.client-compact #uxOverview>.ux-insight .ux-insight-icon{display:none}
+ body.client-compact #uxOverview>.ux-insight strong{font-size:13px}
+ body.client-compact #uxOverview>.ux-insight button{display:block;min-height:44px;margin:0;padding:8px 0;text-align:left;white-space:normal}
+ body.client-compact #uxOverview>.ux-overview-grid{order:3}
+}

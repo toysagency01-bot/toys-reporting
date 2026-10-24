@@ -10,7 +10,6 @@ export function mountMetricGroups(){
  function sync(){
   const main=document.getElementById('mainCards'),shop=document.getElementById('cards'),crm=document.getElementById('platformCRMStats'),ecom=document.getElementById('ecomTopCards');
   for(const host of [main,shop,crm,ecom])if(host&&host.parentElement!==root)root.append(host);
-  const method=document.getElementById('platformCRMMethod');if(method&&method.parentElement!==root)root.append(method);
   const groups=[];let serial=0;
   const funnel=document.getElementById('ecomFunnelPanel');
   const commerceChannels=ecom&&!ecom.classList.contains('hidden')&&funnel&&!funnel.classList.contains('hidden')?[...document.querySelectorAll('#ecomFunnelCards > .ecom-channel')]:[];

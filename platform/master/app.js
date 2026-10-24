@@ -81,7 +81,6 @@ function renderOverview(){
  $('projectFeatures').hidden=!view.single;$('projectFeatures').innerHTML=view.projectPanel;
  $('projectResults').hidden=!!view.single;$('projectsTable').innerHTML=view.rows;$('attention').innerHTML=view.health;
  if(state.view==='home')$('heading').textContent=view.single?'Обзор проекта':state.platformRole==='team'?'Мои проекты':'Все проекты';
- let basis=$('masterCRMBasis');if(!basis){basis=document.createElement('details');basis.id='masterCRMBasis';basis.className='overview-basis';$('metrics').after(basis);}basis.hidden=!view.crmAvailable;basis.innerHTML='<summary>Как считаются показатели CRM</summary><p>Квалы — по дате поступления лидов. Продажи — по дате продажи. Прошлые периоды уточняются по мере квалификации.</p>';
 }
 
 let overviewScope;

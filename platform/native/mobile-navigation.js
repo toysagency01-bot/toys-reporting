@@ -36,5 +36,37 @@ export function mountMasterMobileControls(root) {
   const place = () => { for (const {element,desktop} of controls) (mobile.matches ? actions : desktop).append(element); };
   mobile.addEventListener('change', place);
   place();
+  const nav = root.querySelector('.master-sidebar nav');
+  if (nav) {
+    // Keep secondary destinations readable on phones and preserve desktop order.
+    const more = document.createElement('details');
+    more.className = 'master-more-nav';
+    more.innerHTML = '<summary aria-label="Ещё разделы"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Ещё</span></summary><div class="master-more-panel" aria-label="Другие разделы"></div>';
+    const panel = more.querySelector('.master-more-panel');
+    const secondary = [...nav.querySelectorAll('[data-view=reviews],[data-view=access],[data-view=audit]')].map(button => {
+      const marker = document.createComment('desktop navigation position');
+      button.before(marker);
+      return {button,marker};
+    });
+    nav.append(more);
+    const syncMenu = () => {
+      for (const {button,marker} of secondary) {
+        if (mobile.matches) { if (button.parentElement !== panel) panel.append(button); }
+        else if (button.previousSibling !== marker) marker.after(button);
+      }
+      more.hidden = !mobile.matches || !secondary.some(({button}) => !button.hidden);
+      more.open = false;
+    };
+    const close = () => { if (mobile.matches) more.open = false; };
+    root.addEventListener('click', event => {
+      if (!more.contains(event.target) || event.target.closest('[data-view]')) close();
+    });
+    root.addEventListener('keydown', event => { if (event.key === 'Escape' && more.open && mobile.matches) { close();more.querySelector('summary').focus(); } });
+    window.addEventListener('hashchange', close);
+    mobile.addEventListener('change', syncMenu);
+    const observer = new MutationObserver(syncMenu);
+    for (const {button} of secondary) observer.observe(button, {attributes:true,attributeFilter:['hidden']});
+    syncMenu();
+  }
   mountMobileKeyboard();
 }
