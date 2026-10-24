@@ -1,5 +1,3 @@
-import {decorateMetric} from './metric-icons.js';
-
 // Place the original metric nodes on a shared grid. Their native parents and
 // IDs stay intact, so native rendering, cached updates and CRM access still work.
 export function mountMetricGroups(){
@@ -61,7 +59,6 @@ export function mountMetricGroups(){
    panel.style.gridColumn=col+' / span 2';panel.style.gridRow=row+' / span 3';
    const owned=[];
    group.items.forEach((card,i)=>{
-    decorateMetric(card);
     if(!card.id)card.id='clientMetric-'+group.key+'-'+i;
     owned.push(card.id);card.dataset.metricGroup=group.key;card.dataset.metricIndex=String(i);card.style.setProperty('--metric-col',String(col+i%2));card.style.setProperty('--metric-row',String(row+1+Math.floor(i/2)));serial++;
    });panel.setAttribute('aria-owns',owned.join(' '));

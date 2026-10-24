@@ -1,4 +1,8 @@
-# Metric grouping — prepared, not released
+# Metric grouping — prior icon review (superseded)
+
+The user subsequently chose no metric icons and requested rounded inner cards
+inside each group. Website artwork is no longer required. This note records the
+rejected design only; follow the newer implementation/release record.
 
 Commit 7991b16 implements the requested grouped metric panels. The demo displays
 three panels of four values: advertising, leads/qualification, and CRM sales.

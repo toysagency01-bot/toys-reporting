@@ -1,5 +1,5 @@
 import {test,expect} from '@playwright/test';
-for(const slug of ['housevip-cxp7','bs-clinic-a5b4','profkit-instashop-r4vk','karlovarska-sul-k4rm'])test(slug+' groups the full funnel with branded icons and preserves live values and theme',async({page,request})=>{
+for(const slug of ['housevip-cxp7','bs-clinic-a5b4','profkit-instashop-r4vk','karlovarska-sul-k4rm'])test(slug+' groups the full funnel in nested metric cards without icons and preserves values and theme',async({page,request})=>{
  await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const data=await(await request.get('/api/v2/projects/housevip-cxp7/dashboard')).json();data.dashboard.project.slug=slug;
  const m=(metricCode,value,currency=null)=>({metricCode,value:String(value),state:'observed',currency}),row=data.dashboard.facts.rows[0];
@@ -35,7 +35,7 @@ for(const slug of ['housevip-cxp7','bs-clinic-a5b4','profkit-instashop-r4vk','ka
  const memberships=await groups.evaluateAll(nodes=>nodes.map(n=>(n.getAttribute('aria-owns')||'').split(' ').filter(Boolean)));
  expect(memberships.every(ids=>ids.length>=1&&ids.length<=4)).toBe(true);
  const allMembers=memberships.flat();expect(new Set(allMembers).size).toBe(allMembers.length);
- for(const id of allMembers){const metric=page.locator('#'+id);await expect(metric).toBeVisible();await expect(metric.locator('.label svg[data-brand-metric]')).toHaveCount(1);}
+ for(const id of allMembers){const metric=page.locator('#'+id);await expect(metric).toBeVisible();await expect(metric.locator('.label svg:visible')).toHaveCount(0);const tile=await metric.evaluate(e=>{const owner=[...document.querySelectorAll('.client-metric-group')].find(g=>(g.getAttribute('aria-owns')||'').split(' ').includes(e.id)),c=getComputedStyle(e);return {round:parseFloat(c.borderRadius),inner:c.backgroundColor,outer:getComputedStyle(owner).backgroundColor};});expect(tile.round).toBeGreaterThan(0);expect(tile.inner).not.toBe(tile.outer);}
  // Panel fills retain the existing light palette; cells intentionally share the panel.
  const palette=await page.evaluate(()=>{
   const selectors=['#uxNav .active','#periodSeg .active','#toysThemeToggle','#uxWeeklyAdd','#uxOverview .ux-insight'];
