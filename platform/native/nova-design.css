@@ -265,3 +265,47 @@ html body.nova-demo-design #projectView .task-meta{font-size:11px;color:var(--mu
  html body.nova-demo-design #uxWeekly .weekly-report,html body.nova-demo-design #weeklyArchive details{padding:16px}
  html body.nova-demo-design :is(.ux-primary,.toys-tools button){min-height:44px}
 }
+
+/* The reference glass capsule is reserved for the upper section menu. */
+html body.nova-demo-design #uxNav{border-radius:999px;padding:5px;background:var(--nova-control);border-color:var(--nova-nav-line);box-shadow:none}
+html body.nova-demo-design #uxNav a{border-radius:999px}
+html body.nova-demo-design .nova-nav-glass{top:5px;bottom:5px;border-radius:999px;background:var(--nova-glass);border-color:var(--nova-glass-line);box-shadow:var(--nova-glass-shadow)}
+html body.nova-demo-design .nova-nav-glass::before{inset:1px 8px 53%;border-radius:999px;background:linear-gradient(180deg,#ffffff0c,transparent)}
+html body.nova-demo-design .nova-nav-glass::after{left:18%;right:18%;opacity:.3}
+html.nova-demo-design[data-theme=dark] body.nova-demo-design #uxNav{background:linear-gradient(180deg,#ffffff19,#ffffff11);border:1px solid #ffffff20;box-shadow:inset 0 1px 0 #ffffff16,inset 0 -1px 0 #ffffff08,0 0 0 1px #0008;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+html.nova-demo-design[data-theme=dark] body.nova-demo-design .nova-nav-glass{background:linear-gradient(180deg,#ffffff20,#ffffff17);border:1px solid #ffffff0a;box-shadow:inset 0 1px 0 #ffffff0d,0 1px 2px #0000000c}
+html body.nova-demo-design .nova-slider-group{position:relative;isolation:isolate}
+html body.nova-demo-design .nova-slider-group>button{position:relative;z-index:1}
+html body.nova-demo-design .nova-control-slider{position:absolute;z-index:0;left:0;top:4px;bottom:4px;pointer-events:none;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);box-shadow:none;will-change:transform,width}
+html body.nova-demo-design :is(#controls,.ux-overview-grid) .seg button.active,html body.nova-demo-design .ux-project-channels button.active,html body.nova-demo-design .top-switches button[aria-pressed=true]{background:transparent;border-color:transparent;box-shadow:none;color:var(--text)}
+html body.nova-demo-design #uxOverview>.ux-insight button{border-color:var(--line);background:var(--nova-control);box-shadow:none}
+html body.nova-demo-design #platformCalendar{background:var(--nova-control);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+html body.nova-demo-design .platform-calendar::backdrop{backdrop-filter:none;-webkit-backdrop-filter:none}
+html body.nova-demo-design .top-switches{position:relative;width:fit-content}
+html body.nova-demo-design .nova-delta{display:block;margin:0;font-size:11px;font-weight:500;line-height:1.4;white-space:nowrap;letter-spacing:0}
+html body.nova-demo-design .nova-delta.delta-good{color:#28cdb5}
+html body.nova-demo-design .nova-delta.delta-bad{color:#ff6b81}
+html body.nova-demo-design .nova-delta.delta-neutral{color:var(--muted)}
+html.nova-demo-design[data-theme=light] body.nova-demo-design .nova-delta.delta-good{color:#00836e}
+html.nova-demo-design[data-theme=light] body.nova-demo-design .nova-delta.delta-bad{color:#c63851}
+html body.nova-demo-design .nova-metric-grid>.nova-metric:has(.nova-delta){gap:6px}
+html body.nova-demo-design .nova-primary-metric .nova-delta,html body.nova-demo-design .nova-feature-secondary .nova-delta{margin-top:7px}
+html body.nova-demo-design .nova-lead-feature .nova-delta{width:fit-content;padding:3px 7px;border-radius:6px;background:#0d2521;color:#c6d9d3}
+html body.nova-demo-design .nova-lead-feature .nova-delta.delta-good{color:#32dfc4}
+html body.nova-demo-design .nova-lead-feature .nova-delta.delta-bad{color:#ff8294}
+html body.nova-demo-design #platformCampaignBrowser .campaign-chevron:empty{display:none}
+/* Stage accents encode sequence/meaning, without invented proportional bars. */
+html body.nova-demo-design #demoSalesFunnel [data-stage=impressions]{--stage-accent:#8595a6}
+html body.nova-demo-design #demoSalesFunnel [data-stage=clicks]{--stage-accent:#729fdf}
+html body.nova-demo-design #demoSalesFunnel [data-stage=leads]{--stage-accent:#27bda9}
+html body.nova-demo-design #demoSalesFunnel [data-stage=qualifiedLeads]{--stage-accent:#a18bd4}
+html body.nova-demo-design #demoSalesFunnel [data-stage=sales]{--stage-accent:#cba45c}
+html body.nova-demo-design #demoSalesFunnel .demo-funnel-step{position:relative;margin:12px 0;border-left:3px solid var(--stage-accent);background:linear-gradient(90deg,color-mix(in srgb,var(--stage-accent) 5%,transparent),transparent 55%),var(--nova-tile)}
+html body.nova-demo-design #demoSalesFunnel .demo-funnel-step:not([data-stage=sales])::after{content:'';position:absolute;left:16px;bottom:-9px;width:5px;height:5px;border-right:1px solid var(--muted);border-bottom:1px solid var(--muted);transform:rotate(45deg);opacity:.55}
+html body.nova-demo-design #demoSalesFunnel .demo-funnel-step>div{padding-left:14px;border-left:1px solid var(--line)}
+@media(max-width:760px){
+ html body.nova-demo-design #controls .nova-control-slider{top:3px;bottom:3px}
+ html body.nova-demo-design #demoSalesFunnel .demo-funnel-step{row-gap:17px}
+ html body.nova-demo-design #demoSalesFunnel .demo-funnel-step>div{border:0;padding-left:0}
+}
+@media(prefers-reduced-motion:reduce){html body.nova-demo-design .nova-control-slider{will-change:auto}}

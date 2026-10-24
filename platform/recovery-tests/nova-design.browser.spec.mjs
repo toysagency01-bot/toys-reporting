@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test';
 
-const values=page=>page.locator('#novaMetricGroups .nova-metric').evaluateAll(nodes=>nodes.map(n=>[n.querySelector('.nova-metric-label').textContent.trim(),n.querySelector('.nova-metric-value').textContent.trim()]).sort());
+const values=page=>page.locator('#novaMetricGroups .nova-metric').evaluateAll(nodes=>nodes.map(n=>[n.querySelector('.nova-metric-label').textContent.trim(),n.querySelector('.nova-metric-value').dataset.fullValue||n.querySelector('.nova-metric-value').textContent.trim()]).sort());
 const native=page=>page.locator('#clientMetricGroups .card[data-metric-group]').evaluateAll(nodes=>nodes.filter(n=>!n.hidden&&!n.classList.contains('hidden')).map(n=>{const value=n.querySelector('.value').cloneNode(true);value.querySelectorAll('.delta').forEach(e=>e.remove());return[n.querySelector('.label').textContent.trim(),value.textContent.trim()];}).sort());
 
 test('NOVA dark and light layouts keep existing metrics readable and CRM reachable',async({page})=>{
@@ -91,6 +91,7 @@ test('NOVA secondary blocks fit both themes and preserve campaign, funnel and re
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),theme+' / '+width+' / '+view).toBe(true);
     if(view==='campaigns'){
      await expect(page.locator('.campaign-entity')).toHaveCount(5);
+     await expect(page.locator('#platformCampaignBrowser')).not.toContainText(/[·•∙]/);
      const clipped=await page.locator('.campaign-cell').evaluateAll(nodes=>nodes.filter(n=>[...n.children].some(c=>c.scrollWidth>c.clientWidth+1)).map(n=>n.textContent));expect(clipped).toEqual([]);
     }
     if(view==='funnel')await expect(page.locator('#demoSalesFunnel [data-stage=sales]')).toContainText('203');
@@ -101,4 +102,48 @@ test('NOVA secondary blocks fit both themes and preserve campaign, funnel and re
   }
  }
  expect(errors).toEqual([]);
+});
+
+test('NOVA revenue compacts only when it overflows and restores full amounts when space returns',async({page})=>{
+ await page.route('**/projects/nova-sales-demo/sales-analytics?*',async route=>{const response=await route.fetch(),data=await response.json();data.totals.revenue=146148.75;await route.fulfill({json:data});});
+ await page.goto('/nova-sales-demo/');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);
+ const revenue=page.locator('.nova-metric').filter({has:page.getByText('Выручка CRM',{exact:true})}).locator('.nova-metric-value');
+ const full=await revenue.getAttribute('data-full-value');
+ for(const theme of ['dark','light']){
+  if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toysThemeToggle').click();
+  await page.setViewportSize({width:360,height:844});
+  await expect(revenue).toHaveText('146,1k €');await expect(revenue).toHaveAttribute('title',full);await expect(revenue).toHaveAttribute('aria-label',full);
+  expect(await revenue.evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBe(true);
+  await page.setViewportSize({width:1180,height:1000});await expect(revenue).toHaveText('146 148,75 €');
+  await expect(revenue).not.toHaveAttribute('title');
+ }
+});
+
+test('NOVA flat control sliders share faster header motion and respect reduced motion',async({page})=>{
+ await page.setViewportSize({width:1440,height:1000});await page.goto('/nova-sales-demo/');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);
+ await page.locator('#uxNav [data-ux-view=funnel]').click();await expect.poll(()=>page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations()[0]?.effect.getTiming().duration||0)).toBe(480);
+ await page.locator('#platformSeg [data-platform="Google Ads"]').click();
+ const channel=page.locator('#platformSeg .nova-control-slider');await expect.poll(()=>channel.evaluate(e=>e.getAnimations()[0]?.effect.getTiming().duration||0)).toBe(480);
+ const material=await channel.evaluate(e=>({blur:getComputedStyle(e).backdropFilter,fill:getComputedStyle(e).backgroundImage}));expect(material).toEqual({blur:'none',fill:'none'});
+ await page.locator('#periodSeg [data-days="7"]').click();await page.locator('#periodSeg [data-days="30"]').click();
+ await expect.poll(()=>page.locator('#periodSeg .nova-control-slider').evaluate(e=>e.getAnimations()[0]?.effect.getTiming().duration||0)).toBe(480);
+ await page.locator('#uxNav [data-ux-view=overview]').click();
+ expect(await page.locator('.ux-insight button').evaluate(e=>getComputedStyle(e).backgroundImage)).toBe('none');
+ expect(await page.locator('#platformCalendar').evaluate(e=>getComputedStyle(e).backdropFilter)).toBe('none');
+ await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#platformSeg [data-platform="__all"]').click();expect(await channel.evaluate(e=>e.getAnimations().length)).toBe(0);
+});
+
+test('NOVA restores the native comparison percentages and cost-direction colors',async({page})=>{
+ await page.clock.setFixedTime(new Date('2026-10-19T08:00:00Z'));
+ await page.goto('/nova-sales-demo/');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);await page.locator('#periodSeg [data-days="7"]').click();
+ await expect.poll(()=>page.locator('#novaMetricGroups .nova-delta').count()).toBeGreaterThan(0);
+ const source=()=>page.locator('#clientMetricGroups .card .delta').evaluateAll(nodes=>nodes.map(n=>({label:n.closest('.card').querySelector('.label').textContent.trim(),text:n.textContent.trim(),kind:[...n.classList].find(c=>c.startsWith('delta-'))})).sort((a,b)=>a.label.localeCompare(b.label)));
+ const shown=()=>page.locator('#novaMetricGroups .nova-delta').evaluateAll(nodes=>nodes.map(n=>({label:n.closest('.nova-metric').querySelector('.nova-metric-label').textContent.trim(),text:n.textContent.trim(),kind:[...n.classList].find(c=>c.startsWith('delta-'))})).sort((a,b)=>a.label.localeCompare(b.label)));
+ await expect.poll(async()=>JSON.stringify(await source())===JSON.stringify(await shown())).toBe(true);
+ for(const theme of ['dark','light']){
+  if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toysThemeToggle').click();
+  const colors=await page.locator('.nova-delta').evaluateAll(nodes=>nodes.map(e=>({kind:[...e.classList].find(c=>c.startsWith('delta-')),color:getComputedStyle(e).color})));for(const c of colors){const [r,g,b]=c.color.match(/[\d.]+/g).map(Number);if(c.kind==='delta-good')expect(g).toBeGreaterThan(r);if(c.kind==='delta-bad')expect(r).toBeGreaterThan(g);}
+  await page.screenshot({path:`dist/nova-trends-${theme}.png`,animations:'disabled'});
+ }
+ await page.locator('#periodSeg [data-days=max]').click();await expect(page.locator('#novaMetricGroups .nova-delta')).toHaveCount(0);
 });

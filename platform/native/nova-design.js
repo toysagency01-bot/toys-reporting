@@ -1,4 +1,6 @@
 import styles from './nova-design.css';
+import {compactRevenue} from './nova-number.js';
+import {mountNovaSlider} from './nova-slider.js';
 
 // A presentation adapter for this private demo only. Native metric IDs, source
 // parents, calculators, summary observers and navigation handlers stay intact.
@@ -17,16 +19,20 @@ export function mountNovaDesign({slug}){
  if(insight&&analysis)analysis.before(insight);
  // Keep the native branded channel buttons, date presets and calendar. They
  // already own the selected range/provider and the corresponding data updates.
- const glass=document.createElement('span');glass.className='nova-nav-glass';glass.setAttribute('aria-hidden','true');nav.prepend(glass);
- let frame=0,signature='',lastView='',position=null,animation;
+ let frame=0,signature='';
  const reduced=matchMedia('(prefers-reduced-motion:reduce)');
+ const sliders=new Map();
+ sliders.set(nav,mountNovaSlider(nav,{indicatorClass:'nova-nav-glass',active:'[data-ux-view].active',reduced,schedule,onChange(active,previous){
+  if(previous&&!reduced.matches){const view=active.dataset.uxView,panel=view==='project'?document.getElementById('projectView'):document.querySelector('.ux-section.active');panel?.animate([{opacity:0,transform:'translateY(7px)'},{opacity:1,transform:'translateY(0)'}],{duration:230,easing:'ease-out'});}
+ }}));
  function metric(card,primary=false){
   const item=document.createElement('div');item.className='nova-metric'+(primary?' nova-primary-metric':'');
   const label=document.createElement('span');label.className='nova-metric-label';label.textContent=card.querySelector('.label')?.textContent.trim()||'';
   const value=document.createElement('strong');value.className='nova-metric-value';
-  const native=card.querySelector('.value')?.cloneNode(true);native?.querySelectorAll('.delta').forEach(n=>n.remove());
+  const native=card.querySelector('.value')?.cloneNode(true),deltas=[...native?.querySelectorAll('.delta')||[]];deltas.forEach(n=>n.remove());
   if(native){native.removeAttribute('id');native.querySelectorAll('[id]').forEach(n=>n.removeAttribute('id'));value.append(...native.childNodes);}else value.textContent='—';
-  item.append(label,value);return item;
+  if(/выручка/i.test(label.textContent))value.dataset.fullValue=value.textContent.trim();
+  item.append(label,value);for(const delta of deltas){delta.classList.add('nova-delta');delta.removeAttribute('id');item.append(delta);}return item;
  }
  function group(panel,feature=false){
   const section=document.createElement('section');section.className=feature?'nova-lead-feature':'nova-support-group';section.dataset.novaGroup=panel.dataset.metricGroup;
@@ -46,32 +52,28 @@ export function mountNovaDesign({slug}){
   for(const panel of panels)if(panel!==lead)support.append(group(panel));
   display.replaceChildren(...(lead?[group(lead,true)]:[]),support);display.hidden=!panels.length;
  }
- function syncNav(){
-  const active=nav.querySelector('[data-ux-view].active');if(!active)return;
-  const view=active.dataset.uxView;
-  if(nav.offsetWidth){
-   const next={left:active.offsetLeft,width:active.offsetWidth};
-   // Start from the currently visible glass position, even during a previous
-   // slide, so rapid consecutive clicks do not jump back to its old target.
-   if(position&&lastView!==view){
-    const start={left:new DOMMatrixReadOnly(getComputedStyle(glass).transform).m41,width:glass.getBoundingClientRect().width};
-    animation?.cancel();glass.style.transform=`translateX(${next.left}px)`;glass.style.width=next.width+'px';
-    if(!reduced.matches){animation=glass.animate([{transform:`translateX(${start.left}px)`,width:start.width+'px'},{transform:`translateX(${next.left}px)`,width:next.width+'px'}],{duration:720,easing:'cubic-bezier(.25,.1,.25,1)'});animation.onfinish=schedule;}
-   }else if(!animation||animation.playState!=='running'){
-    glass.style.transform=`translateX(${next.left}px)`;glass.style.width=next.width+'px';
-   }
-   position=next;
+ function syncSliders(){
+  for(const root of document.querySelectorAll('#controls .seg,.ux-overview-grid .seg,.ux-project-channels,.top-switches')){
+   if(sliders.has(root))continue;root.classList.add('nova-slider-group');
+   sliders.set(root,mountNovaSlider(root,{indicatorClass:'nova-control-slider',active:'.active,button[aria-pressed="true"]',reduced,schedule}));
   }
-  if(lastView&&lastView!==view&&!reduced.matches){const panel=view==='project'?document.getElementById('projectView'):document.querySelector('.ux-section.active');panel?.animate([{opacity:0,transform:'translateY(7px)'},{opacity:1,transform:'translateY(0)'}],{duration:230,easing:'ease-out'});}
-  lastView=view;
+  for(const [root,slider]of sliders){if(!root.isConnected){slider.destroy();sliders.delete(root);}else slider.sync();}
  }
- function sync(){syncMetrics();syncNav();}
+ function fitRevenue(){
+  for(const value of display.querySelectorAll('[data-full-value]')){
+   if(!value.clientWidth)continue;
+   const full=value.dataset.fullValue;value.textContent=full;value.removeAttribute('title');value.removeAttribute('aria-label');
+   const compact=value.scrollWidth>value.clientWidth+1?compactRevenue(full):null;
+   if(compact){value.textContent=compact;value.title=full;value.setAttribute('aria-label',full);}
+  }
+ }
+ function sync(){syncMetrics();fitRevenue();syncSliders();}
  function schedule(){if(!frame)frame=requestAnimationFrame(()=>{frame=0;sync();});}
  new MutationObserver(schedule).observe(source,{childList:true,subtree:true,characterData:true});
- new MutationObserver(schedule).observe(nav,{subtree:true,attributes:true,attributeFilter:['class']});
  new ResizeObserver(schedule).observe(header);
+ new ResizeObserver(schedule).observe(display);
  window.addEventListener('resize',schedule);window.addEventListener('toys-theme-change',schedule);
- reduced.addEventListener('change',()=>{if(reduced.matches)animation?.cancel();});
+ document.addEventListener('click',e=>{if(e.target.closest('.seg,.ux-project-channels,.top-switches'))schedule();});
  nav.addEventListener('pointermove',e=>{const r=nav.getBoundingClientRect();nav.style.setProperty('--light-x',(e.clientX-r.left)+'px');nav.style.setProperty('--light-y',(e.clientY-r.top)+'px');});
  document.fonts.ready.then(schedule);sync();return {sync:schedule};
 }
