@@ -39,8 +39,7 @@ test('NOVA filters, calendar, glass navigation and CRM use the native workflows'
  await page.locator('#platformCalendar').click();await expect(page.locator('.platform-calendar')).toBeVisible();await page.keyboard.press('Escape');
  for(const view of ['campaigns','funnel','weekly','project','overview']){
   await page.locator(`#uxNav [data-ux-view=${view}]`).click();await expect(page.locator(`#uxNav [data-ux-view=${view}]`)).toHaveAttribute('aria-current','page');
-  await page.waitForTimeout(780);
-  const aligned=await page.evaluate(()=>{const active=document.querySelector('#uxNav a.active').getBoundingClientRect(),glass=document.querySelector('.nova-nav-glass').getBoundingClientRect();return Math.abs(active.left-glass.left)<1&&Math.abs(active.width-glass.width)<1;});expect(aligned).toBe(true);
+  await expect.poll(()=>page.evaluate(()=>{const active=document.querySelector('#uxNav a.active').getBoundingClientRect(),glass=document.querySelector('.nova-nav-glass').getBoundingClientRect();return Math.abs(active.left-glass.left)<1&&Math.abs(active.width-glass.width)<1;})).toBe(true);
  }
  await page.locator('#uxNav [data-ux-view=campaigns]').click();expect(await page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations().length)).toBeGreaterThan(0);
  await page.waitForTimeout(780);await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#uxNav [data-ux-view=funnel]').click();expect(await page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations().length)).toBe(0);
@@ -76,4 +75,30 @@ test('NOVA glass stays neutral and continues smoothly when tabs change mid-slide
   const resumed=await page.locator('.nova-nav-glass').evaluate(e=>{const a=e.getAnimations()[0];a.pause();a.currentTime=0;return e.getBoundingClientRect().left;});expect(Math.abs(resumed-middle)).toBeLessThan(2);
   await page.locator('.nova-nav-glass').evaluate(e=>e.getAnimations()[0].finish());
  }
+});
+
+test('NOVA secondary blocks fit both themes and preserve campaign, funnel and report content',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/nova-sales-demo/');await expect(page.locator('#novaMetricGroups .nova-metric')).toHaveCount(12);
+ for(const theme of ['dark','light']){
+  if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toysThemeToggle').click();
+  for(const width of [1440,768,390,360]){
+   await page.setViewportSize({width,height:900});
+   for(const view of ['overview','campaigns','funnel','weekly','project']){
+    if(width<=760)await page.locator('#clientSectionSelect').selectOption(view);else await page.locator(`#uxNav [data-ux-view=${view}]`).click();
+    await expect(page.locator('.ux-section:visible')).toHaveCount(view==='project'?0:1);
+    const section=view==='project'?'#projectView':'#ux'+view[0].toUpperCase()+view.slice(1);
+    await expect(page.locator(section+' .ux-page-heading h1').first()).toBeInViewport({ratio:1});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),theme+' / '+width+' / '+view).toBe(true);
+    if(view==='campaigns'){
+     await expect(page.locator('.campaign-entity')).toHaveCount(5);
+     const clipped=await page.locator('.campaign-cell').evaluateAll(nodes=>nodes.filter(n=>[...n.children].some(c=>c.scrollWidth>c.clientWidth+1)).map(n=>n.textContent));expect(clipped).toEqual([]);
+    }
+    if(view==='funnel')await expect(page.locator('#demoSalesFunnel [data-stage=sales]')).toContainText('203');
+    if(view==='weekly'){await expect(page.locator('#weeklyContent')).toContainText('ДЕМО');await expect(page.locator('#controls')).toBeHidden();}
+    if(view==='project'){await expect(page.locator('#projectView')).toContainText('О проекте');await expect(page.locator('#controls')).toBeHidden();}
+    if([1440,390].includes(width)&&view!=='overview')await page.screenshot({path:`dist/nova-block-${view}-${theme}-${width}.png`,animations:'disabled'});
+   }
+  }
+ }
+ expect(errors).toEqual([]);
 });

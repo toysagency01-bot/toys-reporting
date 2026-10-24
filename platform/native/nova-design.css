@@ -56,6 +56,8 @@ html body.nova-demo-design .ux-page-heading{padding:0;margin:20px 0 26px}
 html body.nova-demo-design .ux-page-heading h1{font-size:31px;line-height:1.15;font-weight:500;letter-spacing:-.05em}
 html body.nova-demo-design .ux-page-heading>div>span{font-size:12px;color:var(--muted)}
 html body.nova-demo-design #clientMetricGroups{display:none!important}
+/* The shared mobile flex rule must not keep the overview visible under other tabs. */
+html body.nova-demo-design #uxOverview:not(.active){display:none}
 html body.nova-demo-design #novaMetricGroups{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1.65fr);gap:20px;margin:0 0 20px;min-width:0}
 html body.nova-demo-design #novaMetricGroups[hidden]{display:none}
 html body.nova-demo-design .nova-lead-feature{display:flex;flex-direction:column;min-width:0;min-height:350px;padding:26px 31px 29px;border:0;border-radius:27px;background:#38ccb7;color:#000;box-shadow:inset 0 1px 0 #d7fff480,var(--nova-shadow)}
@@ -198,4 +200,68 @@ html body.nova-demo-design .platform-calendar .calendar-days .in-range{backgroun
  html body.nova-demo-design #uxOverview>.ux-insight strong{font-size:17px}
  html body.nova-demo-design #uxOverview>.ux-insight button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;margin-top:16px;font-size:12px;white-space:normal;text-align:center}
  html body.nova-demo-design .platform-calendar{padding:18px}
+}
+
+/* Remaining NOVA blocks use the same quiet surfaces and compact metric tiles. */
+html body.nova-demo-design .ux-overview-grid .seg{display:flex;gap:3px;padding:3px;border:1px solid var(--line);border-radius:12px;background:var(--nova-control)}
+html body.nova-demo-design .ux-overview-grid .seg button{padding:8px 12px;border:1px solid transparent;border-radius:8px;background:none;color:var(--muted);font-size:11px;font-weight:400;min-height:36px}
+html body.nova-demo-design .ux-overview-grid .seg button.active{color:var(--text);border-color:var(--nova-glass-line);background:var(--nova-glass);box-shadow:var(--nova-glass-shadow)}
+html body.nova-demo-design .ux-period-metrics{gap:8px;margin:18px 0 22px}
+html body.nova-demo-design .ux-period-metrics>div{padding:12px 14px;background:var(--nova-tile);border:1px solid var(--nova-tile-line);border-radius:12px;min-width:0}
+html body.nova-demo-design .ux-period-metrics strong{font-size:16px;letter-spacing:-.025em}
+html body.nova-demo-design .platform-top-creatives{padding:20px 24px;border-radius:20px}
+html body.nova-demo-design .platform-top-creatives .top-heading h2{font-size:14px;font-weight:500;letter-spacing:0;text-transform:none}
+html body.nova-demo-design .platform-top-creatives .top-heading>span{background:var(--nova-tile);border-color:var(--line);color:var(--muted)}
+html body.nova-demo-design .platform-top-creatives .top-basis{font-size:12px;line-height:1.6;color:var(--muted)}
+html body.nova-demo-design .top-creative{border-color:var(--nova-tile-line);border-radius:15px;background:var(--nova-tile)}
+html body.nova-demo-design .top-switches button{border:1px solid transparent;border-radius:9px;color:var(--muted);background:transparent;min-height:40px;font-size:12px}
+html body.nova-demo-design .top-switches button[aria-pressed=true]{background:var(--nova-glass);border-color:var(--nova-glass-line);color:var(--text);box-shadow:var(--nova-glass-shadow)}
+html body.nova-demo-design #platformCampaignBrowser .campaign-entity{margin:12px 0;background:var(--nova-tile);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+html body.nova-demo-design #platformCampaignBrowser .campaign-grid.campaign-row{gap:12px;padding:20px}
+html body.nova-demo-design #platformCampaignBrowser .campaign-node-open{font-size:14px;font-weight:500}
+html body.nova-demo-design #platformCampaignBrowser .campaign-cell{padding:12px;border:1px solid var(--nova-tile-line);border-radius:12px;background:var(--nova-tile)}
+html body.nova-demo-design #platformCampaignBrowser .campaign-cell span{font-size:10px;line-height:1.5;color:var(--muted)}
+html body.nova-demo-design #platformCampaignBrowser .campaign-cell b{font-size:17px;font-weight:500;letter-spacing:-.025em;color:var(--text)}
+html body.nova-demo-design #platformCampaignBrowser .campaign-row:hover{background:#ffffff02}
+html body.nova-demo-design #platformCampaignBrowser .campaign-parent-summary{border:1px solid var(--line);border-radius:14px;padding:15px 18px;background:var(--nova-control)}
+html body.nova-demo-design .campaign-filters :is(input,select){border-radius:11px;border-color:var(--line);background:var(--nova-control);min-height:42px}
+html body.nova-demo-design :is(.campaign-control-button,.campaign-state button,.campaign-more){border-radius:10px;border-color:var(--line);background:var(--nova-control);font-size:12px;font-weight:400}
+html body.nova-demo-design #demoSalesFunnel .demo-funnel-head{padding:0 17px 13px;border:0;font-size:10px}
+html body.nova-demo-design #demoSalesFunnel .demo-funnel-step{margin:8px 0;padding:16px 17px;border:1px solid var(--nova-tile-line);border-radius:14px;background:var(--nova-tile);gap:15px;font-size:13px}
+html body.nova-demo-design #demoSalesFunnel .demo-funnel-step b{font-size:25px;font-weight:500;letter-spacing:-.04em}
+html body.nova-demo-design #demoSalesFunnel .demo-funnel-step small{font-size:10px;color:var(--muted)}
+html body.nova-demo-design #demoSalesFunnel .demo-funnel-outcome{gap:10px;padding:16px 0}
+html body.nova-demo-design #demoSalesFunnel .demo-funnel-outcome>span{flex:1;min-width:150px;padding:14px 17px;border:1px solid var(--nova-tile-line);border-radius:14px;background:var(--nova-tile);color:var(--muted);font-size:11px}
+html body.nova-demo-design #demoSalesFunnel .demo-funnel-outcome b{margin-top:7px;font-size:22px;font-weight:500;letter-spacing:-.035em;color:var(--text)}
+html body.nova-demo-design #uxWeekly .weekly-report,html body.nova-demo-design #weeklyArchive details{padding:18px 20px;margin:10px 0;border:1px solid var(--line);border-radius:16px;background:var(--nova-tile);box-shadow:none}
+html body.nova-demo-design #uxWeekly .weekly-report summary{padding:0;font-size:13px;line-height:1.6;cursor:pointer}
+html body.nova-demo-design #uxWeekly .weekly-report summary b{font-weight:500}
+html body.nova-demo-design #uxWeekly .report-channel{border:1px solid var(--line);border-radius:7px;padding:3px 7px;background:var(--nova-control);color:var(--muted);font-size:10px}
+html body.nova-demo-design #uxWeekly .report-summary-text{font-size:13px;color:var(--text)}
+html body.nova-demo-design #uxWeekly .report-field{padding:15px 0;border-color:var(--line);font-size:13px;line-height:1.7}
+html body.nova-demo-design .toys-tools :is(input,textarea,select){border-radius:11px;border-color:var(--line);background:var(--nova-control);color:var(--text)}
+html body.nova-demo-design .toys-tools button:not(.report-delete):not(.primary){background:var(--nova-control);border-color:var(--line);border-radius:10px;min-height:42px;font-size:12px;font-weight:400}
+html body.nova-demo-design :is(.ux-primary,.toys-tools .primary){border-radius:11px;background:var(--accent);color:#061511;box-shadow:none;font-size:12px;font-weight:500;min-height:42px}
+html.nova-demo-design[data-theme=light] body.nova-demo-design :is(.ux-primary,.toys-tools .primary,.calendar-apply){background:#171717;color:#fff}
+html.nova-demo-design[data-theme=light] body.nova-demo-design .platform-calendar .calendar-days .selected{color:#fff!important}
+html body.nova-demo-design .ux-project-channels{display:flex;width:fit-content;gap:3px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--nova-control)}
+html body.nova-demo-design .ux-project-channels button{border:1px solid transparent;border-radius:9px;padding:9px 14px;background:none;color:var(--muted);font-size:12px;min-height:38px}
+html body.nova-demo-design .ux-project-channels button.active{border-color:var(--nova-glass-line);background:var(--nova-glass);color:var(--text);box-shadow:var(--nova-glass-shadow)}
+html body.nova-demo-design #projectView .task-group{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--nova-tile)}
+html body.nova-demo-design #projectView .task-group-title{padding:15px 17px;margin:0;border:0;border-bottom:1px solid var(--line);background:var(--nova-control);font-size:13px;font-weight:500;color:var(--text)}
+html body.nova-demo-design #projectView .task-row{padding:14px 17px;border-color:var(--line)}
+html body.nova-demo-design #projectView .task-name{font-size:13px;font-weight:500;line-height:1.6}
+html body.nova-demo-design #projectView .task-meta{font-size:11px;color:var(--muted)}
+@media(max-width:760px){
+ html body.nova-demo-design .ux-overview-grid .seg button{min-height:44px}
+ html body.nova-demo-design .platform-top-creatives{padding:18px}
+ html body.nova-demo-design #platformCampaignBrowser .campaign-grid.campaign-row{padding:14px;gap:9px}
+ html body.nova-demo-design #platformCampaignBrowser .campaign-cell{padding:11px 10px}
+ html body.nova-demo-design #platformCampaignBrowser .campaign-cell b{font-size:16px}
+ html body.nova-demo-design #demoSalesFunnel .demo-funnel-step{padding:14px;gap:12px}
+ html body.nova-demo-design #demoSalesFunnel .demo-funnel-step b{font-size:23px}
+ html body.nova-demo-design #demoSalesFunnel .demo-funnel-outcome>span{min-width:0;flex:1 0 calc(50% - 10px);padding:14px;font-size:11px}
+ html body.nova-demo-design #demoSalesFunnel .demo-funnel-outcome b{font-size:20px}
+ html body.nova-demo-design #uxWeekly .weekly-report,html body.nova-demo-design #weeklyArchive details{padding:16px}
+ html body.nova-demo-design :is(.ux-primary,.toys-tools button){min-height:44px}
 }
