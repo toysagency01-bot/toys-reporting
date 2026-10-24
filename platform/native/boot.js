@@ -2,6 +2,7 @@ import {currencySymbol} from '../unified/currency.js';
 import {mountMonthlyReports} from '../monthly/ui.js';
 import {mountClientUX} from './client-ux.js';
 import {mountNovaDesign} from './nova-design.js';
+import {holdNovaLoading} from './nova-loading.js';
 import projectRegistry from '../projects.json' with {type:'json'};
 import {mountCalendar} from './calendar.js';
 import {nextRefreshAt} from '../imports/refresh-policy.js';
@@ -19,6 +20,7 @@ import {syncInstashopCoverage} from './instashop-coverage.js';
 import {tools} from '../dist/native-tools.mjs';
 import {advertisingModel,snapshotRows,aggregate,escapeHtml as h,validRange,valueOf} from '../unified/model.js';
 const slug=window.TOYS_UNIFIED_PROJECT;
+const finishNovaLoading=holdNovaLoading(slug);
 const entryHash=location.hash;
 const initialCRM=isClientCRMRoute(location.pathname,entryHash);
 const prefix='';
@@ -185,7 +187,7 @@ async function boot(){
  const logo=document.querySelector('header img[alt="TOYS"]');const theme=()=>{if(logo)logo.src=asset(document.documentElement.dataset.theme==='light'?'assets/toys-black.svg':'assets/toys-logo.svg');};theme();new MutationObserver(theme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
  campaignBrowser=mountCampaignBrowser({slug,context:salesContext});
  if(projectConfig.synthetic)salesFunnel=mountSalesDemoFunnel({context:salesContext,json:({range,provider})=>json(`${api}/sales-analytics?${new URLSearchParams({...range,provider,version:'1'})}`),onData(data){crmStats={available:data.hasData,qualified:data.totals.qualifiedLeads,sales:data.totals.sales,revenue:[{currency:data.currency,value:data.totals.revenue}]};renderCRM();},onUnavailable(){crmStats=null;renderCRM();}});
- delete document.body.dataset.platformLoading;document.body.dataset.platformReady='true';renderCreatives();
+ delete document.body.dataset.platformLoading;document.body.dataset.platformReady='true';renderCreatives();finishNovaLoading();
  refreshTimer=setInterval(()=>autoRefresh(),60000);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)autoRefresh();});
  document.addEventListener('change',e=>{if(e.target===from||e.target===to){sequence++;ads=null;queueRefresh();}},true);
@@ -193,4 +195,4 @@ async function boot(){
  await Promise.all([refresh(),refreshCreatives(),refreshCRM()]);
  if(savedSnapshot&&!savedSnapshot.fresh)autoRefresh(true);
 }
-boot().catch(e=>{delete document.body.dataset.platformLoading;const n=document.createElement('p');n.setAttribute('role','alert');n.textContent='Не удалось загрузить борд: '+e.message;document.body.append(n);});
+boot().catch(e=>{delete document.body.dataset.platformLoading;const n=document.createElement('p');n.setAttribute('role','alert');n.textContent='Не удалось загрузить борд: '+e.message;document.body.append(n);finishNovaLoading(n);});

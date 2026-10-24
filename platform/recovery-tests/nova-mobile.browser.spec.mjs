@@ -86,7 +86,7 @@ test('NOVA calendar is opaque on phone and desktop and supports touch date selec
  await dialog.locator('[data-date="2026-10-13"]').tap();await dialog.locator('[data-date="2026-10-19"]').tap();await dialog.locator('[data-apply]').tap();
  await expect(page.locator('#dateFrom')).toHaveValue('2026-10-13');await expect(page.locator('#dateTo')).toHaveValue('2026-10-19');
  await expect(page.locator('.nova-lead-feature .nova-delta').first()).toBeVisible();
- expect(await page.locator('.nova-lead-feature .nova-delta').first().evaluate(e=>{const s=getComputedStyle(e);return s.backgroundColor==='rgb(13, 37, 33)'&&parseFloat(s.fontSize)===11;})).toBe(true);
+ await expect.poll(()=>page.evaluate(()=>{const e=document.querySelector('.nova-lead-feature .nova-delta');if(!e)return false;const s=getComputedStyle(e);return s.backgroundColor==='rgb(13, 37, 33)'&&parseFloat(s.fontSize)===11;})).toBe(true);
  await context.close();
 });
 
