@@ -70,6 +70,12 @@ if __name__=='__main__':
             assert not existing or existing.get('bucket_name')==bucket, 'Existing report storage differs'
             bindings=[b for b in bindings if b['name']!='REPORT_ATTACHMENTS']
             bindings.append({'name':'REPORT_ATTACHMENTS','type':'r2_bucket','bucket_name':bucket})
+        if '--bog-secrets-file' in sys.argv:
+            secret_path=pathlib.Path(sys.argv[sys.argv.index('--bog-secrets-file')+1])
+            secrets=json.loads(secret_path.read_text())
+            assert set(secrets)=={'BOG_CLIENT_ID','BOG_CLIENT_SECRET','BOG_ACCOUNT_NUMBER'}
+            assert all(isinstance(v,str) and 5<len(v)<4096 for v in secrets.values())
+            bindings.extend({'name':name,'type':'secret_text','text':value} for name,value in secrets.items())
         registry=json.loads(pathlib.Path('projects.json').read_text())
         for index, option in enumerate(sys.argv):
             if option not in ('--publish-project', '--enable-private-project'): continue
@@ -83,7 +89,7 @@ if __name__=='__main__':
                     if project not in values: values.append(project)
                     b['text']=','.join(values)
         routes=['/login','/login/','/master','/master/','/api/*']+[route for slug in registry for route in ['/'+slug,'/'+slug+'/*']]
-        metadata={'main_module':'unified-worker.js','compatibility_date':settings['compatibility_date'],'compatibility_flags':settings['compatibility_flags'],'bindings':bindings,'keep_bindings':['secret_text'],'keep_assets':True,'assets':{'config':{'run_worker_first':routes}},'annotations':{'workers/message':'Direct advertising import '+hashlib.sha256(pathlib.Path('dist/unified-worker.js').read_bytes()).hexdigest()[:16]}}
+        metadata={'main_module':'unified-worker.js','compatibility_date':settings['compatibility_date'],'compatibility_flags':settings['compatibility_flags'],'bindings':bindings,'keep_bindings':['secret_text'],'keep_assets':True,'assets':{'config':{'run_worker_first':routes}},'annotations':{'workers/message':'Unified platform '+hashlib.sha256(pathlib.Path('dist/unified-worker.js').read_bytes()).hexdigest()[:16]}}
         boundary='toys-'+uuid.uuid4().hex
         parts=[]
         for name,filename,kind,body in [('metadata',None,'application/json',json.dumps(metadata).encode()),('unified-worker.js','unified-worker.js','application/javascript+module',pathlib.Path('dist/unified-worker.js').read_bytes())]:

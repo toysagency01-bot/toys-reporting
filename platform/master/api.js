@@ -1,3 +1,4 @@
+import {financeAPI} from '../finance/api.js';
 import {crmAllowed} from '../crm/access.js';
 import {projectAllowed} from '../portal/access.js';
 import {hierarchyRows,total} from '../unified/model.js';
@@ -16,6 +17,7 @@ export async function masterAPI(request,env,ctx){
  const auth=await masterAuth(request,env);if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  try{
  const path=m[1]||'';
+ const finance=path.match(/^finance(?:\/(.*))?$/);if(finance)return financeAPI(request,env,auth,finance[1]||'',ctx);
  if(path==='documents'||path==='documents/clients')return documentCatalogAPI(request,env,auth,path.endsWith('/clients')?'clients':'');
  const archive=path.match(/^documents\/imports(?:\/(.*))?$/);if(archive)return importAPI(request,env,auth,archive[1]||'');
  const documents=path.match(/^projects\/([^/]+)\/documents(?:\/(.*))?$/);

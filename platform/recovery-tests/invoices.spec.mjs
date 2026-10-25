@@ -77,7 +77,7 @@ test('temporary list and PDF failures recover inside documentation without navig
 
 test('single-boundary focus also reaches native campaign forms and keeps mobile login usable',async({page})=>{
  await page.goto('/housevip-cxp7/');await page.getByRole('button',{name:'Максимум',exact:true}).click();await page.locator('[data-ux-view=campaigns]').click();const search=page.locator('#platformCampaignBrowser input[type=search]');await expect(search).toBeVisible();await search.click();expect(await search.evaluate(e=>({offset:getComputedStyle(e).outlineOffset,shadow:getComputedStyle(e).boxShadow}))).toEqual({offset:'-2px',shadow:'none'});
- await page.locator('#platformCRMNav').click();const crmSearch=page.locator('#platformClientCRM #search');await crmSearch.click();expect(await crmSearch.evaluate(e=>getComputedStyle(e).outlineOffset)).toBe('-2px');
+ await page.locator('#platformCRMLink:visible,#platformCRMNav:visible').first().click();const crmSearch=page.locator('#platformClientCRM #search');await crmSearch.click();expect(await crmSearch.evaluate(e=>getComputedStyle(e).outlineOffset)).toBe('-2px');
  await page.setViewportSize({width:390,height:844});await page.goto('/login');await page.locator('[name=email]').fill('mobile@example.test');await page.locator('[name=password]').fill('Long sample password for QA');await page.locator('#showPassword').click();await expect(page.locator('[name=password]')).toHaveValue('Long sample password for QA');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'/tmp/toys-login-focus-mobile.png',fullPage:true,animations:'disabled'});
 });
 
