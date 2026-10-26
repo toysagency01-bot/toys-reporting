@@ -218,14 +218,6 @@ html body.nova-demo-design .platform-top-creatives .top-basis{font-size:12px;lin
 html body.nova-demo-design .top-creative{border-color:var(--nova-tile-line);border-radius:15px;background:var(--nova-tile)}
 html body.nova-demo-design .top-switches button{border:1px solid transparent;border-radius:9px;color:var(--muted);background:transparent;min-height:40px;font-size:12px}
 html body.nova-demo-design .top-switches button[aria-pressed=true]{background:var(--nova-glass);border-color:var(--nova-glass-line);color:var(--text);box-shadow:var(--nova-glass-shadow)}
-html body.nova-demo-design #platformCampaignBrowser .campaign-entity{margin:12px 0;background:var(--nova-tile);border:1px solid var(--line);border-radius:18px;overflow:hidden}
-html body.nova-demo-design #platformCampaignBrowser .campaign-grid.campaign-row{gap:12px;padding:20px}
-html body.nova-demo-design #platformCampaignBrowser .campaign-node-open{font-size:14px;font-weight:500}
-html body.nova-demo-design #platformCampaignBrowser .campaign-cell{padding:12px;border:1px solid var(--nova-tile-line);border-radius:12px;background:var(--nova-tile)}
-html body.nova-demo-design #platformCampaignBrowser .campaign-cell span{font-size:10px;line-height:1.5;color:var(--muted)}
-html body.nova-demo-design #platformCampaignBrowser .campaign-cell b{font-size:17px;font-weight:500;letter-spacing:-.025em;color:var(--text)}
-html body.nova-demo-design #platformCampaignBrowser .campaign-row:hover{background:#ffffff02}
-html body.nova-demo-design #platformCampaignBrowser .campaign-parent-summary{border:1px solid var(--line);border-radius:14px;padding:15px 18px;background:var(--nova-control)}
 html body.nova-demo-design .campaign-filters :is(input,select){border-radius:11px;border-color:var(--line);background:var(--nova-control);min-height:42px}
 html body.nova-demo-design :is(.campaign-control-button,.campaign-state button,.campaign-more){border-radius:10px;border-color:var(--line);background:var(--nova-control);font-size:12px;font-weight:400}
 html body.nova-demo-design #demoSalesFunnel .demo-funnel-head{padding:0 17px 13px;border:0;font-size:10px}
@@ -257,9 +249,6 @@ html body.nova-demo-design #projectView .task-meta{font-size:11px;color:var(--mu
 @media(max-width:760px){
  html body.nova-demo-design .ux-overview-grid .seg button{min-height:44px}
  html body.nova-demo-design .platform-top-creatives{padding:18px}
- html body.nova-demo-design #platformCampaignBrowser .campaign-grid.campaign-row{padding:14px;gap:9px}
- html body.nova-demo-design #platformCampaignBrowser .campaign-cell{padding:11px 10px}
- html body.nova-demo-design #platformCampaignBrowser .campaign-cell b{font-size:16px}
  html body.nova-demo-design #demoSalesFunnel .demo-funnel-step{padding:14px;gap:12px}
  html body.nova-demo-design #demoSalesFunnel .demo-funnel-step b{font-size:23px}
  html body.nova-demo-design #demoSalesFunnel .demo-funnel-outcome>span{min-width:0;flex:1 0 calc(50% - 10px);padding:14px;font-size:11px}

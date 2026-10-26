@@ -45,3 +45,85 @@
 }
 #platformCampaignBrowser[data-sales-demo=true] .campaign-table-head{display:none}#platformCampaignBrowser[data-sales-demo=true] .campaign-grid.campaign-row{min-width:0;grid-template-columns:repeat(5,minmax(0,1fr));padding:18px;gap:18px}#platformCampaignBrowser[data-sales-demo=true] .campaign-name-cell{grid-column:1/-1}#platformCampaignBrowser[data-sales-demo=true] .campaign-cell{text-align:left}#platformCampaignBrowser[data-sales-demo=true] .campaign-cell span{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.5}#platformCampaignBrowser[data-sales-demo=true] .campaign-entity{border:1px solid var(--line);border-radius:12px;margin:12px 0;background:var(--panel-2,var(--panel2))}#platformCampaignBrowser[data-sales-demo=true] .campaign-cell b{font-size:15px}#platformCampaignBrowser[data-sales-demo=true] .campaign-list{overflow:visible}
 @media(max-width:760px){#platformCampaignBrowser[data-sales-demo=true] .campaign-grid.campaign-row{grid-template-columns:repeat(2,minmax(0,1fr));padding:16px;gap:14px}}
+
+/* A campaign is one section; nested levels share its aligned metric columns. */
+#platformCampaignBrowser{--campaign-surface:#151515;--campaign-heading:#182422;--campaign-group:#191e27;--campaign-group-ink:#a2bcf4;--campaign-group-line:#719ce85c;--campaign-stripe:#ffffff02;--campaign-hover:#ffffff06;--campaign-header:#141414}
+html[data-theme=light] #platformCampaignBrowser{--campaign-surface:#fff;--campaign-heading:#edf7f4;--campaign-group:#f1f4fb;--campaign-group-ink:#365c9a;--campaign-group-line:#6589c75c;--campaign-stripe:#00000002;--campaign-hover:#00000004;--campaign-header:#fff}
+#platformCampaignBrowser .campaign-toolbar{gap:12px;margin-bottom:10px}
+#platformCampaignBrowser .campaign-search{min-width:240px}
+#platformCampaignBrowser .campaign-tree-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:34px;margin:0 0 8px}
+#platformCampaignBrowser .campaign-level-legend{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted)}
+#platformCampaignBrowser .campaign-level-legend [data-level=campaign]{color:var(--accent)}
+#platformCampaignBrowser .campaign-level-legend [data-level=group]{color:var(--campaign-group-ink)}
+#platformCampaignBrowser .campaign-collapse{border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--text);font:500 11px 'Golos Text';padding:7px 12px;min-height:34px;cursor:pointer}
+#platformCampaignBrowser .campaign-collapse[hidden]{display:none}
+#platformCampaignBrowser .campaign-grid{grid-template-columns:minmax(300px,3.3fr) repeat(var(--campaign-columns),minmax(78px,1fr));gap:12px;min-width:calc(300px + var(--campaign-columns)*90px);padding:10px 16px}
+#platformCampaignBrowser .campaign-table-head{min-height:38px;box-sizing:border-box;padding-top:8px;padding-bottom:8px;background:var(--campaign-header);font-size:11px;z-index:4}
+#platformCampaignBrowser .campaign-entity{margin:0;border:0;border-radius:0;background:transparent;overflow:visible}
+#platformCampaignBrowser .campaign-entity[data-level=campaign]{margin:14px 0;border:1px solid var(--line);border-radius:12px;background:var(--campaign-surface)}
+#platformCampaignBrowser .campaign-entity[data-level=campaign]>.campaign-row{border-radius:11px;background:var(--campaign-heading);box-shadow:inset 3px 0 var(--accent);padding-top:12px;padding-bottom:12px}
+#platformCampaignBrowser .campaign-entity[data-level=campaign][data-open=true]>.campaign-row{border-radius:11px 11px 0 0;border-bottom:1px solid var(--line)}
+#platformCampaignBrowser .campaign-entity[data-history=true]>.campaign-row{background:var(--campaign-surface);box-shadow:inset 3px 0 var(--muted)}
+#platformCampaignBrowser .campaign-children{border:0;background:none;padding:0 0 6px}
+#platformCampaignBrowser .campaign-children .campaign-children{padding-bottom:0;background:none}
+#platformCampaignBrowser .campaign-entity[data-level=group]{margin:0;border-bottom:1px solid var(--line)}
+#platformCampaignBrowser .campaign-entity[data-level=group]:last-child{border-bottom:0}
+#platformCampaignBrowser .campaign-entity[data-level=group]>.campaign-row{background:var(--campaign-group);border-bottom:1px solid var(--line)}
+#platformCampaignBrowser .campaign-entity[data-level=ad]>.campaign-row{border-bottom:1px solid var(--line)}
+#platformCampaignBrowser .campaign-entity[data-level=ad]:last-child>.campaign-row{border-bottom:0}
+#platformCampaignBrowser .campaign-entity[data-level=ad]:nth-child(even)>.campaign-row{background:var(--campaign-stripe)}
+#platformCampaignBrowser .campaign-row:hover{background:var(--campaign-hover)}
+#platformCampaignBrowser .campaign-name-cell{position:relative;padding-left:calc(var(--campaign-depth)*22px);min-width:0}
+#platformCampaignBrowser .campaign-name-cell::before{content:'';position:absolute;left:calc(var(--campaign-depth)*22px - 11px);top:0;bottom:0;border-left:2px solid var(--campaign-group-line)}
+#platformCampaignBrowser .campaign-entity[data-level=campaign]>.campaign-row>.campaign-name-cell::before{display:none}
+#platformCampaignBrowser .campaign-node-open{gap:10px;font-size:13px;line-height:1.5;min-height:44px}
+#platformCampaignBrowser .campaign-name-title{display:block;font-weight:500;overflow-wrap:anywhere}
+#platformCampaignBrowser .campaign-entity[data-level=campaign]>.campaign-row .campaign-name-title{font-size:14px;font-weight:600}
+#platformCampaignBrowser .campaign-row-meta{display:flex;align-items:center;flex-wrap:wrap;gap:3px 9px;margin-top:4px;font-size:10px;line-height:1.6;color:var(--muted);font-weight:400}
+#platformCampaignBrowser .campaign-level-label{color:var(--muted)}
+#platformCampaignBrowser .campaign-entity[data-level=campaign]>.campaign-row .campaign-level-label{color:var(--accent)}
+#platformCampaignBrowser .campaign-entity[data-level=group]>.campaign-row .campaign-level-label{color:var(--campaign-group-ink)}
+#platformCampaignBrowser .campaign-status{padding:0 5px;border:1px solid var(--line);border-radius:4px;color:var(--muted);font-size:9px}
+#platformCampaignBrowser .campaign-status:is([data-status=ACTIVE],[data-status=ENABLED]){color:var(--accent);border-color:color-mix(in srgb,var(--accent) 26%,transparent)}
+#platformCampaignBrowser .campaign-status:is([data-status=WITH_ISSUES],[data-status=DISAPPROVED]){color:#d85f6a;border-color:#d85f6a50}
+#platformCampaignBrowser .campaign-chevron{width:22px;height:22px;border:0;border-radius:5px;background:color-mix(in srgb,var(--accent) 12%,transparent);font-size:18px}
+#platformCampaignBrowser .campaign-entity[data-level=group]>.campaign-row .campaign-chevron{color:var(--campaign-group-ink);background:color-mix(in srgb,var(--campaign-group-ink) 10%,transparent)}
+#platformCampaignBrowser .campaign-thumbnail{width:30px;height:30px;border-radius:5px;background:var(--campaign-stripe)}
+#platformCampaignBrowser .campaign-thumbnail svg{width:17px;height:17px}
+#platformCampaignBrowser .campaign-control-button{display:inline-block;margin:3px 0 0 32px;padding:2px 7px;min-height:26px;background:transparent;border-color:var(--line);border-radius:5px;font-size:10px;color:var(--muted)}
+#platformCampaignBrowser .campaign-control-button:hover{color:var(--text);border-color:var(--muted)}
+#platformCampaignBrowser .campaign-cell{padding:0;border:0;border-radius:0;background:none}
+#platformCampaignBrowser .campaign-cell b{font-size:13px;font-weight:500;letter-spacing:0;line-height:1.5}
+#platformCampaignBrowser .campaign-entity[data-level=campaign]>.campaign-row .campaign-cell b{font-size:14px;font-weight:600}
+#platformCampaignBrowser .campaign-history-range{margin-left:32px}
+#platformCampaignBrowser .campaign-parent-summary{padding:12px 14px;border:1px solid var(--campaign-group-line);border-left:3px solid var(--campaign-group-ink);background:var(--campaign-group);border-radius:8px}
+@media(min-width:1280px){
+ #platformCampaignBrowser:not([data-sales-demo=true]) .campaign-list{overflow:visible}
+ #platformCampaignBrowser:not([data-sales-demo=true]) .campaign-table-head{position:sticky;top:0}
+ #platformCampaignBrowser:not([data-sales-demo=true]) .campaign-entity[data-level=campaign]>.campaign-row{position:sticky;top:38px;z-index:3}
+ #platformCampaignBrowser:not([data-sales-demo=true]) .campaign-entity[data-level=group]>.campaign-row{position:sticky;top:calc(38px + var(--campaign-heading-height,100px));z-index:2}
+}
+@media(max-width:760px){
+ #platformCampaignBrowser .campaign-search{min-width:0}
+ #platformCampaignBrowser .campaign-filters{flex-wrap:nowrap}
+ #platformCampaignBrowser .campaign-search{flex:1}
+ #platformCampaignBrowser .campaign-filters>label:last-child{width:132px}
+ #platformCampaignBrowser .campaign-breadcrumbs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;max-width:100%}
+ #platformCampaignBrowser .campaign-breadcrumbs button{flex:none;max-width:150px}
+ #platformCampaignBrowser .campaign-level-legend{display:none}
+ #platformCampaignBrowser .campaign-tree-tools{justify-content:flex-end;min-height:0;margin-bottom:4px}
+ #platformCampaignBrowser .campaign-grid{min-width:0;grid-template-columns:repeat(3,minmax(0,1fr));padding:12px;gap:12px 8px}
+ #platformCampaignBrowser .campaign-entity:is([data-level=campaign],[data-level=group],[data-level=ad]){margin:10px 0;border:1px solid var(--line);border-radius:10px;background:var(--campaign-surface);overflow:hidden}
+ #platformCampaignBrowser .campaign-entity:is([data-level=campaign],[data-level=group])>.campaign-row{border-radius:0;box-shadow:inset 3px 0 var(--accent)}
+ #platformCampaignBrowser .campaign-entity[data-level=group]>.campaign-row{box-shadow:inset 3px 0 var(--campaign-group-ink);border:0}
+ #platformCampaignBrowser .campaign-entity[data-level=ad]>.campaign-row{border:0}
+ #platformCampaignBrowser .campaign-name-cell{grid-column:1/-1;padding:0;border-bottom:1px solid var(--line);padding-bottom:10px}
+ #platformCampaignBrowser .campaign-name-cell::before{display:none}
+ #platformCampaignBrowser .campaign-node-open{font-size:13px}
+ #platformCampaignBrowser .campaign-row-meta{font-size:10px;gap:3px 7px}
+ #platformCampaignBrowser .campaign-cell span{font-size:10px;line-height:1.4;margin-bottom:4px}
+ #platformCampaignBrowser .campaign-cell b{font-size:14px}
+ #platformCampaignBrowser .campaign-control-button{min-height:36px;margin:5px 0 0 0;padding:4px 10px;font-size:11px}
+ #platformCampaignBrowser .campaign-collapse{min-height:44px}
+ #platformCampaignBrowser .campaign-history-range{margin-left:0}
+}

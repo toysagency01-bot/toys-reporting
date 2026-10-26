@@ -22,7 +22,7 @@ export function mountCampaignBrowser({slug,context}){
  const displayText=value=>String(value).replace(/\s*[·•∙]\s*/g,' / ');
  const commerce=slug==='karlovarska-sul-k4rm',columns=[['impressions','Показы'],['clicks','Клики'],['ctr','CTR'],['spend','Расход'],['conversions',demo?'Лиды CRM':'Результаты'],['cpa',demo?'Стоимость лида':'CPA'],...(demo?[['qualifiedLeads','Квалифицированы'],['qualificationRate','Лид → квал'],['sales','Продажи'],['qualifiedSaleRate','Квал → продажа'],['saleRate','Лид → продажа'],['revenue','Выручка CRM'],['cpql','Стоимость квала'],['cac','Стоимость продажи'],['crmRoas','ROAS CRM']]:[]),...(commerce?[['purchases','Покупки'],['roas','ROAS']]:[])];
  host.style.setProperty('--campaign-columns',columns.length);
- host.innerHTML=`<div class="campaign-toolbar"><nav class="campaign-breadcrumbs" aria-label="Уровни рекламной кампании"></nav><div class="campaign-filters"><label class="campaign-search"><span class="sr-only">Поиск кампаний, групп и объявлений</span><input type="search" placeholder="Кампания, группа или объявление" maxlength="120"></label><label><span class="sr-only">Сортировка</span><select aria-label="Сортировка кампаний"><option value="spend">По расходу</option><option value="impressions">По показам</option><option value="conversions">По результатам</option><option value="name">По названию</option></select></label></div></div><p class="campaign-source-note"></p><div class="campaign-level-summary"></div><div class="campaign-list" aria-live="polite"></div>`;
+ host.innerHTML=`<div class="campaign-toolbar"><nav class="campaign-breadcrumbs" aria-label="Уровни рекламной кампании"></nav><div class="campaign-filters"><label class="campaign-search"><span class="sr-only">Поиск кампаний, групп и объявлений</span><input type="search" placeholder="Кампания, группа или объявление" maxlength="120"></label><label><span class="sr-only">Сортировка</span><select aria-label="Сортировка кампаний"><option value="spend">По расходу</option><option value="impressions">По показам</option><option value="conversions">По результатам</option><option value="name">По названию</option></select></label></div></div><div class="campaign-tree-tools"><div class="campaign-level-legend" aria-label="Уровни детализации"><span data-level="campaign">Кампания</span><span aria-hidden="true">/</span><span data-level="group">Группа</span><span aria-hidden="true">/</span><span data-level="ad">Объявление</span></div><button type="button" class="campaign-collapse" data-action="collapse" hidden>Свернуть всё</button></div><p class="campaign-source-note"></p><div class="campaign-level-summary"></div><div class="campaign-list" aria-live="polite"></div>`;
  const list=host.querySelector('.campaign-list'),crumbs=host.querySelector('.campaign-breadcrumbs'),note=host.querySelector('.campaign-source-note'),summary=host.querySelector('.campaign-level-summary');
  const cache=responseCache({prefix:`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser`}),pages=new Map(),nodes=new Map(),expanded=new Set(),loading=new Set(),errors=new Map();
  const mobile=matchMedia('(max-width:760px)');
@@ -70,7 +70,9 @@ export function mountCampaignBrowser({slug,context}){
   row={...row,status:observedStatuses.get(row.key)||row.status};
   const open=expanded.has(row.key),ad=row.level==='ad',expandable=!ad&&!row.history;
   const label=row.salesAnalytics?'Кампания · CRM до продажи':row.history?'История · только кампания':ad?'Объявление':row.level==='group'?(row.groupKind==='asset_group'?'Группа объектов':'Группа объявлений'):'Кампания';
-  return `<article class="campaign-entity" data-node="${row.key}" style="--campaign-depth:${depth}"><div class="campaign-grid campaign-row"><div class="campaign-name-cell"><button type="button" class="campaign-node-open" data-action="${ad?'creative':expandable?'open':'history'}" data-key="${row.key}" ${expandable?`aria-expanded="${open}"`:''} aria-label="${ad?'Открыть объявление':expandable?'Открыть '+(row.level==='campaign'?'группы':'объявления'):'Историческая кампания'}: ${h(displayText(row.name))}">${ad?`<span class="campaign-thumbnail">${row.previewUrl?`<img src="${h(row.previewUrl)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m5 18 5-6 4 4 3-3 4 5"/></svg>'}</span>`:`<span class="campaign-chevron" aria-hidden="true">${row.history?'':open&&!mobile.matches?'−':'+'}</span>`}<span class="campaign-name">${h(displayText(row.name))}<small>${h(displayText(`${providers[row.provider]||row.provider} · ${label}${row.status?' · '+(statuses[row.status]||row.status):''}`))}</small></span></button>${controls.button(row)}${row.history?`<span class="campaign-history-range">${day(row.from)} — ${day(row.to)}</span>`:''}</div>${columns.map(c=>metric(row,c)).join('')}</div>${!mobile.matches&&open?`<div class="campaign-children">${levelHTML(row.key,depth+1)}</div>`:''}</article>`;
+  const count=row.history?'':row.level==='campaign'?`Групп: ${row.childCount}`:row.level==='group'?`Объявлений: ${row.childCount}`:'';
+  const meta=`<span class="campaign-row-meta"><span class="campaign-level-label">${h(displayText(label))}</span>${row.level==='campaign'?`<span>${h(providers[row.provider]||row.provider)}</span>`:''}${count?`<span class="campaign-child-count">${count}</span>`:''}${row.status?`<span class="campaign-status" data-status="${row.status}">${h(statuses[row.status]||row.status)}</span>`:''}</span>`;
+  return `<article class="campaign-entity" data-level="${row.level}" data-open="${open}" data-history="${Boolean(row.history)}" data-node="${row.key}" style="--campaign-depth:${depth}"><div class="campaign-grid campaign-row"><div class="campaign-name-cell"><button type="button" class="campaign-node-open" data-action="${ad?'creative':expandable?'open':'history'}" data-key="${row.key}" ${expandable?`aria-expanded="${open}"`:''} aria-label="${ad?'Открыть объявление':expandable?'Открыть '+(row.level==='campaign'?'группы':'объявления'):'Историческая кампания'}: ${h(displayText(row.name))}">${ad?`<span class="campaign-thumbnail">${row.previewUrl?`<img src="${h(row.previewUrl)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m5 18 5-6 4 4 3-3 4 5"/></svg>'}</span>`:`<span class="campaign-chevron" aria-hidden="true">${row.history?'':open&&!mobile.matches?'−':'+'}</span>`}<span class="campaign-name"><span class="campaign-name-title">${h(displayText(row.name))}</span>${meta}</span></button>${controls.button(row)}${row.history?`<span class="campaign-history-range">${day(row.from)} — ${day(row.to)}</span>`:''}</div>${columns.map(c=>metric(row,c)).join('')}</div>${!mobile.matches&&open?`<div class="campaign-children">${levelHTML(row.key,depth+1)}</div>`:''}</article>`;
  }
  function levelHTML(parent='',depth=0){
   const data=pages.get(parent),error=errors.get(parent);
@@ -81,9 +83,16 @@ export function mountCampaignBrowser({slug,context}){
   const empty=parent?'Источник не передал дочерние элементы за выбранный период. Итоги родительской строки сохранены.':query?'Ничего не найдено. Измените запрос.':'Нет рекламных данных за выбранный период.';
   return errorHTML+(rows||`<div class="campaign-state">${empty}</div>`)+(data.nextOffset!==null?`<button type="button" class="campaign-more" data-action="more" data-parent="${parent}" ${loading.has(parent)?'disabled':''}>${loading.has(parent)?'Загружаем…':displayText(`Показать ещё · ${data.rows.length} из ${data.total}`)}</button>`:'');
  }
+ function measureHeaders(){
+  for(const entity of list.querySelectorAll('.campaign-entity[data-level=campaign]')){
+   const height=entity.querySelector(':scope > .campaign-row').getBoundingClientRect().height+'px';
+   if(entity.style.getPropertyValue('--campaign-heading-height')!==height)entity.style.setProperty('--campaign-heading-height',height);
+  }
+ }
  function render(){
   const focused=list.contains(document.activeElement)?document.activeElement:null,focusKey=focused?.dataset.key;
   const parent=selectedParent(),data=pages.get(parent),root=pages.get('');
+  host.querySelector('.campaign-collapse').hidden=mobile.matches?!path.length:!expanded.size;
   crumbs.innerHTML=`<button type="button" data-action="root" ${!parent?'aria-current="page"':''}>Кампании</button>${mobile.matches?path.map((key,i)=>`<span aria-hidden="true">/</span><button type="button" data-action="crumb" data-index="${i}" ${i===path.length-1?'aria-current="page"':''}>${h(displayText(nodes.get(key)?.name||'Группа'))}</button>`).join(''):''}`;
   const unavailable=(root?.sources||[]).filter(s=>!s.available).map(s=>providers[s.provider]);
   const partial=(root?.sources||[]).filter(s=>s.available&&s.coverage==='partial');
@@ -94,6 +103,8 @@ export function mountCampaignBrowser({slug,context}){
   summary.innerHTML=data?.parent?`<div class="campaign-parent-summary"><strong>${h(displayText(data.parent.name))}</strong><span>${h(displayText(`Расход ${number(data.parent.metrics.spend)} ${currencySymbol(data.parent.currency)} · Результаты ${number(data.parent.metrics.conversions)}`))}</span></div>`:'';
   list.innerHTML=`${!mobile.matches?`<div class="campaign-grid campaign-table-head"><span>${h(displayText(`Название · ${data?.total??'—'}`))}</span>${columns.map(c=>`<span>${c[1]}</span>`).join('')}</div>`:''}${levelHTML(parent)}`;
   list.querySelectorAll('img').forEach(img=>img.onerror=()=>img.remove());
+  measureHeaders();
+  if(mobile.matches)crumbs.scrollLeft=crumbs.scrollWidth;
   if(focusKey)list.querySelector(`[data-key="${focusKey}"]`)?.focus({preventScroll:true});
  }
  host.addEventListener('click',e=>{
@@ -102,6 +113,7 @@ export function mountCampaignBrowser({slug,context}){
   if(action==='control'&&row){controls.open(row,current.range,button);return;}
   if(action==='creative'&&row){openCreative({row:{...row,detailsKey:row.key},slug,range:current.range,trigger:button,endpoint:'campaign-browser'});return;}
   if(action==='history')return;
+  if(action==='collapse'){expanded.clear();path=[];render();host.querySelector('.campaign-search input').focus({preventScroll:true});return;}
   if(action==='root'){path=[];render();return;}
   if(action==='crumb'){path=path.slice(0,Number(button.dataset.index)+1);render();return;}
   if(action==='retry'){cache.delete(url(button.dataset.parent,0));load(button.dataset.parent,false,true);return;}
@@ -122,6 +134,7 @@ export function mountCampaignBrowser({slug,context}){
   if(!pages.has('')&&!loading.has(''))load();
  }
  new MutationObserver(sync).observe(section,{attributes:true,attributeFilter:['class']});
+ if(typeof ResizeObserver!=='undefined')new ResizeObserver(measureHeaders).observe(host);
  document.getElementById('platformSeg')?.addEventListener('click',()=>queueMicrotask(sync));
  sync();
  return {sync,async refresh(){generation++;loading.clear();errors.clear();if(visible()){const seq=generation;await load('',false,true);if(seq!==generation)return;for(const key of new Set([...expanded,...path]))load(key,false,!localPage(key));}else{reset();}}};
