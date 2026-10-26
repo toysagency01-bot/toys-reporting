@@ -1,4 +1,5 @@
 /* Project presentation approved in NOVA; applied only by the project adapter. */
+html body.nova-demo-design .ux-page-heading>div>span[hidden],html body.nova-demo-design .ux-period-panel .ux-panel-heading p[hidden]{display:none!important}
 html.nova-demo-design,html.nova-demo-design[data-theme=dark]{
  --bg:#090909;--panel:#141414;--panel-2:#191919;--panel2:#191919;--line:#ffffff12;--text:#f3f3f3;
  --muted:#aaa;--accent:#2ad7c0;--accent-dim:#ffffff09;--nova-tile:#ffffff04;--nova-tile-line:#ffffff0d;

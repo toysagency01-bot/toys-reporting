@@ -1,5 +1,6 @@
-import {currencySymbol} from '../unified/currency.js';
 import {mountMonthlyReports} from '../monthly/ui.js';
+import {currencySymbol} from '../unified/currency.js';
+import {mountClientBack} from './mobile-back.js';
 import {mountClientUX} from './client-ux.js';
 import {mountNovaDesign} from './nova-design.js';
 import {holdNovaLoading} from './nova-loading.js';
@@ -180,6 +181,7 @@ async function boot(){
  maskUnavailable();
  if(!allRows.length&&$('updated'))$('updated').textContent='Нет рекламной активности в загруженном периоде';
  clientNavigation=mountClientNavigation({slug,api,prefix,asset,initialCRM,onChange:async()=>{await refreshCRM();await refreshCreatives();if(projectConfig.synthetic)campaignBrowser?.refresh();}});
+ mountClientBack();
  const from=$(shop?'from':'dateFrom'),to=$(shop?'to':'dateTo');
  calendar=mountCalendar({from,to,timeZone:projectConfig.periodTimezone,apply:(start,end)=>{document.querySelectorAll('#periodSeg button').forEach(b=>b.classList.remove('active'));sequence++;ads=null;window.TOYS_NATIVE.setPeriod(start,end);queueRefresh();}});
  if(projectConfig.defaultLastDays){const end=calendar.today(),start=new Date(Date.parse(end+'T12:00:00Z')-(projectConfig.defaultLastDays-1)*86400000).toISOString().slice(0,10);from.value=start;to.value=end;window.TOYS_NATIVE.setPeriod(start,end);calendar.sync();}

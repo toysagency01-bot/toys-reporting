@@ -67,9 +67,7 @@ html body #uxWeekly .report-week-title{font-size:16px!important;color:var(--text
 .report-week .weekly-report>summary{padding:0;list-style:none;font-size:13px;line-height:1.6;cursor:pointer;min-width:0}
 .report-week .weekly-report>summary::-webkit-details-marker{display:none}
 .report-heading{display:flex;align-items:center;gap:10px;min-height:30px}
-.report-week .report-heading .report-channel{border:0;border-left:2px solid var(--report-blue);border-radius:0;padding:0 0 0 9px;font-size:12px;font-weight:500;color:var(--text);background:none}
-.report-week [data-channel=meta] .report-heading .report-channel{border-color:var(--accent)}
-.report-week [data-channel=smm] .report-heading .report-channel{border-color:var(--report-amber)}
+.report-week .report-heading .report-channel{border:0;border-radius:0;padding:0;font-size:12px;font-weight:500;color:var(--text);background:none}
 .report-expand{margin-left:auto;color:var(--muted);font-size:11px;white-space:nowrap}
 .report-expand::after{content:'Открыть +'}
 .weekly-report[open]>summary .report-expand::after{content:'Свернуть −'}

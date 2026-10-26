@@ -134,6 +134,7 @@ export function mountCampaignBrowser({slug,context}){
   if(!pages.has('')&&!loading.has(''))load();
  }
  new MutationObserver(sync).observe(section,{attributes:true,attributeFilter:['class']});
+ document.addEventListener('toys-mobile-back',event=>{if(!mobile.matches||!visible()||!path.length)return;event.preventDefault();path.pop();render();host.scrollIntoView({block:'start'});});
  if(typeof ResizeObserver!=='undefined')new ResizeObserver(measureHeaders).observe(host);
  document.getElementById('platformSeg')?.addEventListener('click',()=>queueMicrotask(sync));
  sync();

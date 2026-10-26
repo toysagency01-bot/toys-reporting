@@ -1,0 +1,9 @@
+.mobile-back-bar{display:none}
+.mobile-back-bar[hidden]{display:none!important}
+@media(max-width:760px){
+ .mobile-back-bar{display:block;margin:6px 15px 0}
+ .mobile-back-button{display:inline-flex;align-items:center;min-height:44px;padding:8px 0;border:0;border-radius:7px;background:transparent;color:var(--text);font:500 13px 'Golos Text',system-ui,sans-serif;cursor:pointer}
+ .mobile-back-button:disabled{opacity:.35;cursor:default}
+ .mobile-back-button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+ .master-main>.mobile-back-bar{margin:0 0 8px}
+}

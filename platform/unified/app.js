@@ -281,6 +281,15 @@ async function openWeeklyEditor(key=null){
   $('weeklyContent')?.scrollIntoView({block:'start'});$('weeklyForm')?.querySelector('[name="summary"]')?.focus({preventScroll:true});
  }catch(e){$('weeklyMessage').textContent=explain(e);}finally{weeklyOpening=false;}
 }
+function closeWeeklyEditor(){
+ if(weeklyDeleting||state.weekly?.uploading||$('weeklyForm')?.dataset.busy||$('commentForm button')?.disabled)return false;
+ if((state.dirty||$('commentForm textarea')?.value.trim())&&!confirm('Закрыть форму без сохранения изменений?'))return false;
+ state.dirty=false;weeklyEditing=false;renderWeeklySummary();return true;
+}
+document.addEventListener('toys-mobile-back',event=>{
+ if(!weeklyEditing||!$('weeklyForm')||document.body.classList.contains('platform-show-crm')||!document.querySelector('#uxWeekly.active,#weekly.active'))return;
+ event.preventDefault();if(closeWeeklyEditor())$('weeklyContent').scrollIntoView({block:'start'});
+});
 function renderWeeklyEditor(){
   const w=state.weekly,p=summaryPayload(w.revision),from=p.periodStart||state.range?.from||'',to=p.periodEnd||state.range?.to||'';
   w.attachments=[...(p.attachments||[])];
@@ -288,7 +297,7 @@ function renderWeeklyEditor(){
   $('weeklyForm').addEventListener('input',()=>{state.dirty=true;$('weeklyMessage').textContent='Есть несохранённые изменения';});
   renderReportScreenshots();$('reportScreenshotInput').onchange=uploadReportScreenshots;prepareReportUpload();
   $('weeklyForm').onsubmit=saveWeekly;bindWeeklyDeletion();
-  $('closeWeeklyEditor').onclick=()=>{if(state.weekly.uploading||$('weeklyForm').dataset.busy)return;if(state.dirty&&!confirm('Закрыть форму без сохранения изменений?'))return;state.dirty=false;weeklyEditing=false;renderWeeklySummary();};
+  $('closeWeeklyEditor').onclick=closeWeeklyEditor;
   $('reloadWeekly').onclick=()=>{if(!state.dirty || confirm('Заменить несохранённый текст версией с сервера?')){state.dirty=false;loadWeekly(true);}};
   $('openHistory').hidden=w.isNew;$('openHistory').onclick=()=>openHistory(w.key);
   $('commentForm').onsubmit=saveComment;$('commentForm').closest('.comments').hidden=w.isNew;if(!w.isNew)loadComments();

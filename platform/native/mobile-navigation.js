@@ -1,3 +1,4 @@
+import {mountBackTrail} from './mobile-back.js';
 // Shared by standalone master pages and the client shell (including shadow CRM).
 let keyboardMounted = false;
 export function mountMobileKeyboard() {
@@ -32,6 +33,13 @@ export function mountMasterMobileControls(root) {
   const actions = document.createElement('div');
   actions.className = 'mobile-header-actions';
   header.append(actions);
+  if(root===document){
+    const nav=root.querySelector('.master-sidebar nav'),project=root.getElementById('projectSelect');
+    mountBackTrail({root,header,id:'masterMobileBack',observe:[nav],fallback:{view:'home',project:''},identify:state=>state.view,
+      read:()=>({view:nav?.querySelector('[data-view].active')?.dataset.view||'home',project:project?.value||''}),
+      navigate:target=>{nav?.querySelector(`[data-view="${CSS.escape(target.view)}"]`)?.click();if(nav?.querySelector('[data-view].active')?.dataset.view!==target.view)return;if(project&&project.value!==target.project&&[...project.options].some(o=>o.value===target.project)){project.value=target.project;project.dispatchEvent(new Event('change',{bubbles:true}));}}
+    });
+  }
   const mobile = matchMedia('(max-width:760px)');
   const place = () => { for (const {element,desktop} of controls) (mobile.matches ? actions : desktop).append(element); };
   mobile.addEventListener('change', place);

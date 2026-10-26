@@ -20,7 +20,7 @@ for(const theme of ['dark','light'])test(`reports group channels by week with ne
  const styles=await report.locator('.report-field').evaluateAll(fields=>fields.map(f=>({bg:getComputedStyle(f).backgroundColor,image:getComputedStyle(f).backgroundImage,ink:getComputedStyle(f.querySelector('h3')).borderLeftColor})));
  expect(styles.every(s=>s.bg==='rgba(0, 0, 0, 0)'&&s.image==='none')).toBe(true);expect(new Set(styles.map(s=>s.ink)).size).toBe(4);
  expect(await report.locator('.report-summary-text').evaluate(e=>e.clientHeight>=e.scrollHeight-1)).toBe(true);
- await expect(page.locator('#weeklyContent .report-channel>.ui-icon')).toHaveCount(4);await expect(page.locator('#weeklyArchive .report-channel>.ui-icon')).toHaveCount(1);
+ await expect(page.locator('#weeklyContent .report-channel>.ui-icon')).toHaveCount(4);expect(await page.locator('#weeklyContent .report-channel').first().evaluate(el=>getComputedStyle(el).borderLeftWidth)).toBe('0px');await expect(page.locator('#weeklyArchive .report-channel>.ui-icon')).toHaveCount(1);
  await page.locator('#weeklySearch').hover();const surface=()=>report.evaluate(el=>{const s=getComputedStyle(el);return [s.backgroundColor,s.borderColor,s.boxShadow];});const before=await surface();await report.hover({position:{x:20,y:20}});expect(await surface()).toEqual(before);
  await page.screenshot({path:`dist/weekly-ux-${theme}.png`,fullPage:true,animations:'disabled'});
 });

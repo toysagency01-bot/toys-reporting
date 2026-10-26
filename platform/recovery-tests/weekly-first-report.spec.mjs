@@ -1,5 +1,16 @@
 import {test,expect} from '@playwright/test';
 
+test('mobile editor has a back button and protects unsaved report text',async({page})=>{
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));await page.setViewportSize({width:390,height:844});
+ await page.goto('/api/v2/projects/housevip-cxp7/content-project#weekly');await page.locator('#uxWeeklyAdd').click();
+ const back=page.locator('#platformMobileBack');await expect(back).toBeVisible();
+ await back.click();await expect(page.locator('#weeklyForm')).toHaveCount(0);await expect(page.locator('#weeklySearch')).toBeVisible();
+ await page.locator('#uxWeeklyAdd').click();await page.locator('#weeklyForm [name=summary]').fill('Несохранённый текст');
+ page.once('dialog',d=>d.dismiss());await back.click();await expect(page.locator('#weeklyForm [name=summary]')).toHaveValue('Несохранённый текст');
+ await page.locator('#weeklyForm').evaluate(f=>f.dataset.busy='true');await back.click();await expect(page.locator('#weeklyForm')).toBeVisible();await page.locator('#weeklyForm').evaluate(f=>delete f.dataset.busy);
+ page.once('dialog',d=>d.accept());await back.click();await expect(page.locator('#weeklyForm')).toHaveCount(0);await expect(page.locator('#weeklySearch')).toBeVisible();
+});
+
 async function checkViewer(page,selector,{mobile=false}={}){
  const trigger=page.locator(selector).first(),dialog=page.locator('#reportImageViewer'),url=page.url(),tabs=page.context().pages().length;
  await trigger.click();await expect(dialog).toBeVisible();await expect(dialog.locator('[data-image-close]')).toBeFocused();
