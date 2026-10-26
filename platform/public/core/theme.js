@@ -86,6 +86,9 @@ function decorateUI(){
   document.querySelectorAll('#viewTabs button,#platformSeg button,#projectSubNav button').forEach(node => {
     decorateNode(node, platformKind(node.textContent), 'platform-icon');
   });
+  document.querySelectorAll('.report-channel').forEach(node => {
+    decorateNode(node, platformKind(node.textContent), 'platform-icon');
+  });
   document.querySelectorAll('.chan-tag,.tag').forEach(node => {
     decorateNode(node, platformKind(node.textContent) || (node.classList.contains('meta') ? 'meta' : 'google'), 'platform-icon');
   });

@@ -60,6 +60,9 @@ html[data-theme=light] .report-week{--report-blue:#436da6;--report-amber:#957023
 .report-archive-title{font-size:17px;margin:30px 0 12px;color:var(--muted);font-weight:500}
 .report-week .weekly-report{margin:8px 0;padding:16px 18px;border:1px solid var(--line);border-radius:11px;background:transparent;box-shadow:none;overflow:visible}
 .report-week .weekly-report[open]{border-color:var(--line);background:transparent}
+html body .report-week .weekly-report:hover{border-color:var(--line);background:transparent;box-shadow:none}
+.report-week .report-heading .report-channel{display:inline-flex;align-items:center;gap:7px}
+.report-channel>.ui-icon{width:18px;height:18px;flex:none;margin:0;vertical-align:middle}
 html body #uxWeekly .report-week-title{font-size:16px!important;color:var(--text);font-weight:500}
 .report-week .weekly-report>summary{padding:0;list-style:none;font-size:13px;line-height:1.6;cursor:pointer;min-width:0}
 .report-week .weekly-report>summary::-webkit-details-marker{display:none}
