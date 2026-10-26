@@ -61,6 +61,21 @@ export function historicalCampaigns(projectId,dashboard,providers,range){
    metrics:{impressions:m.impressions,clicks:m.clicks,spend,conversions:m.conversions,ctr:ratio(m.clicks,m.impressions,100),cpa:ratio(spend,m.conversions),purchases:null,purchaseValue:null,qualifiedLeads:null,roas:null}};
  });
 }
+export function campaignDataset(tree,history,range,{maxRows=2000,maxBytes=1500000}={}){
+ if(tree.roots.length+history.length>maxRows)return null;
+ const rows=[...tree.roots.map(e=>({...presentCampaign(e,range),parentKey:''})),...history.map(row=>({...row,parentKey:''}))];
+ const completeParents=[''],queue=[...tree.roots];
+ let bytes=new TextEncoder().encode(JSON.stringify(rows)).length;
+ if(bytes>maxBytes)return null;
+ for(let i=0;i<queue.length;i++){
+  const entry=queue[i];if(entry.node.level==='ad')continue;
+  if(rows.length+entry.children.length>maxRows)continue;
+  const children=entry.children.map(e=>({...presentCampaign(e,range),parentKey:entry.key}));
+  const size=new TextEncoder().encode(JSON.stringify(children)).length;if(bytes+size>maxBytes)continue;
+  bytes+=size;rows.push(...children);completeParents.push(entry.key);queue.push(...entry.children);
+ }
+ return {rows,completeParents,complete:rows.length===tree.index.size+history.length};
+}
 export function campaignPage({tree,history=[],range,parent='',provider='',query='',sort='spend',offset=0,limit=50}){
  const entry=parent?tree.index.get(parent):null;
  if(parent&&(!entry||entry.node.level==='ad'||provider&&entry.provider.provider!==provider))return null;

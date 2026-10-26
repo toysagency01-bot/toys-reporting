@@ -7,9 +7,11 @@ async function mockCampaignBrowser(page){
  const state={calls:[],creativeCalls:0,groupName:'Lazy group',fail:false};
  const row=(id,level,name)=>({key:id.toString(16).padStart(64,'0'),level,name,provider:'meta_ads',currency:'IDR',status:'ACTIVE',childCount:level==='ad'?0:1,history:false,metrics:{impressions:100,clicks:10,ctr:10,spend:1000,conversions:2,cpa:500}});
  const campaign=row(1,'campaign','Lazy campaign');
- await page.route('**/campaign-browser?*',async r=>{const u=new URL(r.request().url());state.calls.push(u);if(state.holdFirst&&state.calls.length===1)await state.holdFirst;if(state.fail)return r.fulfill({status:503,json:{ok:false}});
+ await page.route('**/campaign-browser?*',async r=>{const u=new URL(r.request().url());state.calls.push(u);if(state.holdFirst&&state.calls.length===1)await state.holdFirst;if(state.holdRefresh&&state.calls.length>1)await state.holdRefresh;if(state.fail)return r.fulfill({status:state.status||503,json:{ok:false}});
  const parent=u.searchParams.get('parent'),offset=Number(u.searchParams.get('offset')||0),group=row(2,'group',state.groupName),all=parent===group.key?Array.from({length:105},(_,i)=>row(i+3,'ad','Lazy ad '+i)):parent===campaign.key?[group]:[campaign];
- return r.fulfill({json:{ok:true,rows:all.slice(offset,offset+50),total:all.length,nextOffset:offset+50<all.length?offset+50:null,parent:parent===campaign.key?campaign:parent===group.key?group:null,sources:[],refreshing:false}});
+ const ads=Array.from({length:105},(_,i)=>row(i+3,'ad','Lazy ad '+i));
+ const dataset=state.bundle?{rows:[{...campaign,parentKey:''},{...group,parentKey:campaign.key},...(state.bundle==='partial'?[]:ads.map(ad=>({...ad,parentKey:group.key})))],completeParents:['',campaign.key,...(state.bundle==='partial'?[]:[group.key])],complete:state.bundle!=='partial'}:null;
+ return r.fulfill({json:{ok:true,rows:all.slice(offset,offset+50),total:all.length,nextOffset:offset+50<all.length?offset+50:null,parent:parent===campaign.key?campaign:parent===group.key?group:null,sources:[],refreshing:false,...(dataset?{dataset}:{})}});
  });
  await page.route('**/campaign-browser/*/creative?*',r=>{state.creativeCalls++;return r.fulfill({json:{ok:true,creative:{bodies:['Полный текст объявления'],media:[]}}});});
  return state;
@@ -694,4 +696,47 @@ for(const viewer of [false,true])test(`PROFKIT current periods and independent s
  await page.reload();await expect(page.locator('#to')).toHaveValue('2026-10-16');await expect(page.locator('#updated')).toHaveText('Реклама: 2026-10-16 / Продажи: 2026-10-15');
  expect(reads.filter(r=>r.from==='2026-10-10'&&r.to==='2026-10-16').length).toBe(initialReads);
  expect(errors).toEqual([]);
+});
+
+
+test('bundled campaigns expand, paginate, search and sort with one request and survive reload',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const fixture=await mockCampaignBrowser(page);fixture.bundle=true;
+ await page.goto(portal);await page.locator('[data-ux-view=campaigns]').click();
+ await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();
+ await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(52);
+ await page.getByRole('button',{name:/^Показать ещё.*50 из 105$/}).click();await expect(page.locator('.campaign-entity')).toHaveCount(102);expect(fixture.calls.length).toBe(1);
+ await page.locator('#platformCampaignBrowser select').selectOption('name');await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(52);expect(fixture.calls.length).toBe(1);
+ await page.locator('#platformCampaignBrowser input[type=search]').fill('Lazy ad 104');await page.clock.fastForward(300);
+ await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(3);expect(fixture.calls.length).toBe(1);
+ await page.locator('#platformCampaignBrowser input[type=search]').fill('');await page.clock.fastForward(300);await expect(page.locator('.campaign-entity')).toHaveCount(1);
+ await page.reload();await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(52);expect(fixture.calls.length).toBe(1);
+});
+test('bundled refresh keeps visible children and pagination while loading and after failure',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const fixture=await mockCampaignBrowser(page);fixture.bundle=true;
+ await page.goto(portal);await page.locator('[data-ux-view=campaigns]').click();await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await page.getByRole('button',{name:/^Показать ещё.*50 из 105$/}).click();
+ let release;fixture.holdRefresh=new Promise(resolve=>release=resolve);fixture.groupName='Updated group';await page.clock.fastForward(20*60000);await expect.poll(()=>fixture.calls.length).toBe(2);await expect(page.locator('.campaign-entity')).toHaveCount(102);
+ release();fixture.holdRefresh=null;await expect(page.getByRole('button',{name:'Открыть объявления: Updated group'})).toBeVisible();await expect(page.locator('.campaign-entity')).toHaveCount(102);expect(fixture.calls.length).toBe(2);
+ fixture.fail=true;await page.clock.fastForward(20*60000);await expect(page.locator('.campaign-state[role=alert]').first()).toBeVisible();await expect(page.locator('.campaign-entity')).toHaveCount(102);
+ fixture.fail=false;fixture.groupName='Recovered group';await page.locator('.campaign-state[role=alert] button').first().click();await expect(page.getByRole('button',{name:'Открыть объявления: Recovered group'})).toBeVisible();await expect(page.locator('.campaign-state[role=alert]')).toHaveCount(0);await expect(page.locator('.campaign-entity')).toHaveCount(102);
+ await page.screenshot({path:'dist/campaign-bundle-refresh.png'});
+});
+test('partial bundles reuse groups and fetch only the missing ad level',async({page})=>{
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));const fixture=await mockCampaignBrowser(page);fixture.bundle='partial';
+ await page.setViewportSize({width:390,height:844});await page.goto(portal);await selectNovaSection(page,'campaigns');await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();expect(fixture.calls.length).toBe(1);
+ await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(50);expect(fixture.calls.length).toBe(2);await expect(page.locator('.campaign-breadcrumbs')).toContainText('Lazy group');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:'dist/campaign-bundle-mobile.png'});
+});
+
+test('complete bundles drill into ads on mobile without requests and reload for a new period',async({page})=>{
+ await page.clock.setFixedTime(new Date('2026-10-14T06:07:00Z'));const fixture=await mockCampaignBrowser(page);fixture.bundle=true;
+ await page.setViewportSize({width:390,height:844});await page.goto(portal);await selectNovaSection(page,'campaigns');await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(50);expect(fixture.calls.length).toBe(1);
+ await page.locator('.campaign-breadcrumbs').getByRole('button',{name:'Кампании',exact:true}).click();await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await page.getByRole('button',{name:'Открыть объявления: Lazy group'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(50);expect(fixture.calls.length).toBe(1);
+ await page.getByRole('button',{name:'Сегодня',exact:true}).click();await expect.poll(()=>fixture.calls.length).toBe(2);await expect(page.locator('.campaign-breadcrumbs')).not.toContainText('Lazy group');
+});
+
+test('revoking access removes bundled campaign rows on the next background request',async({page})=>{
+ await page.clock.install({time:new Date('2026-10-14T06:07:00Z')});const fixture=await mockCampaignBrowser(page);fixture.bundle=true;
+ await page.goto(portal);await page.locator('[data-ux-view=campaigns]').click();await page.getByRole('button',{name:'Открыть группы: Lazy campaign'}).click();await expect(page.locator('.campaign-entity')).toHaveCount(2);
+ fixture.fail=true;fixture.status=403;await page.clock.fastForward(20*60000);await expect(page.locator('.campaign-entity')).toHaveCount(0);await expect(page.locator('.campaign-state[role=alert]')).toContainText('Войдите');
+ expect(await page.evaluate(()=>Object.keys(sessionStorage).filter(k=>k.startsWith('toys-dashboard-cache:')).length)).toBe(0);
 });

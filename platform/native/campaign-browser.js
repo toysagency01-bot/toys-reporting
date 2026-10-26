@@ -2,6 +2,7 @@ import {currencySymbol} from '../unified/currency.js';
 import registry from '../projects.json' with {type:'json'};
 import {escapeHtml as h,validRange} from '../unified/model.js';
 import {responseCache} from './response-cache.js';
+import {datasetPage} from './campaign-dataset.js';
 import {openCreative} from './creative-viewer.js';
 import {mountCampaignControls} from './campaign-controls-ui.js';
 import styles from './campaign-browser.css';
@@ -25,26 +26,43 @@ export function mountCampaignBrowser({slug,context}){
  const list=host.querySelector('.campaign-list'),crumbs=host.querySelector('.campaign-breadcrumbs'),note=host.querySelector('.campaign-source-note'),summary=host.querySelector('.campaign-level-summary');
  const cache=responseCache({prefix:`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser`}),pages=new Map(),nodes=new Map(),expanded=new Set(),loading=new Set(),errors=new Map();
  const mobile=matchMedia('(max-width:760px)');
- let scope='',current,query='',sort='spend',path=[],generation=0,searchTimer;
+ let scope='',current,query='',sort='spend',path=[],generation=0,searchTimer,dataset=null,source=null;
  const observedStatuses=new Map();
  const controls=mountCampaignControls({slug,render,onStatus(key,status){observedStatuses.set(key,status);render();}});
  const visible=()=>section.classList.contains('active')&&!document.body.classList.contains('platform-show-crm');
  const params=(parent='',offset=0)=>new URLSearchParams({...current.range,provider:current.provider||'',...(demo?{analytics:'crm-v1'}:{}),parent,q:query,sort,offset:String(offset)});
- const url=(parent,offset)=>`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser?${params(parent,offset)}&adsBasis=daily-v2`;
+ const url=(parent,offset)=>`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser?${params(parent,offset)}&adsBasis=daily-v2${!parent?'&dataset=1':''}`;
  const selectedParent=()=>mobile.matches?path.at(-1)||'':'';
- function reset(){generation++;pages.clear();nodes.clear();loading.clear();errors.clear();expanded.clear();path=[];}
- async function load(parent='',more=false){
+ function reset(clearDataset=true){if(clearDataset){dataset=null;source=null;}generation++;pages.clear();nodes.clear();loading.clear();errors.clear();expanded.clear();path=[];}
+ function localPage(parent='',offset=0,limit=50){
+  const page=datasetPage(dataset,{parent,offset,limit,provider:current.provider||'',query,sort});
+  return page?{...source,sources:(source?.sources||[]).filter(s=>!current.provider||s.provider===current.provider),...page,dataset:undefined}:null;
+ }
+ function accept(data,parent,more){
+  if(data.dataset){
+   dataset=data.dataset;source={sources:data.sources,refreshing:data.refreshing,range:data.range};
+   for(const row of dataset.rows)nodes.set(row.key,row);
+   // Keep already displayed pagination and open levels when a new snapshot arrives.
+   for(const [key,old] of pages){const page=localPage(key);if(page){const count=Math.max(50,old.rows.length);const full=datasetPage(dataset,{parent:key,provider:current.provider||'',query,sort,limit:count});pages.set(key,{...page,...full});}}
+   data=localPage(parent,0,Math.max(50,pages.get(parent)?.rows.length||0))||data;
+  }
+  for(const row of data.rows)nodes.set(row.key,row);
+  pages.set(parent,{...data,dataset:undefined,rows:more?[...(pages.get(parent)?.rows||[]),...data.rows]:data.rows});
+ }
+ async function load(parent='',more=false,force=false){
   if(loading.has(parent)||!current||!validRange(current.range.from,current.range.to))return;
   const offset=more?pages.get(parent)?.nextOffset:0;if(offset===null||offset===undefined)return;
+  const local=!force&&localPage(parent,offset,more?50:Math.max(50,pages.get(parent)?.rows.length||0));if(local){accept(local,parent,more);render();return;}
   const seq=generation;loading.add(parent);errors.delete(parent);render();
   try{
    const address=url(parent,offset);
-   const saved=await cache.load(address);if(seq!==generation)return;if(saved&&!saved.fresh&&!more){for(const row of saved.value.rows)nodes.set(row.key,row);pages.set(parent,saved.value);render();}
-   const data=await cache.get(address,async()=>{const response=await fetch(address,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000)});const d=await response.json();if(!response.ok||!d.ok)throw Object.assign(new Error(response.status===401||response.status===403?'access_denied':'unavailable'),{status:response.status});return d;});
+   const saved=await cache.load(address);if(seq!==generation)return;if(saved&&!more&&(!force||!pages.has(parent))){accept(saved.value,parent,false);render();}
+   const data=await cache.get(address,async()=>{const response=await fetch(address,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000)});const d=await response.json();if(!response.ok||!d.ok)throw Object.assign(new Error(response.status===401||response.status===403?'access_denied':'unavailable'),{status:response.status});return d;},{force});
    if(seq!==generation)return;
-   for(const row of data.rows)nodes.set(row.key,row);
-   pages.set(parent,{...data,rows:more?[...pages.get(parent).rows,...data.rows]:data.rows});
-  }catch(error){if(seq===generation&&error.name!=='AbortError')errors.set(parent,error.message==='access_denied'?'Войдите в кабинет, чтобы открыть детализацию.':'Не удалось загрузить детализацию. Попробуйте ещё раз.');}
+   if(force&&!parent&&!data.dataset){dataset=null;source=null;}
+   accept(data,parent,more);
+  }catch(error){if(seq===generation&&[401,403].includes(error.status)){dataset=null;source=null;pages.clear();nodes.clear();expanded.clear();path=[];}
+   if(seq===generation&&error.name!=='AbortError')errors.set(parent,error.message==='access_denied'?'Войдите в кабинет, чтобы открыть детализацию.':'Не удалось загрузить детализацию. Попробуйте ещё раз.');}
   finally{if(seq===generation){loading.delete(parent);render();}}
  }
  const metric=(row,[key,label])=>`<div class="campaign-cell"><span>${label}</span><b>${number(row.metrics[key])}${row.metrics[key]==null?'':['ctr','qualificationRate','qualifiedSaleRate','saleRate'].includes(key)?'%':['roas','crmRoas'].includes(key)?'×':['spend','cpa','revenue','cpql','cac'].includes(key)?' '+h(currencySymbol(row.currency)):''}</b></div>`;
@@ -69,7 +87,10 @@ export function mountCampaignBrowser({slug,context}){
   crumbs.innerHTML=`<button type="button" data-action="root" ${!parent?'aria-current="page"':''}>Кампании</button>${mobile.matches?path.map((key,i)=>`<span aria-hidden="true">/</span><button type="button" data-action="crumb" data-index="${i}" ${i===path.length-1?'aria-current="page"':''}>${h(displayText(nodes.get(key)?.name||'Группа'))}</button>`).join(''):''}`;
   const unavailable=(root?.sources||[]).filter(s=>!s.available).map(s=>providers[s.provider]);
   const partial=(root?.sources||[]).filter(s=>s.available&&s.coverage==='partial');
-  note.textContent=unavailable.length?`Детализация ${[...new Set(unavailable)].join(', ')} пока недоступна. Сохранённая история показана отдельно.`:partial.length?'За часть периода доступна только история кампаний. Такие строки отмечены отдельно.':(root?.sources||[]).some(s=>s.freshness==='stale')?'Показана последняя сохранённая детализация.':root?.refreshing?'Обновляем детализацию. Последние данные сохранены.':'';note.hidden=!note.textContent;
+  note.textContent=unavailable.length?`Детализация ${[...new Set(unavailable)].join(', ')} пока недоступна. Сохранённая история показана отдельно.`:partial.length?'За часть периода доступна только история кампаний. Такие строки отмечены отдельно.':(root?.sources||[]).some(s=>s.freshness==='stale')?'Показана последняя сохранённая детализация.':root?.refreshing?'Обновляем детализацию. Последние данные сохранены.':'';
+  const updated=(root?.sources||[]).map(s=>Date.parse(s.fetchedAt)).filter(Number.isFinite);
+  if(updated.length){const at=new Intl.DateTimeFormat('ru-RU',{timeZone:'Asia/Tbilisi',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(Math.min(...updated)));note.textContent+=(note.textContent?' / ':'')+'Обновлено '+at;}
+  note.hidden=!note.textContent;
   summary.innerHTML=data?.parent?`<div class="campaign-parent-summary"><strong>${h(displayText(data.parent.name))}</strong><span>${h(displayText(`Расход ${number(data.parent.metrics.spend)} ${currencySymbol(data.parent.currency)} · Результаты ${number(data.parent.metrics.conversions)}`))}</span></div>`:'';
   list.innerHTML=`${!mobile.matches?`<div class="campaign-grid campaign-table-head"><span>${h(displayText(`Название · ${data?.total??'—'}`))}</span>${columns.map(c=>`<span>${c[1]}</span>`).join('')}</div>`:''}${levelHTML(parent)}`;
   list.querySelectorAll('img').forEach(img=>img.onerror=()=>img.remove());
@@ -83,7 +104,7 @@ export function mountCampaignBrowser({slug,context}){
   if(action==='history')return;
   if(action==='root'){path=[];render();return;}
   if(action==='crumb'){path=path.slice(0,Number(button.dataset.index)+1);render();return;}
-  if(action==='retry'){cache.delete(url(button.dataset.parent,0));load(button.dataset.parent);return;}
+  if(action==='retry'){cache.delete(url(button.dataset.parent,0));load(button.dataset.parent,false,true);return;}
   if(action==='more'){load(button.dataset.parent,true);return;}
   if(action==='open'){
    if(mobile.matches){path.push(key);render();host.scrollIntoView({block:'start'});}
@@ -91,11 +112,11 @@ export function mountCampaignBrowser({slug,context}){
    if(pages.has(key))render();else load(key);
   }
  });
- host.querySelector('input').addEventListener('input',e=>{clearTimeout(searchTimer);const value=e.target.value;searchTimer=setTimeout(()=>{query=value.trim();reset();if(visible())load();},250);});
- host.querySelector('select').addEventListener('change',e=>{sort=e.target.value;reset();if(visible())load();});
+ host.querySelector('input').addEventListener('input',e=>{clearTimeout(searchTimer);const value=e.target.value;searchTimer=setTimeout(()=>{query=value.trim();reset(false);if(visible())load();},250);});
+ host.querySelector('select').addEventListener('change',e=>{sort=e.target.value;reset(false);if(visible())load();});
  mobile.addEventListener('change',()=>{for(const key of path)expanded.add(key);render();});
  function sync(){
-  const next=context(),key=JSON.stringify(next);if(scope!==key){scope=key;current=next;reset();}
+  const next=context(),key=JSON.stringify(next);if(scope!==key){const sameRange=current&&JSON.stringify(current.range)===JSON.stringify(next.range);scope=key;current=next;reset(!sameRange);}
   if(!visible())return;
   if(!validRange(current.range.from,current.range.to)){list.innerHTML='<div class="campaign-state">Выберите период для детализации.</div>';return;}
   if(!pages.has('')&&!loading.has(''))load();
@@ -103,5 +124,5 @@ export function mountCampaignBrowser({slug,context}){
  new MutationObserver(sync).observe(section,{attributes:true,attributeFilter:['class']});
  document.getElementById('platformSeg')?.addEventListener('click',()=>queueMicrotask(sync));
  sync();
- return {sync,refresh(){generation++;loading.clear();errors.clear();if(visible()){load();for(const key of new Set([...expanded,...path]))load(key);}else{pages.clear();nodes.clear();expanded.clear();path=[];}}};
+ return {sync,async refresh(){generation++;loading.clear();errors.clear();if(visible()){const seq=generation;await load('',false,true);if(seq!==generation)return;for(const key of new Set([...expanded,...path]))load(key,false,!localPage(key));}else{reset();}}};
 }

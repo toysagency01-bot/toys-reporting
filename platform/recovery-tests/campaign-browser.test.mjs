@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {campaignIndex,campaignPage,campaignMetrics,historicalCampaigns} from '../native/campaign-model.js';
+import {campaignIndex,campaignPage,campaignMetrics,historicalCampaigns,campaignDataset} from '../native/campaign-model.js';
 import {fixture,testWorker,request} from './fixture.mjs';
 import {saveAdsSnapshot} from '../imports/ads-store.js';
 import {campaignAPI} from '../native/campaign-api.js';
+import {datasetPage} from '../native/campaign-dataset.js';
 const range={from:'2026-10-07',to:'2026-10-07'};
 const observed=value=>({state:'observed',value:String(value)});
 const daily=(date=range.from,spend=20)=>({date,metrics:{impressions:observed(100),clicks:observed(10),spend:observed(spend),conversions:observed(2),conversionValue:observed(0)}});
@@ -85,4 +86,31 @@ test('Google creative metadata uses only an accepted batch for the selected acco
   const res=await campaignAPI(request('/api/v2/projects/housevip-cxp7/campaign-browser/'+adEntry.key+'/creative?from='+range.from+'&to='+range.to),env,{},dependencies);
   assert.equal(res.status,200);const {creative}=await res.json();assert.equal(creative.destinationUrl,'https://example.test/correct');assert.equal(creative.contentStatus,'metadata_only');assert.deepEqual(creative.media,[]);assert.deepEqual(creative.bodies,[]);
  }finally{db.close();}
+});
+
+
+test('compact dataset preserves server pages, search, sorting and account boundaries',()=>{
+ const p=provider();p.hierarchy.children[0].children[0].children=Array.from({length:105},(_,i)=>({...ad(String(i+3)),name:'Ad '+i}));
+ const tree=campaignIndex('project',[p,provider('second','EUR')],range),history=[{key:'history',name:'Old campaign',provider:'google_ads',currency:'USD',level:'campaign',history:true,metrics:{spend:9}}];
+ const dataset=campaignDataset(tree,history,range);assert.equal(dataset.complete,true);
+ for(const parent of dataset.completeParents)for(const query of ['','Ad 101','Group','Same','nothing'])for(const sort of ['spend','name','impressions','conversions'])for(const provider of ['','meta_ads','google_ads'])for(const offset of [0,50,100]){
+  assert.deepEqual(datasetPage(dataset,{parent,provider,query,sort,offset}),campaignPage({tree,history,range,parent,provider,query,sort,offset}));
+ }
+ assert.ok(!JSON.stringify(dataset).includes('must never leave'));assert.ok(!JSON.stringify(dataset).includes('providerId'));assert.ok(!JSON.stringify(dataset).includes('account-one'));
+});
+test('bounded bundles do not mistake truncated levels for complete or search incomplete data',()=>{
+ const tree=campaignIndex('project',[provider()],range),dataset=campaignDataset(tree,[],range,{maxRows:2});
+ assert.equal(dataset.rows.length,2);assert.equal(dataset.complete,false);
+ assert.equal(datasetPage(dataset,{parent:dataset.rows[1].key}),null);
+ assert.equal(datasetPage(dataset,{query:'Same'}),null);
+ assert.equal(datasetPage(dataset,{}).total,1);
+ assert.equal(campaignDataset(tree,[],range,{maxBytes:1}),null);
+ assert.equal(campaignDataset(tree,[],range,{maxRows:0}),null);
+});
+test('bundle API reads stats once, starts history in parallel and authorizes every request',async()=>{
+ const p=provider(),project={id:'project',slug:'housevip-cxp7',organizationId:'org'};let reads=0,historyStarted=false;
+ const dependencies={authorizeMvp:async()=>({ok:true}),projectRecord:async()=>project,onDemandAdsService:()=>({getStats:async()=>{reads++;await Promise.resolve();assert.ok(historyStarted);return {providers:[p]};}}),backend:{fetch:async()=>{historyStarted=true;return Response.json({ok:true,dashboard:{facts:{rows:[]}}});}}};
+ const address='/api/v2/projects/housevip-cxp7/campaign-browser?from='+range.from+'&to='+range.to+'&dataset=1';
+ const res=await campaignAPI(request(address),{}, {},dependencies);assert.equal(res.status,200);const body=await res.json();assert.equal(reads,1);assert.equal(body.dataset.rows.length,3);assert.equal(body.dataset.complete,true);
+ const denied=await campaignAPI(request(address),{},{},{...dependencies,authorizeMvp:async()=>({ok:false,status:403,error:'forbidden'})});assert.equal(denied.status,403);assert.equal(reads,1);
 });
