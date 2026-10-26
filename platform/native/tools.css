@@ -48,4 +48,57 @@ html body button.report-delete{color:var(--red,#bb334b);border-color:currentColo
 
 /* Report summaries expand independently of legacy one-line weekly previews. */
 .weekly-report .report-summary-text{display:block;min-width:0;max-height:none;white-space:pre-wrap;overflow-wrap:anywhere;overflow:visible;text-overflow:clip;line-height:1.6;margin:12px 0 0}
-.weekly-report:not([open]) .report-summary-text{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.report-browser-tools{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 22px}
+.report-browser-tools .sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+.report-browser-tools .report-search{flex:1;min-width:220px;max-width:420px}
+.report-browser-tools :is(input,select){box-sizing:border-box;width:100%;min-height:42px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2,var(--raised));color:var(--text);padding:10px 12px;font:inherit;font-size:12px}
+.report-browser-tools>span{font-size:11px;color:var(--muted);margin-left:auto}
+.report-week{--report-blue:#91afe5;--report-amber:#d8b16a;margin:24px 0 32px;min-width:0}
+html[data-theme=light] .report-week{--report-blue:#436da6;--report-amber:#957023}
+.report-week[hidden],.report-week .weekly-report[hidden],#weeklyFilterEmpty[hidden]{display:none!important}
+.report-week-title{font-size:16px;line-height:1.5;font-weight:500;margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid var(--line);color:var(--text)}
+.report-archive-title{font-size:17px;margin:30px 0 12px;color:var(--muted);font-weight:500}
+.report-week .weekly-report{margin:8px 0;padding:16px 18px;border:1px solid var(--line);border-radius:11px;background:transparent;box-shadow:none;overflow:visible}
+.report-week .weekly-report[open]{border-color:var(--line);background:transparent}
+html body #uxWeekly .report-week-title{font-size:16px!important;color:var(--text);font-weight:500}
+.report-week .weekly-report>summary{padding:0;list-style:none;font-size:13px;line-height:1.6;cursor:pointer;min-width:0}
+.report-week .weekly-report>summary::-webkit-details-marker{display:none}
+.report-heading{display:flex;align-items:center;gap:10px;min-height:30px}
+.report-week .report-heading .report-channel{border:0;border-left:2px solid var(--report-blue);border-radius:0;padding:0 0 0 9px;font-size:12px;font-weight:500;color:var(--text);background:none}
+.report-week [data-channel=meta] .report-heading .report-channel{border-color:var(--accent)}
+.report-week [data-channel=smm] .report-heading .report-channel{border-color:var(--report-amber)}
+.report-expand{margin-left:auto;color:var(--muted);font-size:11px;white-space:nowrap}
+.report-expand::after{content:'Открыть +'}
+.weekly-report[open]>summary .report-expand::after{content:'Свернуть −'}
+.report-week .report-main-summary{border-left:3px solid var(--accent);padding:0 0 0 14px;margin:12px 0 0;max-width:82ch}
+.report-week .report-summary-label{display:block;color:var(--accent);font-size:10px;font-weight:500;margin-bottom:5px}
+.report-week .report-summary-text{font-size:14px;line-height:1.7;margin:0;color:var(--text);display:block;overflow:visible;max-height:none;white-space:pre-wrap;overflow-wrap:anywhere;text-overflow:clip}
+.report-week .weekly-report>.children{padding:8px 0 0;border:0;background:none}
+.report-week .report-field{--report-section-ink:var(--muted);display:grid;grid-template-columns:170px minmax(0,78ch);gap:16px 24px;margin:0;padding:18px 0;border-bottom:1px solid var(--line);font-size:13px;line-height:1.75;white-space:normal}
+.report-week .report-field[data-field=wins]{--report-section-ink:var(--accent)}
+.report-week .report-field[data-field=issues]{--report-section-ink:var(--report-amber)}
+.report-week .report-field[data-field=nextSteps]{--report-section-ink:var(--report-blue)}
+.report-week .report-field h3{font-size:12px;line-height:1.7;font-weight:500;margin:0;padding-left:10px;border-left:2px solid var(--report-section-ink);align-self:start;color:var(--text)}
+.report-week .report-field p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)}
+.report-week .actions{margin:16px 0 0;gap:8px}
+.report-week .actions button{font-size:11px;min-height:36px;padding:7px 11px}
+.report-action-menu{position:relative;margin-left:auto}
+.report-action-popover{position:absolute;bottom:calc(100% + 6px);right:0;z-index:5;min-width:150px;padding:5px;border:1px solid var(--line);border-radius:9px;background:var(--panel,var(--surface));box-shadow:0 6px 24px #0002}
+.report-action-popover[hidden]{display:none!important}
+.report-week .report-action-popover .report-delete{width:100%;border:0;text-align:left;white-space:nowrap}
+.report-week .report-draft{font-size:10px;background:none;border:1px solid var(--line);color:var(--muted);border-radius:5px;padding:2px 6px}
+@media(max-width:760px){
+ .report-browser-tools{gap:8px;margin-bottom:16px}
+ .report-browser-tools .report-search{min-width:0;flex-basis:100%;max-width:none}
+ .report-browser-tools label:has(select){flex:1}
+ .report-browser-tools :is(input,select){font-size:16px;min-height:44px}
+ .report-browser-tools button{min-height:44px}
+ .report-browser-tools>span{flex-basis:100%;margin:0}
+ .report-week-title{font-size:14px}
+ html body #uxWeekly .report-week-title{font-size:14px!important}
+ .report-week .weekly-report{padding:12px}
+ .report-week .report-main-summary{padding-left:10px}
+ .report-week .report-summary-text{font-size:13px}
+ .report-week .report-field{grid-template-columns:minmax(0,1fr);gap:8px;padding:16px 0}
+ .report-week .actions button{min-height:44px}
+}

@@ -97,8 +97,43 @@ function show(view){if(!['overview','campaigns','funnel','weekly','project','cre
 const fields=[['summary','Главный итог'],['wins','Что сработало'],['issues','Риски и вопросы'],['changes','Что изменили'],['nextSteps','План на следующую неделю']];
 const reportChannels={meta:'Meta Ads',google:'Google Ads',smm:'SMM'};
 const hasReportText=value=>value!=null&&!['','-','–','—'].includes(String(value).trim());
-function reportFields(p,{includeSummary=false}={}){return fields.filter(([key])=>(includeSummary||key!=='summary')&&hasReportText(p[key])).map(([key,label])=>`<div class="report-field"><h3>${label}</h3><p>${h(p[key])}</p></div>`).join('');}
-function reportSummary(p){return hasReportText(p.summary)?`<p class="report-summary-text">${h(p.summary)}</p>`:'';}
+function reportFields(p,{includeSummary=false}={}){return fields.filter(([key])=>(includeSummary||key!=='summary')&&hasReportText(p[key])).map(([key,label])=>`<div class="report-field" data-field="${key}"><h3>${label}</h3><p>${h(p[key])}</p></div>`).join('');}
+function reportSummary(p){return hasReportText(p.summary)?`<div class="report-main-summary"><span class="report-summary-label">Главный итог</span><p class="report-summary-text">${h(p.summary)}</p></div>`:'';}
+function reportPeriod(start,end){
+ const valid=value=>/^\d{4}-\d{2}-\d{2}$/.test(value||'')&&Number.isFinite(Date.parse(value));
+ if(!valid(start)||!valid(end))return [start,end].filter(Boolean).join(' — ')||'Период не указан';
+ const date=value=>new Date(value+'T12:00:00Z'),format=(value,options)=>new Intl.DateTimeFormat('ru-RU',{timeZone:'UTC',...options}).format(date(value));
+ if(start===end)return format(start,{day:'numeric',month:'long',year:'numeric'});
+ if(start.slice(0,7)===end.slice(0,7))return Number(start.slice(8))+'–'+format(end,{day:'numeric',month:'long',year:'numeric'});
+ return format(start,{day:'numeric',month:'long',...(start.slice(0,4)!==end.slice(0,4)?{year:'numeric'}:{})})+' — '+format(end,{day:'numeric',month:'long',year:'numeric'});
+}
+function groupReportRows(entries){
+ const groups=new Map();for(const entry of entries){const key=JSON.stringify([entry.p.periodStart||'',entry.p.periodEnd||'']);if(!groups.has(key))groups.set(key,{start:entry.p.periodStart||'',end:entry.p.periodEnd||'',entries:[]});groups.get(key).entries.push(entry);}
+ return [...groups.values()].sort((a,b)=>b.end.localeCompare(a.end)||b.start.localeCompare(a.start)).map(g=>`<section class="report-week"><h2 class="report-week-title">${h(reportPeriod(g.start,g.end))}</h2>${g.entries.map(e=>e.html).join('')}</section>`).join('');
+}
+let weeklyQuery='',weeklyChannel='',reportMenusBound=false;
+function reportMenu(button){return button?`<div class="report-action-menu"><button type="button" class="quiet" data-report-menu aria-expanded="false">Действия</button><div class="report-action-popover" hidden>${button}</div></div>`:'';}
+function bindReportMenus(){
+ if(reportMenusBound)return;reportMenusBound=true;
+ const close=menu=>{menu.querySelector('[data-report-menu]').setAttribute('aria-expanded','false');menu.querySelector('.report-action-popover').hidden=true;};
+ document.addEventListener('click',e=>{const trigger=e.target.closest('[data-report-menu]'),menu=trigger?.closest('.report-action-menu');for(const other of document.querySelectorAll('.report-action-menu'))if(other!==menu&&!other.contains(e.target))close(other);if(trigger){const opened=trigger.getAttribute('aria-expanded')==='true';trigger.setAttribute('aria-expanded',String(!opened));menu.querySelector('.report-action-popover').hidden=opened;}});
+ document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const menu=e.target.closest('.report-action-menu');if(menu){close(menu);menu.querySelector('[data-report-menu]').focus();}});
+}
+function applyReportFilters(){
+ const q=weeklyQuery.trim().toLocaleLowerCase();let count=0;
+ for(const host of [$('weeklyContent'),$('weeklyArchive')].filter(Boolean))for(const group of host.querySelectorAll('.report-week')){
+  let shown=0;for(const report of group.querySelectorAll('.weekly-report')){const match=(!weeklyChannel||report.dataset.channel===weeklyChannel)&&(!q||report.textContent.toLocaleLowerCase().includes(q));report.hidden=!match;if(match)shown++;}group.hidden=!shown;count+=shown;
+ }
+ const archiveTitle=$('weeklyArchive')?.querySelector('.report-archive-title');if(archiveTitle)archiveTitle.hidden=![...$('weeklyArchive').querySelectorAll('.weekly-report')].some(r=>!r.hidden);
+ if($('weeklyFilterEmpty'))$('weeklyFilterEmpty').hidden=!!count||(!q&&!weeklyChannel);
+ if($('weeklyReportCount'))$('weeklyReportCount').textContent='Отчётов: '+count;
+}
+function weeklyBrowserTools(){return `<div class="report-browser-tools"><label class="report-search"><span class="sr-only">Поиск по тексту отчётов</span><input id="weeklySearch" type="search" placeholder="Поиск по тексту отчётов" value="${h(weeklyQuery)}" maxlength="200"></label><label><span class="sr-only">Канал отчёта</span><select id="weeklyChannel"><option value="">Все каналы</option>${Object.entries(reportChannels).map(([key,label])=>`<option value="${key}" ${weeklyChannel===key?'selected':''}>${label}</option>`).join('')}</select></label><button type="button" class="quiet" id="weeklyCollapse">Свернуть всё</button><span id="weeklyReportCount" role="status"></span></div><div id="weeklyFilterEmpty" class="empty" hidden>Нет отчётов по выбранным условиям.</div>`;}
+function bindWeeklyBrowser(){
+ $('weeklySearch').oninput=e=>{weeklyQuery=e.target.value;applyReportFilters();};$('weeklyChannel').onchange=e=>{weeklyChannel=e.target.value;applyReportFilters();};
+ $('weeklyCollapse').onclick=()=>{for(const host of [$('weeklyContent'),$('weeklyArchive')].filter(Boolean))for(const report of host.querySelectorAll('.weekly-report[open]'))report.open=false;$('weeklySearch').focus({preventScroll:true});};
+ applyReportFilters();bindReportMenus();
+}
 function reportMedia(p){return `${reportChannels[p.channel]?`<span class="badge report-channel">${reportChannels[p.channel]}</span>`:''}${reportScreenshots(p.attachments||[])}`;}
 let reportViewerBound=false;
 function bindReportViewer(){
@@ -190,7 +225,9 @@ let archiveLoading=false,archiveLoadedAt=0,weeklyDeleting=false;
 async function loadWeeklyArchive(){
  if(archiveLoading||Date.now()-archiveLoadedAt<60000)return;archiveLoading=true;
  try{const d=await json(`${api}/weekly-reports`);const canDelete=privateMode&&d.canDelete===true;
- $('weeklyArchive').innerHTML=d.reports.length?'<h2>Предыдущие отчёты</h2><div id="archiveDeleteMessage" class="message" role="status"></div>'+d.reports.map(p=>`<details class="campaign weekly-report"><summary><b>${h(p.periodStart)} — ${h(p.periodEnd)}</b>${reportSummary(p)}</summary><div class="children">${reportFields(p)}${canDelete?`<div class="actions"><button type="button" class="quiet report-delete" data-delete-imported="${h(p.id)}">Удалить отчёт</button></div>`:''}</div></details>`).join(''):'';
+ const opened=new Set([...$('weeklyArchive').querySelectorAll('.weekly-report[open]')].map(r=>r.dataset.reportId));
+ $('weeklyArchive').innerHTML=d.reports.length?'<h2 class="report-archive-title">Предыдущие отчёты</h2><div id="archiveDeleteMessage" class="message" role="status"></div>'+groupReportRows(d.reports.map(p=>({p,html:`<details class="campaign weekly-report" data-report-id="archive:${h(p.id)}" data-channel="${h(p.channel||'')}" ${opened.has('archive:'+p.id)?'open':''}><summary><span class="report-heading"><b class="report-channel">${h(reportChannels[p.channel]||'Отчёт')}</b><span class="report-expand" aria-hidden="true"></span></span>${reportSummary(p)}</summary><div class="children">${reportFields(p)}${canDelete?`<div class="actions">${reportMenu(`<button type="button" class="quiet report-delete" data-delete-imported="${h(p.id)}">Удалить отчёт</button>`)}</div>`:''}</div></details>`}))):'';
+ bindReportMenus();applyReportFilters();
  $('weeklyArchive').querySelectorAll('[data-delete-imported]').forEach(b=>b.onclick=()=>deleteWeeklyReport(d.reports.find(p=>p.id===b.dataset.deleteImported),b));
  archiveLoadedAt=Date.now();}catch(e){$('weeklyArchive').innerHTML=empty(explain(e));}finally{archiveLoading=false;}
 }
@@ -214,12 +251,15 @@ async function deleteWeeklyReport(imported,button){
 }
 function weeklyReportRow(w,revision,{draft=false,editable=false}={}){
  const p=summaryPayload(revision);
- return `<details class="campaign weekly-report" data-report-key="${h(w.key)}" ${draft?'data-weekly-draft':'data-weekly-published'}><summary><b>${h(p.periodStart||'Период не указан')} — ${h(p.periodEnd||'')}</b>${reportChannels[p.channel]?` <span class="badge report-channel">${reportChannels[p.channel]}</span>`:''}${draft?' <span class="badge">Черновик</span>':''}${reportSummary(p)}</summary><div class="children">${reportFields(p)}${reportScreenshots(p.attachments||[])}${editable?`<div class="actions"><button type="button" class="secondary" data-edit-weekly="${h(w.key)}">${draft?'Продолжить редактирование':'Редактировать'}</button><button type="button" class="quiet" data-weekly-history="${h(w.key)}">История</button>${weeklyDeleteButton(w)}</div>`:''}</div></details>`;
+ return `<details class="campaign weekly-report" data-report-id="${h(w.key)}:${draft?'draft':'published'}" data-channel="${h(p.channel||'')}" data-report-key="${h(w.key)}" ${draft?'data-weekly-draft':'data-weekly-published'}><summary><span class="report-heading"><b class="report-channel">${h(reportChannels[p.channel]||'Отчёт')}</b>${draft?' <span class="badge report-draft">Черновик</span>':''}<span class="report-expand" aria-hidden="true"></span></span>${reportSummary(p)}</summary><div class="children">${reportFields(p)}${reportScreenshots(p.attachments||[])}${editable?`<div class="actions"><button type="button" class="secondary" data-edit-weekly="${h(w.key)}">${draft?'Продолжить редактирование':'Редактировать'}</button><button type="button" class="quiet" data-weekly-history="${h(w.key)}">История</button>${reportMenu(weeklyDeleteButton(w))}</div>`:''}</div></details>`;
 }
 function renderWeeklySummary(){
  const editor=weeklyPermissions.canEdit;
- const rows=weeklyReports.map(w=>{const published=w.published.publishedRevision,draft=editor&&w.revision&&w.revision.revisionNumber!==published?.revisionNumber?w.revision:null;return `${draft?weeklyReportRow(w,draft,{draft:true,editable:true}):''}${published?weeklyReportRow(w,published,{editable:editor&&!draft}):''}`;}).join('');
- $('weeklyContent').innerHTML=`<div id="weeklyMessage" class="message" role="status"></div>${rows||empty('Опубликованных итогов пока нет.')}${editor&&!rows?'<button type="button" class="primary" data-new-weekly>Добавить итог</button>':''}`;
+ const opened=new Set([...$('weeklyContent').querySelectorAll('.weekly-report[open]')].map(r=>r.dataset.reportId));
+ const entries=weeklyReports.flatMap(w=>{const published=w.published.publishedRevision,draft=editor&&w.revision&&w.revision.revisionNumber!==published?.revisionNumber?w.revision:null;return [...(draft?[{p:summaryPayload(draft),html:weeklyReportRow(w,draft,{draft:true,editable:true})}]:[]),...(published?[{p:summaryPayload(published),html:weeklyReportRow(w,published,{editable:editor&&!draft})}]:[])];});
+ $('weeklyContent').innerHTML=`<div id="weeklyMessage" class="message" role="status"></div>${weeklyBrowserTools()}${groupReportRows(entries)||empty('Опубликованных итогов пока нет.')}${editor&&!entries.length?'<button type="button" class="primary" data-new-weekly>Добавить итог</button>':''}`;
+ for(const report of $('weeklyContent').querySelectorAll('.weekly-report'))if(opened.has(report.dataset.reportId))report.open=true;
+ bindWeeklyBrowser();
  $('weeklyContent').querySelectorAll('[data-edit-weekly]').forEach(b=>b.onclick=()=>openWeeklyEditor(b.dataset.editWeekly));
  $('weeklyContent').querySelectorAll('[data-weekly-history]').forEach(b=>b.onclick=()=>openHistory(b.dataset.weeklyHistory));
  $('weeklyContent').querySelector('[data-new-weekly]')?.addEventListener('click',()=>openWeeklyEditor());bindWeeklyDeletion();

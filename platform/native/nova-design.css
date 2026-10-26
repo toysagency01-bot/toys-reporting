@@ -227,12 +227,6 @@ html body.nova-demo-design #demoSalesFunnel .demo-funnel-step small{font-size:10
 html body.nova-demo-design #demoSalesFunnel .demo-funnel-outcome{gap:10px;padding:16px 0}
 html body.nova-demo-design #demoSalesFunnel .demo-funnel-outcome>span{flex:1;min-width:150px;padding:14px 17px;border:1px solid var(--nova-tile-line);border-radius:14px;background:var(--nova-tile);color:var(--muted);font-size:11px}
 html body.nova-demo-design #demoSalesFunnel .demo-funnel-outcome b{margin-top:7px;font-size:22px;font-weight:500;letter-spacing:-.035em;color:var(--text)}
-html body.nova-demo-design #uxWeekly .weekly-report,html body.nova-demo-design #weeklyArchive details{padding:18px 20px;margin:10px 0;border:1px solid var(--line);border-radius:16px;background:var(--nova-tile);box-shadow:none}
-html body.nova-demo-design #uxWeekly .weekly-report summary{padding:0;font-size:13px;line-height:1.6;cursor:pointer}
-html body.nova-demo-design #uxWeekly .weekly-report summary b{font-weight:500}
-html body.nova-demo-design #uxWeekly .report-channel{border:1px solid var(--line);border-radius:7px;padding:3px 7px;background:var(--nova-control);color:var(--muted);font-size:10px}
-html body.nova-demo-design #uxWeekly .report-summary-text{font-size:13px;color:var(--text)}
-html body.nova-demo-design #uxWeekly .report-field{padding:15px 0;border-color:var(--line);font-size:13px;line-height:1.7}
 html body.nova-demo-design .toys-tools :is(input,textarea,select){border-radius:11px;border-color:var(--line);background:var(--nova-control);color:var(--text)}
 html body.nova-demo-design .toys-tools button:not(.report-delete):not(.primary){background:var(--nova-control);border-color:var(--line);border-radius:10px;min-height:42px;font-size:12px;font-weight:400}
 html body.nova-demo-design :is(.ux-primary,.toys-tools .primary){border-radius:11px;background:var(--accent);color:#061511;box-shadow:none;font-size:12px;font-weight:500;min-height:42px}
@@ -253,7 +247,6 @@ html body.nova-demo-design #projectView .task-meta{font-size:11px;color:var(--mu
  html body.nova-demo-design #demoSalesFunnel .demo-funnel-step b{font-size:23px}
  html body.nova-demo-design #demoSalesFunnel .demo-funnel-outcome>span{min-width:0;flex:1 0 calc(50% - 10px);padding:14px;font-size:11px}
  html body.nova-demo-design #demoSalesFunnel .demo-funnel-outcome b{font-size:20px}
- html body.nova-demo-design #uxWeekly .weekly-report,html body.nova-demo-design #weeklyArchive details{padding:16px}
  html body.nova-demo-design :is(.ux-primary,.toys-tools button){min-height:44px}
 }
 
