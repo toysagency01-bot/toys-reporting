@@ -24,4 +24,5 @@ test('atomic replacement updates current sheets while preserving historical arch
 test('archive chunking roundtrips large Unicode snapshots without splitting surrogate pairs',()=>{
  const s=snapshot();s.tables.audit_log=[{after_json:'😀'.repeat(35000)}];const rows=archiveRows(s);assert.ok(rows.length>2);assert.ok(rows.every(r=>r[4].length<=30000));assert.deepEqual(JSON.parse(rows.map(r=>r[4]).join('')),s);
  for(const row of rows)assert.ok(!/[\uD800-\uDBFF]$/.test(row[4]));
+ const display=financeBackupSheets(s).find(t=>t.title==='История правок').values[1][5];assert.ok(display.length<40000);assert.ok(display.includes('полное значение'));
 });

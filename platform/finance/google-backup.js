@@ -1,5 +1,12 @@
 import {analyse,categories} from './model.js';
-const stringify=v=>v==null?'':typeof v==='object'?JSON.stringify(v):String(v);
+const stringify=v=>{
+ const raw=v==null?'':typeof v==='object'?JSON.stringify(v):String(v);
+ // Large raw fields stay lossless in chunked archive; keep readable cells below
+ // Sheets' size limit so an oversized invoice/audit field cannot stop backups.
+ if(raw.length<=40000)return raw;
+ let end=39000;if(/[\uD800-\uDBFF]/.test(raw[end-1]))end--;
+ return raw.slice(0,end)+' … [полное значение в листе «Архив»]';
+};
 const money=v=>v==null?'':v/100;
 export const FINANCE_BACKUP_SHEET_ID='1E4BUscRB5rwdQwCVQKF0lhJ7UTcy5qmgNO1zKBrprWY';
 export function financeBackupSheets(snapshot){
