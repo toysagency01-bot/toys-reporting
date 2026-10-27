@@ -1,4 +1,5 @@
 import {syncBank} from '../finance/bank.js';
+import {briefIntakeAPI} from '../onboarding/api.js';
 import {monthlyAPI} from '../monthly/api.js';
 import {crmAllowed} from '../crm/access.js';
 import {runMetaLeadSync} from '../crm/meta-sync.js';
@@ -89,6 +90,7 @@ export default {
     const bridged=await agentBridge(request,env);if(bridged)return bridged;
     const messaging=await messageWebhook(request,env);if(messaging)return messaging;
     const incoming=await webhook(request,env,ctx);if(incoming)return incoming;
+    const brief=await briefIntakeAPI(request,env);if(brief)return brief;
     const agency=await masterAPI(request,env,ctx);if(agency)return agency;
     const connection=await connections(request,env,ctx);if(connection)return connection;
     const crm=await crmRoute(request,env,ctx);if(crm){if(crm.ok&&request.method==='PATCH')ctx?.waitUntil(drain(env));return crm;}

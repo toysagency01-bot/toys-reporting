@@ -21,7 +21,7 @@ export async function platformAccess(env,email){
  const user=await env.TOYS_DB.prepare(`SELECT u.id,u.status,u.access_version AS version,r.role FROM users u LEFT JOIN platform_user_roles r ON r.user_id=u.id WHERE u.email=?`).bind(email).first();
  if(user?.status==='disabled')return {platformRole:null,projectSlugs:[],userId:user.id,accessVersion:user.version};
  const platformRole=user?.role||(masterIdentity(email,env)?'admin':staffIdentity(email,env)?'team':'client');
- const memberships=user?(await env.TOYS_DB.prepare(`SELECT p.slug FROM project_memberships m JOIN projects p ON p.id=m.project_id WHERE m.user_id=? AND p.organization_id='org_toys_agency' AND p.status IN ('active','draft') AND m.role IN (${platformRole==='team'?"'buyer','agency_admin'":"'client_owner','client_manager'"})`).bind(user.id).all()).results:[];
- return {platformRole,projectSlugs:platformRole==='admin'?null:memberships.map(p=>p.slug).filter(s=>platformSlugs.includes(s)&&!adminOnlyProject(s)),userId:user?.id||null,accessVersion:user?.version||0};
+ const memberships=user?(await env.TOYS_DB.prepare(`SELECT p.slug,json_extract(p.settings_json,'$.onboarding.kind')='brief-v1' AS onboarding FROM project_memberships m JOIN projects p ON p.id=m.project_id WHERE m.user_id=? AND p.organization_id='org_toys_agency' AND p.status IN ('active','draft') AND m.role IN (${platformRole==='team'?"'buyer','agency_admin'":"'client_owner','client_manager'"})`).bind(user.id).all()).results:[];
+ return {platformRole,projectSlugs:platformRole==='admin'?null:memberships.filter(p=>(platformSlugs.includes(p.slug)||platformRole==='team'&&p.onboarding)&&!adminOnlyProject(p.slug)).map(p=>p.slug),userId:user?.id||null,accessVersion:user?.version||0};
 }
 export const projectAllowed=(auth,slug)=>auth.platformRole==='admin'||!adminOnlyProject(slug)&&auth.projectSlugs?.includes(slug);
