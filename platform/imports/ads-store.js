@@ -44,9 +44,16 @@ export async function readAdsSnapshot(db,scope,from,to,now=Date.now()){
  for(const row of rows.slice(1))mergeNode(payload.hierarchy,JSON.parse(row.payload_json).hierarchy);
  const fetchedAt=rows.map(r=>r.checked_at).sort()[0],complete=rows.length===dates(from,to).length;
  const status=await db.prepare('SELECT state,last_attempt_at,last_error_code FROM ads_import_status WHERE integration_id=?').bind(scope.integrationId).first();
- const failed=status?.state==='error';
+ let failed=status?.state==='error';
+ if(failed&&status.last_error_code==='account_reconciliation_mismatch'){
+  const audit=await db.prepare("SELECT details_json FROM sync_runs WHERE project_id=? AND provider=? AND job_type='meta-account-reconciliation' AND json_extract(details_json,'$.scope.accountId')=? ORDER BY id DESC LIMIT 1").bind(scope.projectId,scope.provider,scope.accountId).first();
+  let report;try{report=JSON.parse(audit?.details_json||'null');}catch{}
+  // A failed day elsewhere in the rolling import must not mark this independently
+  // verified reporting period as failed. Missing/stale audit evidence stays closed.
+  if(report?.scope?.timezone===scope.timezone&&report.scope.currency===scope.currency&&Date.parse(report.checkedAt)>=Date.parse(status.last_attempt_at)&&dates(from,to).every(date=>report.daily?.some(day=>day.date===date&&day.matched===true)))failed=false;
+ }
  return {...payload,requestedRange:{from,to},coveredDates,coverage:complete?'complete':'partial',
   dataThroughDate:coveredDates.at(-1),source:'database',fetchedAt,sourceFetchedAt:fetchedAt,lastGoodAt:fetchedAt,
   freshness:!complete?'partial':failed||adsAreStale(fetchedAt,now)?'stale':'fresh',
-  refresh:{state:failed?'failed':status?.state==='running'?'refreshing':'not_needed',lastAttemptAt:status?.last_attempt_at||null,errorCode:status?.last_error_code||null}};
+  refresh:{state:failed?'failed':status?.state==='running'?'refreshing':'not_needed',lastAttemptAt:status?.last_attempt_at||null,errorCode:failed?status?.last_error_code||null:null}};
 }

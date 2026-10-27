@@ -6,22 +6,23 @@ import {nextRefreshAt,shouldPollAds,adsAreStale} from './refresh-policy.js';
 const slugs=Object.keys(projectRegistry);
 const iso=ms=>new Date(ms).toISOString();
 const safeCode=e=>/^[a-z][a-z0-9_]{1,80}$/.test(e?.code||'')?e.code:/exceeded.*(write|quota)|7500/i.test(e?.message||'')?'database_write_limit':'import_failed';
-export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,now=()=>Date.now(),scheduledAt}={}){
+export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,now=()=>Date.now(),scheduledAt,requestedOnly=false}={}){
  if(env.DIRECT_ADS_IMPORT_ENABLED!=='true')return [];
- // Check before touching D1: the two-minute CRM cron must not cause ad writes
- // or retries between advertising slots, even with an old next_attempt_at.
- if(!shouldPollAds(scheduledAt??now()))return [];
+ // Automatic polls stay in their slots. Between slots, only an explicit new
+ // integration refresh request can start work; ordinary retries still wait.
+ if(!requestedOnly&&!shouldPollAds(scheduledAt??now()))return [];
  const db=env.TOYS_DB;
  const rows=(await db.prepare(`SELECT i.id,i.provider,i.external_account_id AS externalAccountId,i.config_json AS configJson,
   p.id AS projectId,p.organization_id AS organizationId,p.slug,p.timezone,p.currency
   FROM integrations i JOIN projects p ON p.id=i.project_id WHERE (p.status='active' OR (p.status='draft' AND json_extract(i.config_json,'$.onboardingImport')=1)) AND i.status='active'
-  AND i.provider IN ('meta_ads','google_ads') AND p.slug IN (${slugs.map(()=>'?').join(',')})`).bind(...slugs).all()).results||[];
+  AND i.provider IN ('meta_ads','google_ads') AND p.slug IN (${slugs.map(()=>'?').join(',')})
+  ${requestedOnly?"AND json_extract(i.config_json,'$.refreshRequestedAt')>COALESCE((SELECT s.last_attempt_at FROM ads_import_status s WHERE s.integration_id=i.id),'') AND json_extract(i.config_json,'$.refreshRequestedAt')<=?":''}`).bind(...slugs,...requestedOnly?[iso(now())]:[]).all()).results||[];
  const run=async row=>{
   const at=iso(now()),token=crypto.randomUUID();
   await db.prepare(`INSERT OR IGNORE INTO ads_import_status(integration_id,project_id,provider) VALUES(?,?,?)`).bind(row.id,row.projectId,row.provider).run();
   const claimed=await db.prepare(`UPDATE ads_import_status SET state='running',last_attempt_at=?,lease_token=?,lease_until=?
-   WHERE integration_id=? AND (next_attempt_at IS NULL OR next_attempt_at<=?) AND (lease_until IS NULL OR lease_until<?)`)
-   .bind(at,token,iso(now()+120000),row.id,at,at).run();
+   WHERE integration_id=? AND (?=1 OR next_attempt_at IS NULL OR next_attempt_at<=?) AND (lease_until IS NULL OR lease_until<?)`)
+   .bind(at,token,iso(now()+120000),row.id,Number(requestedOnly),at,at).run();
   if(!claimed.meta?.changes)return {integrationId:row.id,status:'not_due'};
   let from,to;
   try{
@@ -68,6 +69,7 @@ export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,
    if(row.provider==='meta_ads'&&Number.isSafeInteger(error?.providerCode)&&error.providerCode>=0){
     const details={schemaVersion:'meta-import-error/1',integrationId:row.id,accountId:row.externalAccountId,providerCode:error.providerCode};
     if(Number.isSafeInteger(error.providerSubcode)&&error.providerSubcode>=0)details.providerSubcode=error.providerSubcode;
+    if(['result_adsets','result_custom_conversions'].includes(error.metaOperation))details.metaOperation=error.metaOperation;
     await db.prepare(`INSERT INTO sync_runs(project_id,provider,job_type,status,started_at,finished_at,message,details_json) VALUES(?,'meta_ads','meta-import-diagnostic','error',?,?,?,?)`)
      .bind(row.projectId,at,iso(now()),code,JSON.stringify(details)).run()
      .catch(()=>console.error('Meta import diagnostic could not be persisted'));

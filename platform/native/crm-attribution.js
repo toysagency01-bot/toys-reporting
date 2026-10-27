@@ -1,4 +1,5 @@
 import {summary as crmSummary} from '../crm/service.js';
+import {keyCRMSummary} from '../crm/keycrm-sync.js';
 // First qualification proves the outcome; receipt determines the advertising
 // cohort in the project's timezone. No contact fields leave the aggregation.
 export function aggregateQualifiedLeads(rows,{qualifiedStatuses,timeZone,completeFrom,throughDate},range){
@@ -15,6 +16,11 @@ export function aggregateQualifiedLeads(rows,{qualifiedStatuses,timeZone,complet
  return {status:'available',byAd:[...totals.values()],unmatched};
 }
 export async function attachCRMQualification(body,env,project,range){
+ const external=await keyCRMSummary(env,project,range.from,range.to);
+ if(external){
+  for(const p of body.providers||[])for(const c of p.hierarchy?.children||[])for(const g of c.children||[])for(const ad of g.children||[])delete ad.crmQualifiedLeads;
+  return {...body,crmAttribution:{status:'unavailable',source:'keycrm',dateBasis:'lead_received_at',unmatchedQualifiedLeads:external.unmatchedQualifiedLeads,historicalStatusCoverage:'observed_only'}};
+ }
  let config;try{config=JSON.parse(env.CRM_ATTRIBUTION_CONFIG||'{}')[project.slug];}catch{}
  if(!config){
   const native=await crmSummary(env,project,range.from,range.to);

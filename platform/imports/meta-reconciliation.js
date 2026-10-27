@@ -1,5 +1,6 @@
 import {addDecimal} from '../native/google-receiver.js';
 import {dates} from './ads-store.js';
+import {rowResultValue,rowResultKeys} from './meta-results.js';
 
 const zero=()=>({impressions:'0',clicks:'0',spend:'0',conversions:'0',leads:'0',purchases:'0',purchaseValue:'0',addToCart:'0',checkout:'0'});
 const fail=code=>{throw Object.assign(new Error(code),{code});};
@@ -7,11 +8,11 @@ function decimal(value){
  if(!/^\d+(?:\.\d+)?$/.test(String(value??'')))fail('account_audit_invalid_metric');
  return addDecimal('0',String(value));
 }
-function metrics(row,eventKeys){
+function metrics(row,eventKeys,resultMapping){
  const action=(items,keys)=>decimal(keys.map(key=>items?.find(a=>a.action_type===key)?.value).find(v=>v!=null)??'0');
  const purchaseKeys=['omni_purchase','purchase','offsite_conversion.fb_pixel_purchase'];
  return {impressions:decimal(row.impressions),clicks:decimal(row.clicks),spend:decimal(row.spend),
-  conversions:action(row.actions,eventKeys),leads:action(row.actions,['lead']),
+  conversions:decimal(rowResultValue(row,rowResultKeys(row,eventKeys,resultMapping))),leads:action(row.actions,['lead']),
   purchases:action(row.actions,purchaseKeys),purchaseValue:action(row.action_values,purchaseKeys),
   addToCart:action(row.actions,['omni_add_to_cart','add_to_cart','offsite_conversion.fb_pixel_add_to_cart']),
   checkout:action(row.actions,['omni_initiated_checkout','initiate_checkout','offsite_conversion.fb_pixel_initiate_checkout'])};
@@ -26,25 +27,26 @@ function subtract(left,right){
 
 // Independent account-level API response, compared only on completed local days.
 // This checks API arithmetic, not an unobserved user's Ads Manager column setup.
-export async function reconcileMetaAccount({fetchPage,adRows,eventKeys,scope,dailyFallback=false}){
+export async function reconcileMetaAccount({fetchPage,adRows,eventKeys,resultMapping,scope,dailyFallback=false}){
  if(!eventKeys?.length)fail('account_audit_mapping_missing');
  const expected=new Map(dates(scope.from,scope.to).map(date=>[date,zero()]));
  for(const row of adRows){
   if(row.date_start<scope.from||row.date_start>scope.to)continue;
   if(String(row.account_id)!==scope.accountId||row.account_currency!==scope.currency||row.date_stop!==row.date_start)fail('account_audit_scope_mismatch');
-  sum(expected.get(row.date_start),metrics(row,eventKeys));
+  sum(expected.get(row.date_start),metrics(row,eventKeys,resultMapping));
  }
  let pages=0;
- async function readAccount(from,to){
- const actual=new Map(),seen=new Set();let cursor=null,requestPages=0;
+ async function readAccount(from,to,adsetResults=Boolean(resultMapping)){
+ const actual=new Map(),seen=new Set(),seenRows=new Set();let cursor=null,requestPages=0;
  do{
   pages++;if(++requestPages>100)fail('account_audit_pagination_limit');
-  const response=await fetchPage({fields:'account_id,account_currency,date_start,date_stop,impressions,clicks,spend,actions,action_values',level:'account',time_increment:'1',time_range:JSON.stringify({since:from,until:to}),limit:'500',...(cursor?{after:cursor}:{})});
+  const response=await fetchPage({fields:'account_id,account_currency,date_start,date_stop,impressions,clicks,spend,actions,action_values'+(adsetResults?',adset_id,conversions':''),level:adsetResults?'adset':'account',time_increment:'1',time_range:JSON.stringify({since:from,until:to}),limit:'500',...(cursor?{after:cursor}:{})});
   if(!Array.isArray(response.data))fail('account_audit_invalid_schema');
   for(const row of response.data){
    if(String(row.account_id)!==scope.accountId||row.account_currency!==scope.currency||row.date_stop!==row.date_start||row.date_start<from||row.date_start>to||!expected.has(row.date_start))fail('account_audit_scope_mismatch');
-   if(actual.has(row.date_start))fail('account_audit_duplicate_day');
-   actual.set(row.date_start,metrics(row,eventKeys));
+   const key=row.date_start+':'+(adsetResults?row.adset_id:'account');if(seenRows.has(key))fail('account_audit_duplicate_day');seenRows.add(key);
+   if(!actual.has(row.date_start))actual.set(row.date_start,zero());
+   sum(actual.get(row.date_start),metrics(row,eventKeys,adsetResults?resultMapping:null));
   }
   if(!response.paging?.next){cursor=null;break;}
   let url;try{url=new URL(response.paging.next);}catch{fail('account_audit_pagination_scope');}
@@ -53,7 +55,16 @@ export async function reconcileMetaAccount({fetchPage,adRows,eventKeys,scope,dai
  }while(cursor);
  return actual;
  }
- const actual=await readAccount(scope.from,scope.to);
+ async function readIndependent(from,to){
+  const selected=await readAccount(from,to);
+  if(!resultMapping)return selected;
+  // Preserve the original account-level financial/impression check. Ad-set
+  // results need their own report because the target event differs by group.
+  const financial=await readAccount(from,to,false),merged=new Map();
+  for(const date of new Set([...selected.keys(),...financial.keys()]))merged.set(date,{...(financial.get(date)||zero()),conversions:(selected.get(date)||zero()).conversions});
+  return merged;
+ }
+ const actual=await readIndependent(scope.from,scope.to);
  // Meta can return incomplete multi-day insights without an HTTP error. Retry
  // only discrepant days, with bounded concurrency and the caller's deadline.
  // A retry is accepted only when the independent totals match every metric.
@@ -62,7 +73,7 @@ export async function reconcileMetaAccount({fetchPage,adRows,eventKeys,scope,dai
   const queue=[...expected].filter(([date,ads])=>Object.keys(ads).some(k=>ads[k]!==((actual.get(date)||zero())[k])));
   await Promise.all(Array.from({length:Math.min(3,queue.length)},async()=>{
    while(queue.length){const [date,ads]=queue.shift();retriedDays++;
-    try{const retry=(await readAccount(date,date)).get(date)||zero();if(Object.keys(ads).every(k=>ads[k]===retry[k]))actual.set(date,retry);}catch{}
+    try{const retry=(await readIndependent(date,date)).get(date)||zero();if(Object.keys(ads).every(k=>ads[k]===retry[k]))actual.set(date,retry);}catch{}
    }
   }));
  }
@@ -73,7 +84,7 @@ export async function reconcileMetaAccount({fetchPage,adRows,eventKeys,scope,dai
   return {date,account,ads,differences,matched:Object.values(differences).every(v=>v==='0')};
  });
  return {schemaVersion:'meta-account-reconciliation/1',status:daily.every(d=>d.matched)?'matched':'mismatch',
-  checkedAt:new Date().toISOString(),scope,resultActionTypes:eventKeys,accountReportPages:pages,
+  checkedAt:new Date().toISOString(),scope,resultActionTypes:eventKeys,comparisonLevel:resultMapping?'adset':'account',financialComparisonLevel:'account',...(resultMapping?{resultMapping}:{}),accountReportPages:pages,
   attribution:{actionReportTime:'api_default',attributionSettings:'api_default',adsManagerSelectionVerified:false},
   comparedDays:daily.length,matchedDays:daily.filter(d=>d.matched).length,retriedDays,
   accountTotals,adTotals,daily};

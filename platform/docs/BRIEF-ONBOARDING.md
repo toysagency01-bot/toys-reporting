@@ -22,7 +22,7 @@
 
 ## Что реализовано
 
-- `migrations/0035_project_onboarding.sql`: изолированные brief_sources и
+- `migrations/0037_project_onboarding.sql`: изолированные brief_sources и
   project_onboarding; полный исходный бриф, профиль, чек-лист, версия и папка.
 - `onboarding/model.js`: сопоставление заголовков, полный исходник, стартовые задачи,
   проверка статусов, дат, уточнений и обязательных комментариев проверки.

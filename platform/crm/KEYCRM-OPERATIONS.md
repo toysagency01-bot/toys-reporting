@@ -1,75 +1,131 @@
-# VISA Agency: KeyCRM qualification import preparation
+# VISA Agency: KeyCRM qualification import
 
-Approved project: `visa-agency-qa3b` / `prj_visa_agency_qa3b`.
-Approved qualification labels: `Прогріті`, `Жовтий`, `Зелені`.
-The credential is already stored as the encrypted Worker secret
-`KEYCRM_VISA_API_TOKEN`. Never put its value in this document or diagnostics.
+Project: `visa-agency-qa3b` / `prj_visa_agency_qa3b`.
+Existing Worker: `toys-agency-platform-staging`.
+Encrypted credential binding: `KEYCRM_VISA_API_TOKEN`. Never export or log its value.
 
-On 2026-10-27 the user requested saving the key reference and qualification
-labels directly on the project. `scripts/configure-visa-keycrm.py apply` persisted
-them in the production project's `settings_json.crmKeyCRM` with compare-and-swap
-and readback verification. Other project settings were preserved. The config
-records `pending_verification` and `syncEnabled: false`: saving configuration is
-not an active connector. The current Worker does not consume this config yet.
-Use `python scripts/configure-visa-keycrm.py status` to inspect only these
-non-secret settings and confirm the Worker secret binding exists.
+## Verified API contract, 27 October 2026
 
-## Current state
+The credential successfully reads `https://openapi.keycrm.app/v1` from the Worker.
+Pipeline/status endpoints return Laravel-style `data` plus pagination metadata.
+Status names are in `title`, not `name`. The unique approved pipeline is `1`.
 
-`crm/keycrm.js` is a tested, read-only adapter and in-memory reconciliation
-implementation. It is **not** connected to production routes, persistent storage,
-dashboard summaries or the scheduler. There is no active KeyCRM import, database
-migration, external qualification ledger or new production deployment in this
-change. `visaKeyCRM.state` explicitly remains `pending_verification`.
+| Qualified status | ID |
+| --- | --- |
+| Прогріти | 31 |
+| Жовтий | 29 |
+| Зелені | 28 |
 
-Live verification is blocked: the task's managed executor does not permit
-`openapi.keycrm.app`, and the available environment tools cannot change policy.
-The environment status was rechecked on 2026-10-26. Do not deploy a remote proxy,
-run a remote API probe to work around this restriction, or claim a generic Codex
-settings link controls this managed plugin environment.
+The user explicitly approved the actual spelling `Прогріти` on 27 October;
+`Прогріті` from the original setup does not exist in this CRM.
+Cards use `id`, `pipeline_id`, `status_id`, and UTC `created_at`.
+Qualifications require the exact top-level card marker `utm_source=toys`.
+Missing, different, uppercase or whitespace-suffixed values are excluded. Only
+the approved literal `toys` or NULL is stored; arbitrary source values are not.
+The verified request uses `filter[pipeline_id]=1`,
+`filter[status_id]=31,29,28`, `sort=id`, `limit=50`, and a local page number.
+The initial API filter verification reported 326 cards / 7 pages. This count is
+an API observation, not a historical total for any selected reporting period.
+Cloudflare supports `redirect: manual`; reject all non-success responses and
+never follow provider-supplied URLs. `redirect: error` is unsupported in Workers.
 
-## Prepared behavior
+## Scheduler and persistence
 
-- Requests use only GET on the fixed KeyCRM API host, with redirects disabled.
-  No customer CRM mutation or Meta conversion delivery is implemented.
-- Resolve a unique pipeline containing all three approved status names; refuse
-  absent/ambiguous matches instead of guessing a pipeline or status IDs.
-- Throttle requests to below 20/minute, use bounded pagination, reject changing,
-  duplicate or incomplete responses, and discard contacts from normalized output.
-- Keep one first-observed qualification per KeyCRM card, regardless of moves among
-  the approved stages or re-entry. Observation time is not historical event time.
-- Attribute qualification counts to the intake date in an explicitly configured
-  project timezone. Missing/invalid dates fail the snapshot.
-- Do not infer deletion from absence alone. A card can move to another pipeline.
-- Do not infer advertising attribution from names or arbitrary numeric UTM values.
+`crm/keycrm-sync.js` runs through the existing Worker scheduler. A scan resolves
+all three exact titles in one unique pipeline, then reads only those stages.
+Requests are spaced at least 3.1 seconds apart (below 20/minute).
+Each invocation reads at most 16 card pages within a 90-second budget; remaining
+pages resume on a later two-minute tick. A database lease prevents parallel ticks
+from using the same key; the lease is fenced on each staged write/publication.
+A completed scan is due again after ten minutes. Failed scans use exponential
+backoff from two minutes to one hour and retain the last successful result.
 
-The API contracts used for preparation come from the
-[official KeyCRM documentation](https://docs.keycrm.app/): Bearer authorization,
-UTC timestamps, 20 requests/minute, pipeline/status/card GET endpoints and
-`filter[field]` query syntax. Real response shapes still require verification.
+Migration `0035_keycrm.sql` adds two isolated, contact-free tables:
 
-## Remaining activation work
+- `keycrm_sync`: mapping, pagination checkpoint, lease, retry state, publication pointer.
+- `keycrm_cards`: generation-scoped external IDs, status, intake date, and first
+  qualification observation, plus the approved `toys` source marker. No names,
+  phones, emails, arbitrary UTM values, or raw payloads.
 
-Once supported network configuration permits the API, verify the credential and
-actual pipeline/status/card fields. Check which source fields identify original
-lead intake and advertising campaign/ad/account, and inspect any available status
-history. A current-status scan cannot establish every historical qualification:
-cards that left these stages before the first scan will otherwise be missing.
-Report that limitation explicitly if historical events are unavailable.
+Migration `0036_keycrm_source.sql` adds source verification to cards and scan
+generations. Unfiltered legacy generations are unavailable to summaries until a
+complete source-verified rescan is published. Unknown legacy sources remain NULL,
+including absent cards retained from older snapshots. A partially scanned legacy
+generation restarts, preventing mixed verification. Later source changes are
+reflected when a card is observed; known own milestones retain normal absence
+handling. Source gating applies only to KeyCRM qualification summaries.
 
-Then implement durable scoped storage and transactional scan publication with a
-lease/checkpoint and retry policy. Reconcile exact external identities against
-existing native/legacy VISA contacts before choosing the dashboard source; never
-sum duplicate native and KeyCRM records. Define deletion handling from verified
-API evidence. Integrate qualification-only coverage/freshness into dashboard and
-creative attribution without inventing sales, revenue or zero ad-level totals for
-unmapped cards. Validate live aggregate counts and selected reporting periods,
-then deploy and enable scheduled reads. Keep CAPI disabled for this connector.
+Page rows and their checkpoint are committed together. Duplicate IDs, changing
+totals, missing rows, mismatched scopes, or changed intake dates fail the scan.
+Only a complete generation becomes visible, in the same transaction as its
+publication pointer. The next scan cleans abandoned generations. A qualification
+counts once across approved stages and later re-entry. If a card leaves the scan,
+its previous milestone is retained with `present=0`; absence does not prove a
+customer deletion. This connector does not write to KeyCRM, native contacts,
+`crm_milestones`, delivery jobs, Meta CAPI, sales, or revenue.
+
+## Dashboard semantics
+
+`crm/service.js` selects KeyCRM as the exclusive qualification summary for VISA
+when enabled. It never sums these records with the 34 native historical contacts.
+Existing access checks protect private CRM routes and advertising summaries.
+Counts use original `created_at` in project timezone `Europe/Warsaw`, including
+DST, not the import date or last status-change date.
+
+`coverage.historicalStatusCoverage` is `observed_only`, and `complete` is false.
+The first scan cannot recover leads that qualified and left these statuses before
+observation. Later completed scans retain previously observed qualifications.
+The dashboard and master overview display this limitation and last successful
+refresh, including stale/error state while retries run.
+
+Ad attribution is unverified: `source_id` and arbitrary UTM strings are not ad
+identities. All qualifications are reported as unmatched; ad-level qualifications
+remain unavailable. A provider-filtered summary returns `qualified: null` rather
+than fabricating zero or assigning all CRM records to Meta. Sales are null and
+revenue is unavailable. Advertising conversions retain their existing source.
+
+## Operations
+
+Run from `platform` with the existing Cloudflare credential binding:
+
+```sh
+python scripts/rollout-keycrm.py status
+python scripts/rollout-keycrm.py schema
+python scripts/rollout-keycrm.py activate
+python scripts/rollout-keycrm.py pause
+python scripts/rollout-keycrm.py filter-toys
+```
+
+Activation requires the existing encrypted secret and recorded successful live
+API/scope verification. Configuration updates use compare-and-swap and readback.
+Schema creation and activation are separate; deploy the tested Worker before
+activation. `pause` disables scheduled reads and KeyCRM summary selection without
+deleting stored observations. Do not run the preparation `apply` command against
+an active configuration: it deliberately refuses to overwrite differing settings.
+Deploy the source-filter-aware Worker after applying `schema`, then use
+`filter-toys` to record the approved criterion and request a complete rescan. The
+command refuses to replace an active scan lease; retry after that scan ends.
+
+Inspect only aggregates and `last_error`, never provider payloads or contacts:
+
+```sql
+SELECT state,last_good_at,last_error,next_page,expected_total,next_attempt_at
+FROM keycrm_sync WHERE project_id='prj_visa_agency_qa3b';
+```
+
+Release through `scripts/release-unified.py`, which preserves secrets/assets and
+checks the active version before switching it. Rollback to the recorded previous
+version and pause the connector if necessary; do not delete qualification history.
 
 ## Validation
 
-`node recovery-tests/keycrm.test.mjs`: eight synthetic cases passed. These cover
-mapping ambiguity, pagination completeness, response changes, safe errors,
-privacy normalization, repeated qualification, intake timezone boundaries,
-pipeline absence, project scope and malformed dates. No real CRM records or
-credentials are used in these tests. This is preparation, not live verification.
+Run KeyCRM adapter, durable snapshot and Cloudflare runtime tests, then build:
+
+```sh
+node --test recovery-tests/keycrm*.test.mjs recovery-tests/overview.test.mjs
+npm run unified:build
+```
+
+The full recovery suite also needs its local synthetic fixture generated with
+`python scripts/build-sales-demo.py`; this command only writes local build files.
+Never apply synthetic import files to the working database.

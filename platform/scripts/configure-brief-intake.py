@@ -32,7 +32,7 @@ def main():
     if action not in ('apply', 'status'):
         raise SystemExit(__doc__)
     if action == 'apply':
-        query((ROOT / 'migrations/0035_project_onboarding.sql').read_text())
+        query((ROOT / 'migrations/0037_project_onboarding.sql').read_text())
         existing = query('SELECT * FROM brief_sources WHERE id=?', [SOURCE[0]])[0]['results']
         if existing:
             row = existing[0]

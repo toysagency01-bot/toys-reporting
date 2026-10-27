@@ -30,7 +30,7 @@ export function fixture(){
   db.exec(readFileSync(new URL('../migrations/0032_invoice_imports.sql',import.meta.url),'utf8'));
   db.exec(readFileSync(new URL('../migrations/0033_finance.sql',import.meta.url),'utf8'));
   db.exec(readFileSync(new URL('../migrations/0034_finance_bank.sql',import.meta.url),'utf8'));
-  db.exec(readFileSync(new URL('../migrations/0035_project_onboarding.sql',import.meta.url),'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0037_project_onboarding.sql',import.meta.url),'utf8'));
   financeFixture(db);
   db.exec(`INSERT INTO organizations(id,slug,name) VALUES('org_toys_agency','toys-agency','Synthetic test');
 INSERT INTO clients(id,organization_id,slug,name) VALUES('client_housevip','org_toys_agency','housevip','Synthetic test');

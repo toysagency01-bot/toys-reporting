@@ -37,6 +37,21 @@ test('only registered draft onboarding imports run, with verified account timezo
  }finally{db.close();}
 });
 const setup=()=>{const f=fixture();f.db.exec(readFileSync('migrations/0017_direct_ads.sql','utf8'));return f;};
+test('an explicit scoped refresh runs between slots once and leaves unrelated accounts alone',async()=>{
+ const {env,db}=setup();try{
+  env.DIRECT_ADS_IMPORT_ENABLED='true';
+  const time=Date.parse('2026-10-13T12:02:00Z');
+  for(const [id,account,config] of [['requested','123',{timezone:'UTC',currency:'IDR',refreshRequestedAt:'2026-10-13T12:01:00Z'}],['regular','456',{timezone:'UTC',currency:'IDR'}]])db.prepare("INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES(?,'prj_housevip_cxp7','meta_ads',?,'active',?)").run(id,account,JSON.stringify(config));
+  let calls=0;const deps={requestedOnly:true,now:()=>time,makeScope:rt.integrationScope,normalize:rt.normalizeAdsHierarchy,metrics:rt.METRIC_NAMES,metaAdapter:async()=>{calls++;return {provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',coverage:'complete',dailyMetrics:[],campaigns:[]};}};
+  const result=await scheduledAds(env,deps);assert.equal(result.length,1);assert.equal(result[0].integrationId,'requested');assert.equal(result[0].status,'success');
+  assert.deepEqual(await scheduledAds(env,deps),[]);assert.equal(calls,1);
+  // A newer request must survive an older import finishing after it was queued.
+  db.prepare("UPDATE integrations SET config_json=json_set(config_json,'$.refreshRequestedAt','2026-10-13T12:02:30.000Z') WHERE id='requested'").run();
+  db.prepare("UPDATE ads_import_status SET last_attempt_at='2026-10-13T12:02:00.000Z',last_success_at='2026-10-13T12:03:00.000Z',next_attempt_at='2026-10-13T12:20:00.000Z' WHERE integration_id='requested'").run();
+  assert.equal((await scheduledAds(env,{...deps,now:()=>time+120000}))[0].status,'success');assert.equal(calls,2);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM ads_import_status WHERE integration_id='regular'").get().n,0);
+ }finally{db.close();}
+});
 const scope={organizationId:'org_toys_agency',projectId:'prj_housevip_cxp7',projectSlug:'housevip-cxp7',integrationId:'direct-meta',provider:'meta_ads',accountId:'123',timezone:'UTC',currency:'IDR',metrics:rt.METRIC_NAMES};
 test('independent reconciliation mismatch is recorded without silently replacing valid provider data',async()=>{
  const {env,db}=setup();try{
@@ -92,6 +107,20 @@ test('a failed database transaction cannot publish part of an import',async()=>{
   db.exec("CREATE TRIGGER fail_second BEFORE INSERT ON ads_daily_snapshots WHEN NEW.local_date='2026-10-12' BEGIN SELECT RAISE(ABORT,'synthetic quota error'); END");
   await assert.rejects(saveAdsSnapshot(env.TOYS_DB,scope,payload()),/synthetic quota/);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM ads_daily_snapshots').get().n,0);
+ }finally{db.close();}
+});
+test('a verified selected period stays fresh when an unrelated import day fails reconciliation',async()=>{
+ const {env,db}=setup();try{
+  await saveAdsSnapshot(env.TOYS_DB,scope,payload());
+  db.prepare("INSERT INTO ads_import_status(integration_id,project_id,provider,state,last_attempt_at,last_error_code) VALUES(?,?,?,'error','2026-10-12T18:00:00Z','account_reconciliation_mismatch')").run(scope.integrationId,scope.projectId,scope.provider);
+  const audit={checkedAt:'2026-10-12T18:00:01Z',scope:{accountId:scope.accountId,timezone:scope.timezone,currency:scope.currency},daily:[{date:'2026-10-10',matched:false},{date:'2026-10-11',matched:true},{date:'2026-10-12',matched:true}]};
+  db.prepare("INSERT INTO sync_runs(project_id,provider,job_type,status,started_at,details_json) VALUES(?,'meta_ads','meta-account-reconciliation','warning','2026-10-12T18:00:00Z',?)").run(scope.projectId,JSON.stringify(audit));
+  const read=()=>readAdsSnapshot(env.TOYS_DB,scope,'2026-10-11','2026-10-12',Date.parse('2026-10-12T18:01:00Z'));
+  assert.equal((await read()).freshness,'fresh');assert.equal((await read()).refresh.errorCode,null);
+  audit.daily[2].matched=false;db.prepare("UPDATE sync_runs SET details_json=? WHERE job_type='meta-account-reconciliation'").run(JSON.stringify(audit));
+  assert.equal((await read()).freshness,'stale');
+  audit.daily[2].matched=true;audit.checkedAt='2026-10-12T17:59:00Z';db.prepare("UPDATE sync_runs SET details_json=? WHERE job_type='meta-account-reconciliation'").run(JSON.stringify(audit));
+  assert.equal((await read()).freshness,'stale');
  }finally{db.close();}
 });
 test('scheduled imports recover only at the next slot and dashboard reads never contact providers',async()=>{

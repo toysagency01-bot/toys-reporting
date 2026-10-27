@@ -5,6 +5,7 @@ import {reportAttachmentRoute,validateReportAttachments} from '../reports/attach
 import {leadgenDashboard} from '../native/leadgen-dashboard.js';
 import {passwordIdentity} from '../portal/password-auth.js';
 import {reconcileMetaAccount} from '../imports/meta-reconciliation.js';
+import {resolveMetaResults,rowResultValue,rowResultKeys} from '../imports/meta-results.js';
 import projectRegistry from '../projects.json' with {type:'json'};
 import {readAdsSnapshot} from '../imports/ads-store.js';
 import {scheduledAds} from '../imports/scheduled-ads.js';
@@ -2742,6 +2743,7 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       time_range: JSON.stringify({ since: from, until: to }),
       limit: "500"
     });
+    if(integration?.config?.resultMode==='adset_optimization')params.set('fields',params.get('fields')+',conversions');
     const rows = [];
     const windows=[];
     const shiftDate=(date,days)=>new Date(Date.parse(date+'T12:00:00Z')+days*86400000).toISOString().slice(0,10);
@@ -2789,14 +2791,27 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
     const configuredEvents=integration?.config?.resultActionTypes;
     if(configuredEvents&&(!Array.isArray(configuredEvents)||!configuredEvents.length||configuredEvents.some(k=>typeof k!=='string'||! /^[a-z0-9_.]+$/.test(k))))fail3('invalid_conversion_mapping');
     const eventKeys=configuredEvents|| (project?.slug==='housevip-cxp7'?['lead']:project?.slug==='profkit-instashop-r4vk'?['onsite_conversion.messaging_conversation_started_7d','messaging_conversation_started_7d','onsite_conversion.messaging_first_reply']:project?.slug==='karlovarska-sul-k4rm'?['omni_purchase','purchase','offsite_conversion.fb_pixel_purchase']:null);
-    if(eventKeys)for(const row of rows)row.toysResult=eventKeys.map(key=>row.actions?.find(a=>a.action_type===key)?.value).find(v=>v!=null)??'0';
+    let resultMapping;
+    if(integration?.config?.resultMode==='adset_optimization'){
+      if(!eventKeys?.length)fail3('invalid_conversion_mapping');
+      resultMapping=await resolveMetaResults({rows,accountId:expectedAccountId,fallbackKeys:eventKeys,
+        readObjects:async(ids,fields)=>{
+          const objects={};let next=0;
+          await Promise.all(Array.from({length:Math.min(3,ids.length)},async()=>{
+            while(next<ids.length){const objectId=ids[next++];try{
+              objects[objectId]=await page(fetchImpl,`https://graph.facebook.com/${apiVersion}/${objectId}`,new URLSearchParams({fields,appsecret_proof:proof}),token,{maxAttempts:1,signal:deadline});
+            }catch(error){error.metaOperation=fields.includes('promoted_object')?'result_adsets':'result_custom_conversions';throw error;}}
+          }));return objects;
+        }});
+    }
+    if(eventKeys)for(const row of rows)row.toysResult=rowResultValue(row,rowResultKeys(row,eventKeys,resultMapping));
     let accountReconciliation;
     if(integration?.config?.reconcileAccountTotals===true){
       const today=new Intl.DateTimeFormat('en-CA',{timeZone:integration.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
       const completedTo=[to,shiftDate(today,-1)].sort()[0];
       if(completedTo>=from){
         const auditSignal=AbortSignal.any([deadline,AbortSignal.timeout(18000)]);
-        try{accountReconciliation=await reconcileMetaAccount({adRows:rows,eventKeys,dailyFallback:chunkDays===1,
+        try{accountReconciliation=await reconcileMetaAccount({adRows:rows,eventKeys,resultMapping,dailyFallback:chunkDays===1,
           scope:{accountId:expectedAccountId,currency:integration.currency,timezone:integration.timezone,from,to:completedTo,apiVersion},
           fetchPage:values=>page(fetchImpl,endpoint,new URLSearchParams({...values,appsecret_proof:proof}),token,{maxAttempts:1,signal:auditSignal})});}
         catch(error){accountReconciliation={schemaVersion:'meta-account-reconciliation/1',status:'error',checkedAt:new Date().toISOString(),errorCode:/^[a-z_]+$/.test(error.code||'')?error.code:'account_audit_failed',scope:{from,to:completedTo,timezone:integration.timezone}};}
@@ -8258,8 +8273,8 @@ export { authorizeMvp, projectRecord, handleMvpApi, onDemandAdsService };
 
 export {authenticateGoogleCloudRunPush};
 
-export async function runDirectAdsImports(env,scheduledAt){
- return scheduledAds(env,{scheduledAt,metaAdapter:createMetaAdsHierarchyAdapter({accessToken:env.META_ADS_ACCESS_TOKEN,appSecret:env.META_APP_SECRET}),normalize:normalizeAdsHierarchy,makeScope:integrationScope,metrics:METRIC_NAMES});
+export async function runDirectAdsImports(env,scheduledAt,{requestedOnly=false}={}){
+ return scheduledAds(env,{scheduledAt,requestedOnly,metaAdapter:createMetaAdsHierarchyAdapter({accessToken:env.META_ADS_ACCESS_TOKEN,appSecret:env.META_APP_SECRET}),normalize:normalizeAdsHierarchy,makeScope:integrationScope,metrics:METRIC_NAMES});
 }
 
 // Business sales are not advertising conversions. Refresh only sales and explicit
