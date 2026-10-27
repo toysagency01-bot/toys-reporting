@@ -19,6 +19,9 @@ Status names are in `title`, not `name`. The unique approved pipeline is `1`.
 The user explicitly approved the actual spelling `Прогріти` on 27 October;
 `Прогріті` from the original setup does not exist in this CRM.
 Cards use `id`, `pipeline_id`, `status_id`, and UTC `created_at`.
+Qualifications require the exact top-level card marker `utm_source=toys`.
+Missing, different, uppercase or whitespace-suffixed values are excluded. Only
+the approved literal `toys` or NULL is stored; arbitrary source values are not.
 The verified request uses `filter[pipeline_id]=1`,
 `filter[status_id]=31,29,28`, `sort=id`, `limit=50`, and a local page number.
 The initial API filter verification reported 326 cards / 7 pages. This count is
@@ -41,7 +44,16 @@ Migration `0035_keycrm.sql` adds two isolated, contact-free tables:
 
 - `keycrm_sync`: mapping, pagination checkpoint, lease, retry state, publication pointer.
 - `keycrm_cards`: generation-scoped external IDs, status, intake date, and first
-  qualification observation. No names, phones, emails, UTM values, or raw payloads.
+  qualification observation, plus the approved `toys` source marker. No names,
+  phones, emails, arbitrary UTM values, or raw payloads.
+
+Migration `0036_keycrm_source.sql` adds source verification to cards and scan
+generations. Unfiltered legacy generations are unavailable to summaries until a
+complete source-verified rescan is published. Unknown legacy sources remain NULL,
+including absent cards retained from older snapshots. A partially scanned legacy
+generation restarts, preventing mixed verification. Later source changes are
+reflected when a card is observed; known own milestones retain normal absence
+handling. Source gating applies only to KeyCRM qualification summaries.
 
 Page rows and their checkpoint are committed together. Duplicate IDs, changing
 totals, missing rows, mismatched scopes, or changed intake dates fail the scan.
@@ -81,6 +93,7 @@ python scripts/rollout-keycrm.py status
 python scripts/rollout-keycrm.py schema
 python scripts/rollout-keycrm.py activate
 python scripts/rollout-keycrm.py pause
+python scripts/rollout-keycrm.py filter-toys
 ```
 
 Activation requires the existing encrypted secret and recorded successful live
@@ -89,6 +102,9 @@ Schema creation and activation are separate; deploy the tested Worker before
 activation. `pause` disables scheduled reads and KeyCRM summary selection without
 deleting stored observations. Do not run the preparation `apply` command against
 an active configuration: it deliberately refuses to overwrite differing settings.
+Deploy the source-filter-aware Worker after applying `schema`, then use
+`filter-toys` to record the approved criterion and request a complete rescan. The
+command refuses to replace an active scan lease; retry after that scan ends.
 
 Inspect only aggregates and `last_error`, never provider payloads or contacts:
 

@@ -10,11 +10,12 @@ import {keyCRMCoverage} from '../native/keycrm-coverage.js';
 import {overviewMarkup} from '../master/overview.js';
 const project={id:visaKeyCRM.projectId,slug:visaKeyCRM.projectSlug};
 const t=Date.now(),mapping={pipelineId:'1',qualifiedStatusIds:['10','11','12']};
-const card=(id,status='10')=>({cardId:String(id),pipelineId:'1',statusId:status,receivedAt:'2026-10-10T22:30:00.000Z',qualified:status!=='15'});
+const card=(id,status='10')=>({cardId:String(id),pipelineId:'1',statusId:status,receivedAt:'2026-10-10T22:30:00.000Z',qualified:status!=='15',utmSource:'toys'});
 function fixture(){
  const db=new DatabaseSync(':memory:');
  db.exec('CREATE TABLE projects(id TEXT PRIMARY KEY,slug TEXT,timezone TEXT,settings_json TEXT,status TEXT)');
  db.exec(readFileSync('migrations/0035_keycrm.sql','utf8'));
+ db.exec(readFileSync('migrations/0036_keycrm_source.sql','utf8'));
  db.prepare('INSERT INTO projects VALUES(?,?,?,?,?)').run(project.id,project.slug,'Europe/Warsaw',JSON.stringify({crmKeyCRM:{provider:'keycrm',secretName:visaKeyCRM.secretName,syncEnabled:true,qualifiedLabels:[...visaKeyCRM.qualifiedLabels]}}),'active');
  class Statement{constructor(sql){this.sql=sql;this.args=[];}bind(...a){this.args=a;return this;}async first(){return db.prepare(this.sql).get(...this.args)||null;}async all(){return {results:db.prepare(this.sql).all(...this.args)};}async run(){return {meta:{changes:Number(db.prepare(this.sql).run(...this.args).changes)}};}}
  const env={KEYCRM_VISA_API_TOKEN:'synthetic',TOYS_DB:{prepare:sql=>new Statement(sql),async batch(statements){db.exec('BEGIN');try{const r=[];for(const s of statements)r.push(await s.run());db.exec('COMMIT');return r;}catch(e){db.exec('ROLLBACK');throw e;}}}};
@@ -65,4 +66,29 @@ test('KeyCRM ignores disabled and unrelated projects',async()=>{
  const {env,db}=fixture();assert.equal(await keyCRMSummary(env,{id:'other'},...range),null);
  db.prepare('UPDATE projects SET settings_json=?').run('{}');let called=false;
  await runKeyCRMSync(env,t,{clientFactory:()=>{called=true;}});assert.equal(called,false);assert.equal(await keyCRMSummary(env,project,...range),null);
+});
+test('legacy unfiltered generations are hidden until a full source-verified rescan',async()=>{
+ const {env,db}=fixture();
+ await runKeyCRMSync(env,t,{clientFactory:factory([{rows:[card(1),card(2),card(3)],total:3,done:true}])});
+ db.exec('UPDATE keycrm_sync SET source_filter=NULL; UPDATE keycrm_cards SET utm_source=NULL');
+ const pending=await summary(env,project,...range);assert.equal(pending.available,false);assert.equal(pending.qualified,null);
+ await runKeyCRMSync(env,t+700000,{clientFactory:factory([{rows:[card(1),{...card(2),utmSource:null}],total:2,done:true}])});
+ const actual=await summary(env,project,...range);assert.equal(actual.qualified,1);assert.equal(actual.coverage.sourceFilter.utm_source,'toys');
+ assert.match(keyCRMCoverage(actual),/Источник: toys/);
+ const absent=db.prepare('SELECT c.utm_source,c.present FROM keycrm_cards c JOIN keycrm_sync s ON c.scan_id=s.active_scan_id WHERE c.card_id=?').get('3');assert.equal(absent.utm_source,null);assert.equal(absent.present,0);
+});
+test('verified own milestones survive absence, while an observed source change removes a qualification',async()=>{
+ const {env}=fixture();
+ await runKeyCRMSync(env,t,{clientFactory:factory([{rows:[card(1),card(2),{...card(3),utmSource:null}],total:3,done:true}])});
+ assert.equal((await summary(env,project,...range)).qualified,2);
+ await runKeyCRMSync(env,t+700000,{clientFactory:factory([{rows:[{...card(1),utmSource:null},card(3)],total:2,done:true}])});
+ assert.equal((await summary(env,project,...range)).qualified,2); // absent 2 + newly marked 3
+});
+test('a partially scanned legacy generation restarts rather than mixing source verification',async()=>{
+ const {env,db}=fixture();
+ await runKeyCRMSync(env,t,{maxPages:1,clientFactory:factory([{rows:[card(1)],total:2,done:false}])});
+ db.exec('UPDATE keycrm_sync SET scan_filter=NULL; UPDATE keycrm_cards SET utm_source=NULL');
+ await runKeyCRMSync(env,t+120001,{clientFactory:factory([{rows:[card(1),{...card(2),utmSource:null}],total:2,done:true}])});
+ assert.equal((await summary(env,project,...range)).qualified,1);
+ assert.equal(db.prepare('SELECT source_filter FROM keycrm_sync').get().source_filter,'utm_source=toys');
 });

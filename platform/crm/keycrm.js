@@ -3,6 +3,7 @@ const ORIGIN='https://openapi.keycrm.app/v1';
 export const visaKeyCRM=Object.freeze({
  projectId:'prj_visa_agency_qa3b',projectSlug:'visa-agency-qa3b',
  secretName:'KEYCRM_VISA_API_TOKEN',qualifiedLabels:Object.freeze(['Прогріти','Жовтий','Зелені']),
+ utmSource:'toys',sourceFilter:'utm_source=toys',
  state:'configured'
 });
 const fail=code=>{throw Object.assign(new Error(code),{code});};
@@ -75,7 +76,7 @@ export function keyCRMClient(token,{fetcher=fetch,wait=ms=>new Promise(resolve=>
     const statusId=id(card.status_id);
     // Persist no names, phones, emails, arbitrary custom fields or raw payloads.
     // Ad attribution requires a separately verified source field mapping.
-    return {cardId:id(card.id),pipelineId,statusId,receivedAt:utc(card.created_at),qualified:qualified.has(statusId)};
+    return {cardId:id(card.id),pipelineId,statusId,receivedAt:utc(card.created_at),qualified:qualified.has(statusId),utmSource:card.utm_source===visaKeyCRM.utmSource?visaKeyCRM.utmSource:null};
    });
   },
   async cardsPage(mapping,page=1){
@@ -88,7 +89,7 @@ export function keyCRMClient(token,{fetcher=fetch,wait=ms=>new Promise(resolve=>
    const seen=new Set(),rows=body.data.map(card=>{
     if(id(card.pipeline_id)!==pipelineId)fail('keycrm_pipeline_mismatch');
     const cardId=id(card.id),statusId=id(card.status_id);if(!qualified.has(statusId)||card.deleted_at!=null)fail('keycrm_scope_mismatch');if(seen.has(cardId))fail('keycrm_snapshot_changed');seen.add(cardId);
-    return {cardId,pipelineId,statusId,receivedAt:utc(card.created_at),qualified:qualified.has(statusId)};
+    return {cardId,pipelineId,statusId,receivedAt:utc(card.created_at),qualified:qualified.has(statusId),utmSource:card.utm_source===visaKeyCRM.utmSource?visaKeyCRM.utmSource:null};
    });
    return {rows,total:body.total,done:page===body.last_page};
   }
@@ -121,7 +122,7 @@ export function keyCRMQualificationTotals(rows,{projectId,from,to,timeZone}){
  for(const row of rows){
   if(row.projectId!==projectId)fail('keycrm_ledger_scope_mismatch');
   if(seen.has(row.cardId))fail('keycrm_duplicate_card');seen.add(row.cardId);
-  if(!row.firstQualifiedObservedAt)continue;
+  if(!row.firstQualifiedObservedAt||row.utmSource!==visaKeyCRM.utmSource)continue;
   const date=calendar.format(new Date(utc(row.receivedAt)));if(date>=from&&date<=to)qualified++;
  }
  return {qualified,dateBasis:'lead_received_at',historicalStatusCoverage:'observed_only',attribution:'unmapped'};

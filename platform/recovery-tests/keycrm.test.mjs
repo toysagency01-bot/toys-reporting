@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {keyCRMClient,visaKeyCRM,reconcileKeyCRMSnapshot,keyCRMQualificationTotals} from '../crm/keycrm.js';
 const mapping={pipelineId:'1',qualifiedStatusIds:['10','11','12']};
-const card=(id,status=10,created='2026-10-10 22:30:00')=>({id,pipeline_id:1,status_id:status,created_at:created,contact:{email:'private@example.test'}});
+const card=(id,status=10,created='2026-10-10 22:30:00')=>({id,pipeline_id:1,status_id:status,created_at:created,utm_source:'toys',contact:{email:'private@example.test'}});
 const page=(data,extra={})=>Response.json({data,current_page:1,last_page:1,total:data.length,...extra});
 const client=fetcher=>keyCRMClient('synthetic-key',{fetcher,wait:async()=>{}});
 test('KeyCRM discovery resolves all three exact labels within one unique pipeline',async()=>{
@@ -80,4 +80,13 @@ test('KeyCRM incremental reads send verified status filters and reject ignored s
  const c=client(async url=>{query=new URL(url).searchParams;return page([card(1)]);});
  const result=await c.cardsPage(mapping);assert.equal(result.total,1);assert.equal(result.done,true);assert.equal(query.get('filter[status_id]'),'10,11,12');
  for(const row of [card(1,15),{...card(1),deleted_at:'2026-10-27 12:00:00'}])await assert.rejects(client(async()=>page([row])).cardsPage(mapping),{code:'keycrm_scope_mismatch'});
+});
+test('KeyCRM qualifies only exact toys source, excluding missing, foreign and similar tags',async()=>{
+ const values=['toys','another_agency',null,undefined,'TOYS','toys ','toys-agency'];
+ const c=client(async()=>page(values.map((utm_source,i)=>({...card(i+1),utm_source}))));
+ const result=await c.snapshot(mapping);
+ assert.deepEqual(result.map(r=>r.utmSource),['toys',null,null,null,null,null,null]);
+ assert.ok(!JSON.stringify(result).includes('another_agency'));
+ const ledger=reconcileKeyCRMSnapshot([],result,{observedAt:'2026-10-27T10:00:00Z',projectId:visaKeyCRM.projectId});
+ assert.equal(keyCRMQualificationTotals(ledger,{projectId:visaKeyCRM.projectId,from:'2026-10-11',to:'2026-10-11',timeZone:'Europe/Warsaw'}).qualified,1);
 });
