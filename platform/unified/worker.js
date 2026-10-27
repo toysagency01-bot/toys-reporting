@@ -187,7 +187,7 @@ export default {
     if(new Date(at).getUTCMinutes()===0)ctx.waitUntil(cleanAuthRecords(env).catch(()=>console.error('Auth cleanup deferred')));
     ctx.waitUntil(prepareAccessSchema(env).catch(()=>console.error('Client access schema preparation deferred')));
     ctx.waitUntil(runMetaLeadSync(env,at,{maxFormPages:20}).then(()=>drain(env,{budgetMs:120000,maxJobs:50})).catch(()=>console.error('CRM Meta synchronization deferred')));
-    ctx.waitUntil(runDirectAdsImports(env,at).catch(()=>console.error('Scheduled ads import failed')).then(()=>runDailyReview(env,at)).catch(()=>console.error('Daily review deferred')).then(()=>runTelegramReviews(env,at)).catch(()=>console.error('Telegram review delivery deferred')));
+    ctx.waitUntil(runDirectAdsImports(env,at,{requestedOnly:!isReportRefreshSlot(at)}).catch(()=>console.error('Scheduled ads import failed')).then(()=>runDailyReview(env,at)).catch(()=>console.error('Daily review deferred')).then(()=>runTelegramReviews(env,at)).catch(()=>console.error('Telegram review delivery deferred')));
     if(event.cron!=='*/2 * * * *'&&isReportRefreshSlot(at)){
       if(env.DIRECT_ADS_IMPORT_ENABLED==='true')ctx.waitUntil(refreshUsdUah(env).catch(()=>console.error('NBU FX refresh failed; previous rates preserved')));
       return backend.scheduled(event,env,ctx);

@@ -2,6 +2,7 @@ import {currencySymbol} from '../unified/currency.js';
 import registry from '../projects.json' with {type:'json'};
 import {escapeHtml as h,validRange} from '../unified/model.js';
 import {responseCache} from './response-cache.js';
+import {advertisingBasis} from './ads-revision.js';
 import {datasetPage} from './campaign-dataset.js';
 import {openCreative} from './creative-viewer.js';
 import {mountCampaignControls} from './campaign-controls-ui.js';
@@ -31,7 +32,7 @@ export function mountCampaignBrowser({slug,context}){
  const controls=mountCampaignControls({slug,render,onStatus(key,status){observedStatuses.set(key,status);render();}});
  const visible=()=>section.classList.contains('active')&&!document.body.classList.contains('platform-show-crm');
  const params=(parent='',offset=0)=>new URLSearchParams({...current.range,provider:current.provider||'',...(demo?{analytics:'crm-v1'}:{}),parent,q:query,sort,offset:String(offset)});
- const url=(parent,offset)=>`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser?${params(parent,offset)}&adsBasis=daily-v2${!parent?'&dataset=1':''}`;
+ const url=(parent,offset)=>`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser?${params(parent,offset)}&adsBasis=${advertisingBasis(slug)}${!parent?'&dataset=1':''}`;
  const selectedParent=()=>mobile.matches?path.at(-1)||'':'';
  function reset(clearDataset=true){if(clearDataset){dataset=null;source=null;}generation++;pages.clear();nodes.clear();loading.clear();errors.clear();expanded.clear();path=[];}
  function localPage(parent='',offset=0,limit=50){
