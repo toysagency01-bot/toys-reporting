@@ -5,6 +5,15 @@ Approved qualification labels: `Прогріті`, `Жовтий`, `Зелені
 The credential is already stored as the encrypted Worker secret
 `KEYCRM_VISA_API_TOKEN`. Never put its value in this document or diagnostics.
 
+On 2026-10-27 the user requested saving the key reference and qualification
+labels directly on the project. `scripts/configure-visa-keycrm.py apply` persisted
+them in the production project's `settings_json.crmKeyCRM` with compare-and-swap
+and readback verification. Other project settings were preserved. The config
+records `pending_verification` and `syncEnabled: false`: saving configuration is
+not an active connector. The current Worker does not consume this config yet.
+Use `python scripts/configure-visa-keycrm.py status` to inspect only these
+non-secret settings and confirm the Worker secret binding exists.
+
 ## Current state
 
 `crm/keycrm.js` is a tested, read-only adapter and in-memory reconciliation
