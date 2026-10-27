@@ -1,4 +1,5 @@
 import {getBoard,listBoards,boardId} from './boards.js';
+import {keyCRMSummary} from './keycrm-sync.js';
 import {statusExpression,isQualifiedStage} from './pipelines.js';
 const NOW=()=>new Date().toISOString();
 const fail=(code,status=400)=>{throw Object.assign(new Error(code),{code,status});};
@@ -83,6 +84,7 @@ export async function updateLead(env,p,id,body,actor,key){
 }
 export async function summary(env,p,from,to,provider=null){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(from||'')||!/^\d{4}-\d{2}-\d{2}$/.test(to||'')||from>to)fail('invalid_range');
+ const keycrm=await keyCRMSummary(env,p,from,to,provider);if(keycrm)return keycrm;
  const cfg=await env.TOYS_DB.prepare('SELECT timezone,enabled_at FROM crm_projects WHERE project_id=?').bind(p.id).first();
  if(!cfg)return {available:false,qualified:0,sales:0,revenue:[],byAd:[]};
  const rows=(await env.TOYS_DB.prepare(`SELECT m.kind,m.occurred_at,m.value,m.currency,l.created_at AS received_at,l.metadata_json FROM crm_milestones m JOIN leads l ON l.id=m.lead_id AND l.project_id=m.project_id WHERE m.project_id=? AND l.deleted_at IS NULL`).bind(p.id).all()).results||[];

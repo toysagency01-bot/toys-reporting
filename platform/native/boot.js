@@ -1,5 +1,6 @@
 import {mountMonthlyReports} from '../monthly/ui.js';
 import {currencySymbol} from '../unified/currency.js';
+import {keyCRMCoverage} from './keycrm-coverage.js';
 import {mountClientBack} from './mobile-back.js';
 import {mountClientUX} from './client-ux.js';
 import {mountNovaDesign} from './nova-design.js';
@@ -113,9 +114,9 @@ async function refreshCRM(){
 }
 function renderCRM(){
  let panel=$('platformCRMStats');if(!panel){const host=$('mainCards')||$('cards')||document.querySelector('#uxOverview .cards');if(!host)return;panel=document.createElement('div');panel.id='platformCRMStats';panel.className='cards';host.after(panel);}
- panel.hidden=!crmStats?.available;if(panel.hidden){clientUX?.sync();return;}
+ panel.hidden=!crmStats?.available&&crmStats?.source!=='keycrm';if(panel.hidden){clientUX?.sync();return;}
  const demoRows=projectConfig.synthetic?selectedRows().filter(r=>!salesContext().provider||r.provider===salesContext().provider):null;
- const signature=JSON.stringify([crmStats,demoRows]);if(panel._renderSignature!==signature){panel._renderSignature=signature;const cards=[['Квал-лиды CRM',format(crmStats.qualified)],['Продажи CRM',format(crmStats.sales)],['Выручка CRM',(crmStats.revenue||[]).map(r=>format(r.value)+' '+h(currencySymbol(r.currency))).join('<br>')||'—']];if(projectConfig.synthetic){const rows=demoRows,cost=aggregate(rows).money.find(m=>m.currency==='EUR')?.spend,revenue=(crmStats.revenue||[]).find(m=>m.currency==='EUR')?.value;cards.push(['Стоимость квала',cost!=null&&crmStats.qualified>0?format(cost/crmStats.qualified)+' '+currencySymbol('EUR'):'—'],['Стоимость продажи',cost!=null&&crmStats.sales>0?format(cost/crmStats.sales)+' '+currencySymbol('EUR'):'—'],['ROAS CRM',cost>0&&revenue!=null?format(revenue/cost)+'×':'—']);}panel.innerHTML=cards.map(([label,value])=>`<div class="card"><div class="label">${label}</div><div class="value">${value}</div></div>`).join('');}
+ const signature=JSON.stringify([crmStats,demoRows]);if(panel._renderSignature!==signature){panel._renderSignature=signature;const cards=[['Квал-лиды CRM',format(crmStats.qualified)],...(crmStats.qualificationOnly?[]:[['Продажи CRM',format(crmStats.sales)],['Выручка CRM',(crmStats.revenue||[]).map(r=>format(r.value)+' '+h(currencySymbol(r.currency))).join('<br>')||'—']])];if(projectConfig.synthetic){const rows=demoRows,cost=aggregate(rows).money.find(m=>m.currency==='EUR')?.spend,revenue=(crmStats.revenue||[]).find(m=>m.currency==='EUR')?.value;cards.push(['Стоимость квала',cost!=null&&crmStats.qualified>0?format(cost/crmStats.qualified)+' '+currencySymbol('EUR'):'—'],['Стоимость продажи',cost!=null&&crmStats.sales>0?format(cost/crmStats.sales)+' '+currencySymbol('EUR'):'—'],['ROAS CRM',cost>0&&revenue!=null?format(revenue/cost)+'×':'—']);}panel.innerHTML=cards.map(([label,value])=>`<div class="card"><div class="label">${label}</div><div class="value">${value}</div>${crmStats.source==='keycrm'?`<div class="note">${h(keyCRMCoverage(crmStats))}</div>`:''}</div>`).join('');}
  clientUX?.sync();
 }
 function renderCreatives(){if(!ready)return;const channels=Object.keys(dashboard.advertising?.channels||{}).map(c=>/google/i.test(c)?'google_ads':'meta_ads');renderTopCreatives({rankings:creativeRankings,state:creativeState,activeChannel:document.querySelector('#platformSeg .active')?.dataset.platform||'__all',range:range(),channels:channels.length?[...new Set(channels)]:['meta_ads'],slug});}

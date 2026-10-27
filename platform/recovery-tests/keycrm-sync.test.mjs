@@ -1,0 +1,68 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {readFileSync} from 'node:fs';
+import {runKeyCRMSync,keyCRMSummary} from '../crm/keycrm-sync.js';
+import {summary} from '../crm/service.js';
+import {attachCRMQualification} from '../native/crm-attribution.js';
+import {visaKeyCRM} from '../crm/keycrm.js';
+import {keyCRMCoverage} from '../native/keycrm-coverage.js';
+import {overviewMarkup} from '../master/overview.js';
+const project={id:visaKeyCRM.projectId,slug:visaKeyCRM.projectSlug};
+const t=Date.now(),mapping={pipelineId:'1',qualifiedStatusIds:['10','11','12']};
+const card=(id,status='10')=>({cardId:String(id),pipelineId:'1',statusId:status,receivedAt:'2026-10-10T22:30:00.000Z',qualified:status!=='15'});
+function fixture(){
+ const db=new DatabaseSync(':memory:');
+ db.exec('CREATE TABLE projects(id TEXT PRIMARY KEY,slug TEXT,timezone TEXT,settings_json TEXT,status TEXT)');
+ db.exec(readFileSync('migrations/0035_keycrm.sql','utf8'));
+ db.prepare('INSERT INTO projects VALUES(?,?,?,?,?)').run(project.id,project.slug,'Europe/Warsaw',JSON.stringify({crmKeyCRM:{provider:'keycrm',secretName:visaKeyCRM.secretName,syncEnabled:true,qualifiedLabels:[...visaKeyCRM.qualifiedLabels]}}),'active');
+ class Statement{constructor(sql){this.sql=sql;this.args=[];}bind(...a){this.args=a;return this;}async first(){return db.prepare(this.sql).get(...this.args)||null;}async all(){return {results:db.prepare(this.sql).all(...this.args)};}async run(){return {meta:{changes:Number(db.prepare(this.sql).run(...this.args).changes)}};}}
+ const env={KEYCRM_VISA_API_TOKEN:'synthetic',TOYS_DB:{prepare:sql=>new Statement(sql),async batch(statements){db.exec('BEGIN');try{const r=[];for(const s of statements)r.push(await s.run());db.exec('COMMIT');return r;}catch(e){db.exec('ROLLBACK');throw e;}}}};
+ return {db,env};
+}
+const factory=pages=>()=>({discover:async()=>mapping,cardsPage:async(m,p)=>{assert.deepEqual(m,mapping);const v=pages[p-1];if(v instanceof Error)throw v;return v;}});
+const range=['2026-10-11','2026-10-11'];
+test('KeyCRM checkpoints pages, publishes complete scans and counts immutable intake once',async()=>{
+ const {env,db}=fixture();const clientFactory=factory([{rows:[card(1)],total:2,done:false},{rows:[card(2,'15')],total:2,done:true}]);
+ await runKeyCRMSync(env,t,{clientFactory,maxPages:1});
+ assert.equal((await keyCRMSummary(env,project,...range)).available,false);
+ assert.equal(db.prepare('SELECT next_page FROM keycrm_sync').get().next_page,2);
+ await runKeyCRMSync(env,t+120001,{clientFactory,maxPages:1});
+ let s=await summary(env,project,...range);assert.equal(s.qualified,1);assert.equal(s.sales,null);assert.deepEqual(s.byAd,[]);assert.equal(s.unmatchedQualifiedLeads,1);assert.equal(s.coverage.historicalStatusCoverage,'observed_only');
+ assert.match(keyCRMCoverage(s),/История квалификаций неполная/);assert.match(keyCRMCoverage(s),/Без привязки к рекламе: 1/);
+ const view=overviewMarkup({projects:[{...project,name:'VISA',type:'leadgen'}],summaries:new Map([[project.slug,{crm:s,ads:[]}]]),slug:project.slug});assert.match(view.metrics,/KeyCRM/);assert.match(view.metrics,/class="value">—/);
+ assert.equal((await summary(env,project,'2026-10-10','2026-10-10')).qualified,0);
+ assert.equal((await summary(env,project,...range,'meta_ads')).qualified,null);
+ await runKeyCRMSync(env,t+800000,{clientFactory:factory([{rows:[card(1,'11'),card(2,'10')],total:2,done:true}])});
+ s=await summary(env,project,...range);assert.equal(s.qualified,2);
+ await runKeyCRMSync(env,t+1600000,{clientFactory:factory([{rows:[card(2,'15')],total:1,done:true}])});
+ assert.equal((await summary(env,project,...range)).qualified,2);
+ assert.equal(db.prepare('SELECT present FROM keycrm_cards c JOIN keycrm_sync s ON c.scan_id=s.active_scan_id WHERE c.card_id=?').get('1').present,0);
+ env.CRM_ATTRIBUTION_CONFIG=JSON.stringify({[project.slug]:{completeFrom:'2020-01-01'}});
+ const body=await attachCRMQualification({providers:[{provider:'meta_ads',hierarchy:{children:[{children:[{children:[{providerId:'123',crmQualifiedLeads:{value:'0',state:'observed',from:range[0],to:range[1]}}]}]}]}}]},env,project,{from:range[0],to:range[1]});
+ assert.equal(body.crmAttribution.status,'unavailable');assert.equal(body.providers[0].hierarchy.children[0].children[0].children[0].crmQualifiedLeads,undefined);
+});
+test('KeyCRM failures preserve published data, abandon partial scans, back off and block concurrent work',async()=>{
+ const {env,db}=fixture();await runKeyCRMSync(env,t,{clientFactory:factory([{rows:[card(1)],total:1,done:true}])});
+ const active=db.prepare('SELECT active_scan_id FROM keycrm_sync').get().active_scan_id;
+ await runKeyCRMSync(env,t+700000,{clientFactory:factory([{rows:[card(2)],total:2,done:false},Object.assign(new Error('secret payload'),{code:'keycrm_rate_limited'})])});
+ const state=db.prepare('SELECT * FROM keycrm_sync').get();assert.equal(state.active_scan_id,active);assert.equal(state.scan_id,null);assert.equal(state.last_error,'keycrm_rate_limited');assert.equal(state.attempts,1);
+ assert.equal((await summary(env,project,...range)).qualified,1);
+ let called=false;await runKeyCRMSync(env,t+700001,{clientFactory:()=>{called=true;}});assert.equal(called,false);
+ db.prepare('UPDATE keycrm_sync SET next_attempt_at=?,lease_token=?,lease_until=?').run(new Date(t).toISOString(),'other',new Date(t+2000000).toISOString());
+ await runKeyCRMSync(env,t+1000000,{clientFactory:()=>{called=true;}});assert.equal(called,false);
+});
+test('KeyCRM rejects changing page totals, duplicate IDs and changed intake before publication',async()=>{
+ for(const mode of ['total','duplicate','intake']){
+  const {env,db}=fixture();await runKeyCRMSync(env,t,{clientFactory:factory([{rows:[card(1)],total:1,done:true}])});
+  const active=db.prepare('SELECT active_scan_id FROM keycrm_sync').get().active_scan_id;
+  const pages=mode==='intake'?[{rows:[{...card(1),receivedAt:'2026-10-12T00:00:00.000Z'}],total:1,done:true}]:[{rows:[card(2)],total:2,done:false},{rows:[card(mode==='duplicate'?2:3)],total:mode==='total'?3:2,done:true}];
+  await runKeyCRMSync(env,t+700000,{clientFactory:factory(pages)});
+  assert.equal(db.prepare('SELECT state FROM keycrm_sync').get().state,'error');assert.equal(db.prepare('SELECT active_scan_id FROM keycrm_sync').get().active_scan_id,active);assert.equal((await summary(env,project,...range)).qualified,1);
+ }
+});
+test('KeyCRM ignores disabled and unrelated projects',async()=>{
+ const {env,db}=fixture();assert.equal(await keyCRMSummary(env,{id:'other'},...range),null);
+ db.prepare('UPDATE projects SET settings_json=?').run('{}');let called=false;
+ await runKeyCRMSync(env,t,{clientFactory:()=>{called=true;}});assert.equal(called,false);assert.equal(await keyCRMSummary(env,project,...range),null);
+});

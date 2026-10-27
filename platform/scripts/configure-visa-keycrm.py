@@ -18,7 +18,7 @@ CONFIG = {
     'provider': 'keycrm',
     'apiBase': 'https://openapi.keycrm.app/v1',
     'secretName': 'KEYCRM_VISA_API_TOKEN',
-    'qualifiedLabels': ['Прогріті', 'Жовтий', 'Зелені'],
+    'qualifiedLabels': ['Прогріти', 'Жовтий', 'Зелені'],
     'dateBasis': 'lead_received_at',
     'deduplication': 'keycrm_card_id',
     'state': 'pending_verification',
@@ -70,7 +70,7 @@ def main():
         settings = saved
     print(json.dumps({'project': SLUG, 'secretPresent': secret_ready,
                       'keycrm': settings.get('crmKeyCRM'),
-                      'importActivated': False}, ensure_ascii=False))
+                      'importActivated': bool(settings.get('crmKeyCRM',{}).get('syncEnabled'))}, ensure_ascii=False))
 
 
 if __name__ == '__main__':

@@ -1,10 +1,9 @@
-// Read-only KeyCRM adapter. Not registered with the production scheduler until
-// the real API mapping and reporting coverage have been verified.
+// Read-only KeyCRM adapter. Credentials and provider payloads never leave it.
 const ORIGIN='https://openapi.keycrm.app/v1';
 export const visaKeyCRM=Object.freeze({
  projectId:'prj_visa_agency_qa3b',projectSlug:'visa-agency-qa3b',
- secretName:'KEYCRM_VISA_API_TOKEN',qualifiedLabels:Object.freeze(['Прогріті','Жовтий','Зелені']),
- state:'pending_verification'
+ secretName:'KEYCRM_VISA_API_TOKEN',qualifiedLabels:Object.freeze(['Прогріти','Жовтий','Зелені']),
+ state:'configured'
 });
 const fail=code=>{throw Object.assign(new Error(code),{code});};
 const id=value=>{const s=String(value??'');if(!/^[1-9]\d{0,19}$/.test(s))fail('keycrm_invalid_id');return s;};
@@ -33,7 +32,7 @@ export function keyCRMClient(token,{fetcher=fetch,wait=ms=>new Promise(resolve=>
    const delay=3100-(Date.now()-lastRequest);if(delay>0)await wait(delay);
    lastRequest=Date.now();
    let response;
-   try{response=await fetcher(ORIGIN+path+'?'+new URLSearchParams(query),{method:'GET',redirect:'error',headers:{authorization:'Bearer '+token,accept:'application/json'},signal:AbortSignal.timeout(20000)});}
+   try{response=await fetcher(ORIGIN+path+'?'+new URLSearchParams(query),{method:'GET',redirect:'manual',headers:{authorization:'Bearer '+token,accept:'application/json'},signal:AbortSignal.timeout(20000)});}
    catch{fail('keycrm_connection_failed');}
    if(!response.ok)fail(response.status===401||response.status===403?'keycrm_access_denied':response.status===429?'keycrm_rate_limited':'keycrm_http_error');
    let body;try{body=await response.json();}catch{fail('keycrm_invalid_response');}
@@ -61,7 +60,7 @@ export function keyCRMClient(token,{fetcher=fetch,wait=ms=>new Promise(resolve=>
    const matches=[];
    for(const pipeline of await list('/pipelines')){
     const pipelineId=id(pipeline.id),statuses=await list('/pipelines/'+pipelineId+'/statuses');
-    const chosen=wanted.map(name=>statuses.filter(s=>label(s.name)===name));
+    const chosen=wanted.map(name=>statuses.filter(s=>label(s.title)===name));
     if(chosen.every(items=>items.length===1))matches.push({pipelineId,qualifiedStatusIds:chosen.map(items=>id(items[0].id)),qualifiedLabels:wanted});
    }
    if(matches.length!==1)fail(matches.length?'keycrm_ambiguous_pipeline':'keycrm_statuses_not_found');
@@ -78,6 +77,20 @@ export function keyCRMClient(token,{fetcher=fetch,wait=ms=>new Promise(resolve=>
     // Ad attribution requires a separately verified source field mapping.
     return {cardId:id(card.id),pipelineId,statusId,receivedAt:utc(card.created_at),qualified:qualified.has(statusId)};
    });
+  },
+  async cardsPage(mapping,page=1){
+   const pipelineId=id(mapping.pipelineId),qualified=new Set(mapping.qualifiedStatusIds.map(id));
+   if(!qualified.size||!Number.isInteger(page)||page<1||page>1000)fail('keycrm_invalid_mapping');
+   // Only approved qualification stages are needed. Missing cards retain their
+   // previous observed milestone; absence never means a new deletion or sale.
+   const body=await get('/pipelines/cards',{'filter[pipeline_id]':pipelineId,'filter[status_id]':[...qualified].join(','),sort:'id',limit:'50',page:String(page)});
+   if(!Array.isArray(body?.data)||Number(body.current_page)!==page||!Number.isSafeInteger(body.last_page)||body.last_page<page||body.last_page>1000||!Number.isSafeInteger(body.total)||body.total<0||body.data.length>50||(!body.data.length&&page<body.last_page))fail('keycrm_invalid_pagination');
+   const seen=new Set(),rows=body.data.map(card=>{
+    if(id(card.pipeline_id)!==pipelineId)fail('keycrm_pipeline_mismatch');
+    const cardId=id(card.id),statusId=id(card.status_id);if(!qualified.has(statusId)||card.deleted_at!=null)fail('keycrm_scope_mismatch');if(seen.has(cardId))fail('keycrm_snapshot_changed');seen.add(cardId);
+    return {cardId,pipelineId,statusId,receivedAt:utc(card.created_at),qualified:qualified.has(statusId)};
+   });
+   return {rows,total:body.total,done:page===body.last_page};
   }
  };
 }

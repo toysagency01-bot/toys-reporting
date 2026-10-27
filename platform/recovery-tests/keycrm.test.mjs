@@ -10,15 +10,15 @@ test('KeyCRM discovery resolves all three exact labels within one unique pipelin
  const c=client(async(url,options)=>{
   calls.push([url,options]);const path=new URL(url).pathname;
   if(path==='/v1/pipelines')return page([{id:1},{id:2}]);
-  return page(path.includes('/1/')?visaKeyCRM.qualifiedLabels.map((name,i)=>({id:10+i,name})):[{id:20,name:'Новый'}]);
+  return page(path.includes('/1/')?visaKeyCRM.qualifiedLabels.map((name,i)=>({id:10+i,title:name})):[{id:20,title:'Новый'}]);
  });
  assert.deepEqual(await c.discover(),{...mapping,qualifiedLabels:[...visaKeyCRM.qualifiedLabels]});
- assert.equal(calls.length,3);assert.ok(calls.every(([u,o])=>u.startsWith('https://openapi.keycrm.app/v1/')&&o.method==='GET'&&o.redirect==='error'));
+ assert.equal(calls.length,3);assert.ok(calls.every(([u,o])=>u.startsWith('https://openapi.keycrm.app/v1/')&&o.method==='GET'&&o.redirect==='manual'));
  assert.ok(calls.every(([,o])=>o.headers.authorization==='Bearer synthetic-key'));
 });
 test('KeyCRM discovery refuses an ambiguous pipeline or missing status',async()=>{
  for(const ambiguous of [true,false]){
-  const c=client(async url=>new URL(url).pathname==='/v1/pipelines'?page([{id:1},{id:2}]):page(visaKeyCRM.qualifiedLabels.slice(0,ambiguous?3:2).map((name,i)=>({id:10+i,name}))));
+  const c=client(async url=>new URL(url).pathname==='/v1/pipelines'?page([{id:1},{id:2}]):page(visaKeyCRM.qualifiedLabels.slice(0,ambiguous?3:2).map((name,i)=>({id:10+i,title:name}))));
   await assert.rejects(c.discover(),{code:ambiguous?'keycrm_ambiguous_pipeline':'keycrm_statuses_not_found'});
  }
 });
@@ -74,4 +74,10 @@ test('KeyCRM rejects malformed dates before an import can publish fabricated coh
  for(const value of ['unknown','2026-02-30 12:00:00']){
   const c=client(async()=>page([card(1,10,value)]));await assert.rejects(c.snapshot(mapping),{code:'keycrm_invalid_created_at'});
  }
+});
+test('KeyCRM incremental reads send verified status filters and reject ignored scope or deleted cards',async()=>{
+ let query;
+ const c=client(async url=>{query=new URL(url).searchParams;return page([card(1)]);});
+ const result=await c.cardsPage(mapping);assert.equal(result.total,1);assert.equal(result.done,true);assert.equal(query.get('filter[status_id]'),'10,11,12');
+ for(const row of [card(1,15),{...card(1),deleted_at:'2026-10-27 12:00:00'}])await assert.rejects(client(async()=>page([row])).cardsPage(mapping),{code:'keycrm_scope_mismatch'});
 });
