@@ -80,6 +80,11 @@ export function financeBackupRequests(snapshot,{existingTitles=[],archiveAlready
   requests.push({updateDimensionProperties:{range:{sheetId:s.sheetId,dimension:'COLUMNS',startIndex:0,endIndex:s.values[0].length},properties:{pixelSize:170},fields:'pixelSize'}});
   requests.push({repeatCell:{range:{sheetId:s.sheetId,startRowIndex:1,endRowIndex:Math.max(2,s.values.length),startColumnIndex:0,endColumnIndex:s.values[0].length},cell:{userEnteredFormat:{wrapStrategy:'CLIP'}},fields:'userEnteredFormat.wrapStrategy'}});
   if(s.values.length>1&&s.title!=='О копии')requests.push({setBasicFilter:{filter:{range:{sheetId:s.sheetId,startRowIndex:0,endRowIndex:s.values.length,startColumnIndex:0,endColumnIndex:s.values[0].length}}}});
+  if(s.title==='О копии'){
+   requests.push({updateDimensionProperties:{range:{sheetId:s.sheetId,dimension:'COLUMNS',startIndex:1,endIndex:2},properties:{pixelSize:720},fields:'pixelSize'}});
+   requests.push({repeatCell:{range:{sheetId:s.sheetId,startRowIndex:0,endRowIndex:s.values.length,startColumnIndex:0,endColumnIndex:2},cell:{userEnteredFormat:{wrapStrategy:'WRAP',verticalAlignment:'TOP'}},fields:'userEnteredFormat.wrapStrategy,userEnteredFormat.verticalAlignment'}});
+  }
+  if(s.title==='Операции')requests.push({updateDimensionProperties:{range:{sheetId:s.sheetId,dimension:'COLUMNS',startIndex:10,endIndex:11},properties:{pixelSize:420},fields:'pixelSize'}});
  }
  if(!existingTitles.includes('Архив')){
   requests.push({addSheet:{properties:{sheetId:2099,title:'Архив',gridProperties:{rowCount:100,columnCount:5,frozenRowCount:1}}}});
