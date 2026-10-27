@@ -8,6 +8,26 @@
 
 ## Место хранения и доступ
 
+**Обновление требования доступа от 27 октября:** пользователь разрешает только
+`denys.shpodaris@gmail.com`, исключая `toysagency01@gmail.com`. При проверке
+emailAddress обнаружено, что первоначальным владельцем оказался подключённый
+`toysagency01@gmail.com`; первоначальная проверка `shared:false` не устанавливала
+личность владельца. Автоматизация немедленно приостановлена и остаётся выключенной.
+Denys предоставлен reader, это проверено; прежний аккаунт пока остаётся owner.
+Следовательно, требование «только Denys» ещё **не выполнено**.
+
+Передача owner на Denys отклонена автоматической проверкой действий: требуется
+отдельное явное подтверждение передачи владения. Нельзя обходить этот отказ.
+После разрешённой передачи нужно исключить доступ прежнего владельца, перепроверить
+все permissions и подключить Google-аккаунт, который сможет обновлять файл без
+доступа toysagency01. Текущие инструменты не предоставляют отдельного удаления
+Drive permission. До устранения лишнего доступа не выгружать новые данные.
+
+`assertFinanceBackupAccess` и CLI теперь отказывают в подготовке новой записи,
+если единственный известный пользователь не Denys с ролью owner. Неполные адреса
+в метаданных, agency owner, дополнительные пользователи/группы/домены/anyone
+не допускаются. Сохранённые снимки не удалялись.
+
 Google spreadsheet ID: `1E4BUscRB5rwdQwCVQKF0lhJ7UTcy5qmgNO1zKBrprWY`.
 Файл: «TOYS — Финансы · резервная копия», папка ChatGPT
 `1pUsqXmkHNXGK9wUUMrkry67-of6091K4`.
@@ -66,7 +86,7 @@ SHA-256: UTF-8 JSON объекта `tables`, рекурсивная сортир
 
 ```sh
 python scripts/export-finance-backup.py /workspace/finance-google-backup/snapshot.json
-node scripts/prepare-finance-sheets-backup.mjs SNAPSHOT REQUESTS METADATA_JSON [archive-present]
+node scripts/prepare-finance-sheets-backup.mjs SNAPSHOT REQUESTS METADATA_JSON archive-present\|archive-new DRIVE_FILE_METADATA_JSON
 ```
 
 Выходные файлы с финансовыми данными держать вне Git и с правами 0600.

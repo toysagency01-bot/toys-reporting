@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fixture} from './fixture.mjs';
-import {financeBackupSheets,financeBackupRequests,archiveRows} from '../finance/google-backup.js';
+import {financeBackupSheets,financeBackupRequests,archiveRows,assertFinanceBackupAccess,FINANCE_BACKUP_SHEET_ID} from '../finance/google-backup.js';
+test('finance backup permits only the explicitly approved owner, refusing the connected agency account and incomplete metadata',()=>{
+ const owner={type:'user',role:'owner',emailAddress:'denys.shpodaris@gmail.com'},file={id:FINANCE_BACKUP_SHEET_ID,permissions:[owner]};
+ assert.doesNotThrow(()=>assertFinanceBackupAccess(file));
+ for(const permissions of [[],[{...owner,emailAddress:'toysagency01@gmail.com'}],[owner,{type:'user',role:'reader',emailAddress:'toysagency01@gmail.com'}],[owner,{type:'anyone',role:'reader'}],[{...owner,emailAddress:null}],[{...owner,role:'reader'}]])assert.throws(()=>assertFinanceBackupAccess({...file,permissions}),/permissions_mismatch/);
+});
 function snapshot(){const {db}=fixture();try{return {schema:'toys-finance-backup/v1',capturedAt:'2026-10-27T10:00:00Z',sha256:'a'.repeat(64),tables:{finance_state:[{id:1,revision:0}],finance_records:db.prepare('SELECT * FROM finance_records').all().map(r=>({...r})),finance_writes:[],finance_bank_state:[{id:1,data_json:'{}'}],finance_bank_rates:[],audit_log:[],project_invoices:[]}};}finally{db.close();}}
 test('finance backup includes deleted source rows, all rates and audit without changing source visibility',()=>{
  const s=snapshot();s.tables.finance_records.push({collection:'transactions',id:'deleted',version:2,deleted_at:'2026-10-26',data_json:'{"private":"retained"}'});

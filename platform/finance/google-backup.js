@@ -9,6 +9,10 @@ const stringify=v=>{
 };
 const money=v=>v==null?'':v/100;
 export const FINANCE_BACKUP_SHEET_ID='1E4BUscRB5rwdQwCVQKF0lhJ7UTcy5qmgNO1zKBrprWY';
+export function assertFinanceBackupAccess(file){
+ const permissions=file?.permissions;
+ if(file?.id!==FINANCE_BACKUP_SHEET_ID||!Array.isArray(permissions)||permissions.length!==1||permissions[0].type!=='user'||permissions[0].role!=='owner'||permissions[0].emailAddress?.toLowerCase()!=='denys.shpodaris@gmail.com')throw new Error('finance_backup_owner_or_permissions_mismatch');
+}
 export function financeBackupSheets(snapshot){
  if(snapshot.schema!=='toys-finance-backup/v1'||!/^[a-f0-9]{64}$/.test(snapshot.sha256))throw new Error('invalid_finance_backup');
  const t=snapshot.tables,records=t.finance_records.filter(r=>!r.deleted_at).map(r=>({...r,data:JSON.parse(r.data_json)}));

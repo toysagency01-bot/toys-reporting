@@ -2,9 +2,10 @@
 // No network access: build atomic connector requests from a verified snapshot.
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
-import {financeBackupRequests,financeBackupSheets,archiveRows} from '../finance/google-backup.js';
-const [source,destination,metadataFile,archivePresent]=process.argv.slice(2);
-if(!source||!destination)throw new Error('Usage: node scripts/prepare-finance-sheets-backup.mjs SNAPSHOT REQUESTS [METADATA_JSON] [archive-present]');
+import {financeBackupRequests,financeBackupSheets,archiveRows,assertFinanceBackupAccess} from '../finance/google-backup.js';
+const [source,destination,metadataFile,archivePresent,driveFileMetadata]=process.argv.slice(2);
+if(!source||!destination||!metadataFile||!driveFileMetadata)throw new Error('Usage: node scripts/prepare-finance-sheets-backup.mjs SNAPSHOT REQUESTS METADATA_JSON archive-present|archive-new DRIVE_FILE_METADATA_JSON');
+assertFinanceBackupAccess(JSON.parse(fs.readFileSync(driveFileMetadata,'utf8')));
 const snapshot=JSON.parse(fs.readFileSync(source,'utf8'));
 // Python export uses sorted keys at every object level and no extra whitespace.
 const sort=value=>Array.isArray(value)?value.map(sort):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,sort(value[k])])):value;
