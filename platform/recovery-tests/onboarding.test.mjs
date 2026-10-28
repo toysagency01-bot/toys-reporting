@@ -78,3 +78,14 @@ test('Apps Script cursor never advances past a failed folder or row and retries 
  const processed=[];context.toysSubmitRow=row=>{processed.push(row);throw new Error('brief_folder_unavailable');};assert.throws(()=>context.toysProcessBriefs());assert.equal(props.get('TOYS_NEXT_BRIEF_ROW'),'3');assert.deepEqual(processed,[3]);
  context.toysSubmitRow=row=>processed.push(row);context.toysProcessBriefs();assert.equal(props.get('TOYS_NEXT_BRIEF_ROW'),'5');assert.deepEqual(processed,[3,3,4]);assert.equal(props.has('TOYS_LAST_ERROR'),false);
 });
+test('manual project cards use their own source and plan, without referring to the Forms response sheet',async()=>{
+ const f=setup();try{
+  const {data}=await ingest(f);const id=data.project.id,slug=data.project.slug;
+  f.db.prepare("INSERT INTO brief_sources(id,spreadsheet_id,sheet_id,sheet_name,timezone,drive_parent_id,enabled,accept_from) VALUES('manual-test','synthetic-project-table',42,'План работы (Meta)','UTC','synthetic-folder',0,'2026-10-01')").run();
+  f.db.prepare("UPDATE project_onboarding SET source_id='manual-test' WHERE project_id=?").run(id);
+  const table={status:'ok',table:{cols:[{label:'Задача',type:'string'}],rows:[{c:[{v:'Synthetic launch plan'}]}]}};
+  f.db.prepare("INSERT INTO project_tabs(id,project_id,channel,tab_key,source_title,label,mode,position,content_json) VALUES('synthetic-plan',?,'meta','meta-plan','План работы (Meta)','План работ','plan',0,?)").run(id,JSON.stringify(table));
+  const result=await(await onboardingAPI(request('/api/v2/master/projects/'+slug+'/onboarding'),f.env,admin,slug)).json();
+  assert.equal(result.sourceKind,'project-plan');assert.match(result.sourceUrl,/synthetic-project-table\/edit#gid=42/);assert.deepEqual(result.plan,table);assert.ok(!result.sourceUrl.includes(BRIEF_SOURCE.spreadsheetId));
+ }finally{f.db.close();}
+});

@@ -34,3 +34,16 @@ test('project details can be clarified while the original submitted brief stays 
  await page.getByRole('button',{name:'Сохранить подготовку',exact:true}).click();await expect(page.locator('[data-status]')).toContainText('Подготовка сохранена');await expect(page.locator('.onboarding-dialog h2')).toHaveText('Synthetic Brief Project clarified');
  const projects=await(await page.request.get('/api/v2/master')).json(),p=projects.projects.find(p=>p.onboarding);const card=await(await page.request.get('/api/v2/master/projects/'+p.slug+'/onboarding')).json();expect(card.profile.companyName).toBe('Synthetic Brief Project clarified');expect(card.profile.budget).toBe('500 EUR per month');expect(card.answers.find(a=>a.question==='Название проекта').answer).toBe('Synthetic Brief Project');
 });
+test('manual plan card shows source dates and keeps wide task tables inside the mobile dialog',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ await page.route('**/api/v2/master/projects/*/onboarding',async route=>{
+  const response=await route.fetch();const data=await response.json();
+  data.sourceKind='project-plan';data.sourceUrl='https://docs.google.com/spreadsheets/d/synthetic-plan/edit#gid=42';
+  data.plan={table:{cols:['Этап','Задача','Срок','Ответственный','Статус'].map(label=>({label})),rows:[{c:['Запуск','Synthetic long launch task <script>alert(1)</script>','02.11.2026','Media buyer (Meta)','План'].map(v=>({v}))}]}};
+  await route.fulfill({response,json:data});
+ });
+ await open(page);await expect(page.getByRole('link',{name:'Проектная таблица ↗'})).toHaveAttribute('href',/synthetic-plan/);
+ await expect(page.locator('.onboarding-plan-scroll')).toContainText('02.11.2026');await expect(page.locator('.onboarding-plan-scroll script')).toHaveCount(0);
+ expect(await page.locator('.onboarding-dialog').evaluate(e=>e.scrollWidth<=e.clientWidth+1)).toBe(true);
+ await page.screenshot({path:'dist/onboarding-manual-plan-mobile.png',fullPage:true});
+});
