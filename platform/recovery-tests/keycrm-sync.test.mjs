@@ -8,6 +8,7 @@ import {attachCRMQualification} from '../native/crm-attribution.js';
 import {visaKeyCRM} from '../crm/keycrm.js';
 import {keyCRMCoverage} from '../native/keycrm-coverage.js';
 import {overviewMarkup} from '../master/overview.js';
+import {keyCRMCampaignCatalogue} from '../crm/keycrm-campaigns.js';
 const project={id:visaKeyCRM.projectId,slug:visaKeyCRM.projectSlug};
 const t=Date.now(),mapping={pipelineId:'1',qualifiedStatusIds:['10','11','12']};
 const card=(id,status='10')=>({cardId:String(id),pipelineId:'1',statusId:status,receivedAt:'2026-10-10T22:30:00.000Z',qualified:status!=='15',utmSource:'toys'});
@@ -16,12 +17,15 @@ function fixture(){
  db.exec('CREATE TABLE projects(id TEXT PRIMARY KEY,slug TEXT,timezone TEXT,settings_json TEXT,status TEXT)');
  db.exec(readFileSync('migrations/0035_keycrm.sql','utf8'));
  db.exec(readFileSync('migrations/0036_keycrm_source.sql','utf8'));
+ db.exec(readFileSync('migrations/0038_keycrm_campaigns.sql','utf8'));
+ db.exec(readFileSync('migrations/0017_direct_ads.sql','utf8'));
+ db.exec('CREATE TABLE integrations(id TEXT,project_id TEXT,provider TEXT,external_account_id TEXT)');
  db.prepare('INSERT INTO projects VALUES(?,?,?,?,?)').run(project.id,project.slug,'Europe/Warsaw',JSON.stringify({crmKeyCRM:{provider:'keycrm',secretName:visaKeyCRM.secretName,syncEnabled:true,qualifiedLabels:[...visaKeyCRM.qualifiedLabels]}}),'active');
  class Statement{constructor(sql){this.sql=sql;this.args=[];}bind(...a){this.args=a;return this;}async first(){return db.prepare(this.sql).get(...this.args)||null;}async all(){return {results:db.prepare(this.sql).all(...this.args)};}async run(){return {meta:{changes:Number(db.prepare(this.sql).run(...this.args).changes)}};}}
  const env={KEYCRM_VISA_API_TOKEN:'synthetic',TOYS_DB:{prepare:sql=>new Statement(sql),async batch(statements){db.exec('BEGIN');try{const r=[];for(const s of statements)r.push(await s.run());db.exec('COMMIT');return r;}catch(e){db.exec('ROLLBACK');throw e;}}}};
  return {db,env};
 }
-const factory=pages=>()=>({discover:async()=>mapping,cardsPage:async(m,p)=>{assert.deepEqual(m,mapping);const v=pages[p-1];if(v instanceof Error)throw v;return v;}});
+const factory=pages=>()=>({discover:async()=>mapping,cardsPage:async(m,p)=>{assert.deepEqual({...m,campaigns:undefined},{...mapping,campaigns:undefined});const v=pages[p-1];if(v instanceof Error)throw v;return v;}});
 const range=['2026-10-11','2026-10-11'];
 test('KeyCRM checkpoints pages, publishes complete scans and counts immutable intake once',async()=>{
  const {env,db}=fixture();const clientFactory=factory([{rows:[card(1)],total:2,done:false},{rows:[card(2,'15')],total:2,done:true}]);
@@ -30,7 +34,7 @@ test('KeyCRM checkpoints pages, publishes complete scans and counts immutable in
  assert.equal(db.prepare('SELECT next_page FROM keycrm_sync').get().next_page,2);
  await runKeyCRMSync(env,t+120001,{clientFactory,maxPages:1});
  let s=await summary(env,project,...range);assert.equal(s.qualified,1);assert.equal(s.sales,null);assert.deepEqual(s.byAd,[]);assert.equal(s.unmatchedQualifiedLeads,1);assert.equal(s.coverage.historicalStatusCoverage,'observed_only');
- assert.match(keyCRMCoverage(s),/История квалификаций неполная/);assert.match(keyCRMCoverage(s),/Без привязки к рекламе: 1/);
+ assert.match(keyCRMCoverage(s),/История квалификаций неполная/);assert.match(keyCRMCoverage(s),/К кампаниям привязано: 0; без привязки: 1/);
  const view=overviewMarkup({projects:[{...project,name:'VISA',type:'leadgen'}],summaries:new Map([[project.slug,{crm:s,ads:[]}]]),slug:project.slug});assert.match(view.metrics,/KeyCRM/);assert.match(view.metrics,/class="value">—/);
  assert.equal((await summary(env,project,'2026-10-10','2026-10-10')).qualified,0);
  assert.equal((await summary(env,project,...range,'meta_ads')).qualified,null);
@@ -91,4 +95,23 @@ test('a partially scanned legacy generation restarts rather than mixing source v
  await runKeyCRMSync(env,t+120001,{clientFactory:factory([{rows:[card(1),{...card(2),utmSource:null}],total:2,done:true}])});
  assert.equal((await summary(env,project,...range)).qualified,1);
  assert.equal(db.prepare('SELECT source_filter FROM keycrm_sync').get().source_filter,'utm_source=toys');
+});
+test('campaign attribution publishes only a complete revision and retains verified absent cards',async()=>{
+ const {env,db}=fixture();const matched={...card(1),attributionState:'matched',campaignProvider:'meta_ads',campaignAccountId:'123',campaignId:'456'};
+ await runKeyCRMSync(env,t,{clientFactory:factory([{rows:[matched,card(2)],total:2,done:true}])});
+ let s=await summary(env,project,...range);assert.equal(s.campaignAttributionAvailable,true);assert.equal(s.byCampaign[0].qualified,1);assert.equal(s.unmatchedCampaignQualifiedLeads,1);
+ db.exec('UPDATE keycrm_sync SET attribution_revision=NULL');s=await summary(env,project,...range);assert.equal(s.qualified,2);assert.equal(s.campaignAttributionAvailable,false);assert.deepEqual(s.byCampaign,[]);
+ await runKeyCRMSync(env,t+700000,{clientFactory:factory([{rows:[card(2)],total:1,done:true}])});
+ s=await summary(env,project,...range);assert.equal(s.campaignAttributionAvailable,true);assert.equal(s.qualified,2);assert.equal(s.byCampaign[0].qualified,1);
+ await runKeyCRMSync(env,t+1400000,{clientFactory:factory([{rows:[{...matched,utmSource:null},card(2)],total:2,done:true}])});
+ s=await summary(env,project,...range);assert.equal(s.qualified,1);assert.deepEqual(s.byCampaign,[]);
+});
+test('KeyCRM campaign catalogue excludes other projects and account-mismatched snapshots',async()=>{
+ const {env,db}=fixture();
+ for(const [integration,owner,storedAccount] of [['own',project.id,'123'],['wrong-account',project.id,'999'],['other','other-project','123']]){
+  db.prepare('INSERT INTO integrations VALUES(?,?,?,?)').run(integration,owner,'meta_ads','123');
+  const payload={hierarchy:{providerId:storedAccount,children:[{providerId:'456',name:'TOYS / Consultation'}]}};
+  db.prepare('INSERT INTO ads_daily_snapshots VALUES(?,?,?,?,?,?,?,?,?)').run(integration,'2026-10-10','org',owner,integration,'meta_ads',JSON.stringify(payload),'hash',new Date().toISOString());
+ }
+ const catalogue=await keyCRMCampaignCatalogue(env.TOYS_DB,project.id);assert.equal(catalogue.length,1);assert.equal(catalogue[0].accountId,'123');assert.equal(catalogue[0].campaignId,'456');
 });

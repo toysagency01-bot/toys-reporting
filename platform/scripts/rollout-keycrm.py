@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Roll out the verified, read-only VISA KeyCRM connector on the existing Worker.
 
-Usage: python scripts/rollout-keycrm.py status|schema|activate|pause|filter-toys
+Usage: python scripts/rollout-keycrm.py status|schema|activate|pause|filter-toys|campaigns
 The API credential stays in the encrypted Worker binding.
 """
 import json
@@ -29,7 +29,7 @@ def status():
 
 def main():
     action=sys.argv[1] if len(sys.argv)==2 else ''
-    assert action in ('status','schema','activate','pause','filter-toys'),__doc__
+    assert action in ('status','schema','activate','pause','filter-toys','campaigns'),__doc__
     p,settings=status()
     tables={r['name'] for r in query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('keycrm_sync','keycrm_cards')")[0]['results']}
     assert not tables or tables=={'keycrm_sync','keycrm_cards'},'Partial KeyCRM schema; inspect before proceeding'
@@ -44,6 +44,19 @@ def main():
         assert 'utm_source' not in columns and not {'source_filter','scan_filter'}&sync_columns,'Partial source-filter schema'
         query((ROOT.parent/'migrations/0036_keycrm_source.sql').read_text())
         source_ready=True
+    campaign_columns={'campaign_provider','campaign_account_id','campaign_id','attribution_state'}
+    campaign_sync={'scan_attribution_revision','attribution_revision'}
+    campaign_ready=campaign_columns<=columns and campaign_sync<=sync_columns
+    if action in ('schema','campaigns') and not campaign_ready:
+        assert source_ready,'Apply source-filter schema first'
+        assert not campaign_columns&columns and not campaign_sync&sync_columns,'Partial campaign-attribution schema'
+        query((ROOT.parent/'migrations/0038_keycrm_campaigns.sql').read_text())
+        campaign_ready=True
+    if action=='campaigns':
+        assert settings.get('crmKeyCRM',{}).get('syncEnabled'),'KeyCRM is disabled'
+        at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='milliseconds').replace('+00:00','Z')
+        r=query("UPDATE keycrm_sync SET next_attempt_at=? WHERE project_id=? AND (lease_until IS NULL OR lease_until<?)",[at,PROJECT,at])[0]
+        assert r['meta']['changes']==1,'A scan is active; allow its lease to finish before requesting another'
     if action=='filter-toys':
         at=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='milliseconds').replace('+00:00','Z')
         lease=query('SELECT lease_until FROM keycrm_sync WHERE project_id=?',[PROJECT])[0]['results']
@@ -72,8 +85,12 @@ def main():
         assert r['meta']['changes']==1,'Concurrent configuration change'
         _,saved=status();assert saved['crmKeyCRM']==config
         settings=saved
-    state=query('SELECT project_id,state,mapping_json,active_scan_id,next_page,expected_total,last_good_at,first_good_at,last_error,next_attempt_at'+(',source_filter' if source_ready else '')+' FROM keycrm_sync WHERE project_id=?',[PROJECT])[0]['results'] if tables else []
+    state=query('SELECT project_id,state,mapping_json,active_scan_id,next_page,expected_total,last_good_at,first_good_at,last_error,next_attempt_at'+(',source_filter' if source_ready else '')+(',attribution_revision' if campaign_ready else '')+' FROM keycrm_sync WHERE project_id=?',[PROJECT])[0]['results'] if tables else []
+    for item in state:
+        if item.get('mapping_json'):
+            mapping=json.loads(item['mapping_json']);catalogue=mapping.pop('campaigns',[])
+            item['mapping_json']=mapping;item['campaignCatalogueSize']=len(catalogue)
     totals=query("SELECT COUNT(*) AS scannedCards,SUM(present) AS present,SUM(CASE WHEN first_qualified_observed_at IS NOT NULL AND utm_source='toys' THEN 1 ELSE 0 END) AS toysQualified FROM keycrm_cards c JOIN keycrm_sync s ON s.project_id=c.project_id AND s.active_scan_id=c.scan_id WHERE c.project_id=?",[PROJECT])[0]['results'] if state and source_ready else []
-    print(json.dumps({'project':SLUG,'schemaReady':bool(tables),'sourceSchemaReady':source_ready,'config':settings.get('crmKeyCRM'),'state':state,'totals':totals},ensure_ascii=False))
+    print(json.dumps({'project':SLUG,'schemaReady':bool(tables),'sourceSchemaReady':source_ready,'campaignSchemaReady':campaign_ready,'config':settings.get('crmKeyCRM'),'state':state,'totals':totals},ensure_ascii=False))
 
 if __name__=='__main__':main()

@@ -2,6 +2,9 @@ import {validRange,dateShift} from '../unified/model.js';
 import {campaignIndex,campaignPage,historicalCampaigns,campaignDataset} from './campaign-model.js';
 import {loadMetaCreative,safeCreativeLink} from './meta-creative.js';
 import {salesDemoProject,salesDemoAnalytics,attachDemoSales} from './sales-demo-analytics.js';
+import {summary as crmSummary} from '../crm/service.js';
+import {crmAllowed} from '../crm/access.js';
+import {attachCampaignQualifications} from './campaign-crm.js';
 
 const reply=(body,status=200)=>Response.json(body,{status,headers:{'cache-control':'private, no-store'}});
 export async function campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,onDemandAdsService,backend}){
@@ -11,19 +14,21 @@ export async function campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,on
  const auth=await authorizeMvp(request,env,match[1],'viewer','dashboard');if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  const range={from:url.searchParams.get('from'),to:url.searchParams.get('to')},parent=url.searchParams.get('parent')||'',provider=url.searchParams.get('provider')||'',query=url.searchParams.get('q')||'',sort=url.searchParams.get('sort')||'spend';
  const rawOffset=url.searchParams.get('offset')||'0',offset=Number(rawOffset);
- if(!validRange(range.from,range.to)||(Date.parse(range.to)-Date.parse(range.from))/86400000>=366||!/^\d{1,7}$/.test(rawOffset)||!Number.isSafeInteger(offset)||query.length>120||parent&&!/^[a-f0-9]{64}$/.test(parent)||!['','meta_ads','google_ads'].includes(provider)||!['name','spend','impressions','conversions'].includes(sort))return reply({ok:false,error:'invalid_campaign_filter'},400);
+ if(!validRange(range.from,range.to)||(Date.parse(range.to)-Date.parse(range.from))/86400000>=366||!/^\d{1,7}$/.test(rawOffset)||!Number.isSafeInteger(offset)||query.length>120||parent&&!/^[a-f0-9]{64}$/.test(parent)||!['','meta_ads','google_ads'].includes(provider)||!['name','spend','impressions','conversions','qualifiedLeads','cpql'].includes(sort))return reply({ok:false,error:'invalid_campaign_filter'},400);
  const project=await projectRecord(env,match[1]);if(!project)return reply({ok:false,error:'not_found'},404);
  try{
-  const [data,snapshot]=await Promise.all([
+  const [data,snapshot,crm]=await Promise.all([
    onDemandAdsService(env,ctx).getStats({organizationId:project.organizationId,projectSlug:project.slug,...range}),
    !parent&&!match[2]?(async()=>{
     const address=new URL(request.url);address.pathname=`/api/v2/projects/${encodeURIComponent(project.slug)}/dashboard`;address.search=new URLSearchParams({from:range.from,toExclusive:dateShift(range.to,1)}).toString();
     const response=await backend.fetch(new Request(address,{headers:request.headers}),env,ctx);
     if(!response.ok)throw new Error('Published history unavailable');
     const value=await response.json();if(!value.ok||!value.dashboard)throw new Error('Published history unavailable');return value.dashboard;
-   })():null
+   })():null,
+   !match[2]&&!salesDemoProject(project.slug)&&env.TOYS_DB?(async()=>await crmAllowed(env,project.slug,auth)?crmSummary(env,project,range.from,range.to):{available:false,restricted:true})():null
   ]);
   const tree=campaignIndex(project.id,data.providers,range);
+  const crmQualification=attachCampaignQualifications(tree,crm,range);
   if(match[2]){
    const entry=tree.index.get(match[2]);if(!entry||entry.node.level!=='ad')return reply({ok:false,error:'creative_not_found'},404);
    const p=entry.provider;
@@ -45,6 +50,6 @@ export async function campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,on
    page=attachDemoSales(page,analytics,project);
    if(dataset)dataset.rows=attachDemoSales({rows:dataset.rows},analytics,project).rows;
   }
-  return reply({ok:true,...page,...(dataset?{dataset}:{}),range,sources:data.providers.filter(p=>dataset||!provider||p.provider===provider).map(p=>({provider:p.provider,available:Boolean(p.hierarchy),freshness:p.freshness,coverage:p.coverage,fetchedAt:p.fetchedAt,coveredFrom:p.coveredDates?.[0]||p.requestedRange?.from,coveredTo:p.coveredDates?.at(-1)||p.requestedRange?.to})),refreshing:data.providers.some(p=>['refreshing','rate_limited'].includes(p.refresh?.state))});
+  return reply({ok:true,...page,...(dataset?{dataset}:{}),crmQualification,range,sources:data.providers.filter(p=>dataset||!provider||p.provider===provider).map(p=>({provider:p.provider,available:Boolean(p.hierarchy),freshness:p.freshness,coverage:p.coverage,fetchedAt:p.fetchedAt,coveredFrom:p.coveredDates?.[0]||p.requestedRange?.from,coveredTo:p.coveredDates?.at(-1)||p.requestedRange?.to})),refreshing:data.providers.some(p=>['refreshing','rate_limited'].includes(p.refresh?.state))});
  }catch(error){return reply({ok:false,error:error.code==='creative_not_found'?'creative_not_found':match[2]?'creative_unavailable':'campaigns_unavailable'},error.code==='creative_not_found'?404:503);}
 }

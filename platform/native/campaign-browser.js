@@ -21,7 +21,9 @@ export function mountCampaignBrowser({slug,context}){
  const host=document.createElement('div');host.id='platformCampaignBrowser';host.dataset.salesDemo=String(registry[slug]?.synthetic===true);legacy.before(host);
  const demo=registry[slug]?.synthetic===true;
  const displayText=value=>String(value).replace(/\s*[·•∙]\s*/g,' / ');
- const commerce=slug==='karlovarska-sul-k4rm',columns=[['impressions','Показы'],['clicks','Клики'],['ctr','CTR'],['spend','Расход'],['conversions',demo?'Лиды CRM':'Результаты'],['cpa',demo?'Стоимость лида':'CPA'],...(demo?[['qualifiedLeads','Квалифицированы'],['qualificationRate','Лид → квал'],['sales','Продажи'],['qualifiedSaleRate','Квал → продажа'],['saleRate','Лид → продажа'],['revenue','Выручка CRM'],['cpql','Стоимость квала'],['cac','Стоимость продажи'],['crmRoas','ROAS CRM']]:[]),...(commerce?[['purchases','Покупки'],['roas','ROAS']]:[])];
+ const commerce=slug==='karlovarska-sul-k4rm';let crmEnabled=false;
+ const metricColumns=()=>[['impressions','Показы'],['clicks','Клики'],['ctr','CTR'],['spend','Расход'],['conversions',demo?'Лиды CRM':'Результаты'],['cpa',demo?'Стоимость лида':'CPA'],...(demo?[['qualifiedLeads','Квалифицированы'],['qualificationRate','Лид → квал'],['sales','Продажи'],['qualifiedSaleRate','Квал → продажа'],['saleRate','Лид → продажа'],['revenue','Выручка CRM'],['cpql','Стоимость квала'],['cac','Стоимость продажи'],['crmRoas','ROAS CRM']]:crmEnabled?[['qualifiedLeads','Квал-лиды CRM'],['cpql','Стоимость квала']]:[]),...(commerce?[['purchases','Покупки'],['roas','ROAS']]:[])];
+ let columns=metricColumns();
  host.style.setProperty('--campaign-columns',columns.length);
  host.innerHTML=`<div class="campaign-toolbar"><nav class="campaign-breadcrumbs" aria-label="Уровни рекламной кампании"></nav><div class="campaign-filters"><label class="campaign-search"><span class="sr-only">Поиск кампаний, групп и объявлений</span><input type="search" placeholder="Кампания, группа или объявление" maxlength="120"></label><label><span class="sr-only">Сортировка</span><select aria-label="Сортировка кампаний"><option value="spend">По расходу</option><option value="impressions">По показам</option><option value="conversions">По результатам</option><option value="name">По названию</option></select></label></div></div><div class="campaign-tree-tools"><div class="campaign-level-legend" aria-label="Уровни детализации"><span data-level="campaign">Кампания</span><span aria-hidden="true">/</span><span data-level="group">Группа</span><span aria-hidden="true">/</span><span data-level="ad">Объявление</span></div><button type="button" class="campaign-collapse" data-action="collapse" hidden>Свернуть всё</button></div><p class="campaign-source-note"></p><div class="campaign-level-summary"></div><div class="campaign-list" aria-live="polite"></div>`;
  const list=host.querySelector('.campaign-list'),crumbs=host.querySelector('.campaign-breadcrumbs'),note=host.querySelector('.campaign-source-note'),summary=host.querySelector('.campaign-level-summary');
@@ -32,7 +34,7 @@ export function mountCampaignBrowser({slug,context}){
  const controls=mountCampaignControls({slug,render,onStatus(key,status){observedStatuses.set(key,status);render();}});
  const visible=()=>section.classList.contains('active')&&!document.body.classList.contains('platform-show-crm');
  const params=(parent='',offset=0)=>new URLSearchParams({...current.range,provider:current.provider||'',...(demo?{analytics:'crm-v1'}:{}),parent,q:query,sort,offset:String(offset)});
- const url=(parent,offset)=>`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser?${params(parent,offset)}&adsBasis=${advertisingBasis(slug)}${!parent?'&dataset=1':''}`;
+ const url=(parent,offset)=>`/api/v2/projects/${encodeURIComponent(slug)}/campaign-browser?${params(parent,offset)}&adsBasis=${advertisingBasis(slug)}&crmBasis=campaign-quals-v1${!parent?'&dataset=1':''}`;
  const selectedParent=()=>mobile.matches?path.at(-1)||'':'';
  function reset(clearDataset=true){if(clearDataset){dataset=null;source=null;}generation++;pages.clear();nodes.clear();loading.clear();errors.clear();expanded.clear();path=[];}
  function localPage(parent='',offset=0,limit=50){
@@ -40,8 +42,10 @@ export function mountCampaignBrowser({slug,context}){
   return page?{...source,sources:(source?.sources||[]).filter(s=>!current.provider||s.provider===current.provider),...page,dataset:undefined}:null;
  }
  function accept(data,parent,more){
+  if(data.crmQualification){crmEnabled=data.crmQualification.enabled;columns=metricColumns();host.style.setProperty('--campaign-columns',columns.length);
+   const select=host.querySelector('select');for(const [value,label] of [['qualifiedLeads','По квал-лидам CRM'],['cpql','По стоимости квала']]){const option=select.querySelector(`option[value="${value}"]`);if(crmEnabled&&!option)select.add(new Option(label,value));else if(!crmEnabled&&option)option.remove();}}
   if(data.dataset){
-   dataset=data.dataset;source={sources:data.sources,refreshing:data.refreshing,range:data.range};
+   dataset=data.dataset;source={sources:data.sources,refreshing:data.refreshing,range:data.range,crmQualification:data.crmQualification};
    for(const row of dataset.rows)nodes.set(row.key,row);
    // Keep already displayed pagination and open levels when a new snapshot arrives.
    for(const [key,old] of pages){const page=localPage(key);if(page){const count=Math.max(50,old.rows.length);const full=datasetPage(dataset,{parent:key,provider:current.provider||'',query,sort,limit:count});pages.set(key,{...page,...full});}}
@@ -100,6 +104,8 @@ export function mountCampaignBrowser({slug,context}){
   note.textContent=unavailable.length?`Детализация ${[...new Set(unavailable)].join(', ')} пока недоступна. Сохранённая история показана отдельно.`:partial.length?'За часть периода доступна только история кампаний. Такие строки отмечены отдельно.':(root?.sources||[]).some(s=>s.freshness==='stale')?'Показана последняя сохранённая детализация.':root?.refreshing?'Обновляем детализацию. Последние данные сохранены.':'';
   const updated=(root?.sources||[]).map(s=>Date.parse(s.fetchedAt)).filter(Number.isFinite);
   if(updated.length){const at=new Intl.DateTimeFormat('ru-RU',{timeZone:'Asia/Tbilisi',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(Math.min(...updated)));note.textContent+=(note.textContent?' / ':'')+'Обновлено '+at;}
+  const crm=root?.crmQualification;
+  if(crm?.enabled){const text=crm.status==='pending'?'CRM: ожидается импорт привязки к кампаниям.':`CRM проекта: сопоставлено ${number(crm.matched)} из ${number(crm.qualified)} квалов${crm.unmatched?' / Без привязки к строкам кампаний: '+number(crm.unmatched):''}. Стоимость квала = расход кампании ÷ её сопоставленные CRM-квалы.${crm.detailLevel==='campaign'?' Привязка CRM доступна на уровне кампаний.':''}`;note.textContent+=(note.textContent?' / ':'')+text;}
   note.hidden=!note.textContent;
   summary.innerHTML=data?.parent?`<div class="campaign-parent-summary"><strong>${h(displayText(data.parent.name))}</strong><span>${h(displayText(`Расход ${number(data.parent.metrics.spend)} ${currencySymbol(data.parent.currency)} · Результаты ${number(data.parent.metrics.conversions)}`))}</span></div>`:'';
   list.innerHTML=`${!mobile.matches?`<div class="campaign-grid campaign-table-head"><span>${h(displayText(`Название · ${data?.total??'—'}`))}</span>${columns.map(c=>`<span>${c[1]}</span>`).join('')}</div>`:''}${levelHTML(parent)}`;

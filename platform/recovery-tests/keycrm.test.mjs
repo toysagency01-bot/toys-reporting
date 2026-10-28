@@ -16,6 +16,12 @@ test('KeyCRM discovery resolves all three exact labels within one unique pipelin
  assert.equal(calls.length,3);assert.ok(calls.every(([u,o])=>u.startsWith('https://openapi.keycrm.app/v1/')&&o.method==='GET'&&o.redirect==='manual'));
  assert.ok(calls.every(([,o])=>o.headers.authorization==='Bearer synthetic-key'));
 });
+test('KeyCRM page normalizes only verified campaign identity, never arbitrary UTM contents',async()=>{
+ const campaigns=[{provider:'meta_ads',accountId:'123',campaignId:'456',name:'Consultation'}];
+ const c=client(async()=>page([{...card(1),utm_campaign:'456',utm_content:'private@example.test'},{...card(2),utm_campaign:'unverified private value'}]));
+ const result=await c.cardsPage({...mapping,campaigns},1);
+ assert.equal(result.rows[0].campaignId,'456');assert.equal(result.rows[0].campaignAccountId,'123');assert.equal(result.rows[1].attributionState,'unknown_campaign');assert.ok(!JSON.stringify(result).includes('private'));
+});
 test('KeyCRM discovery refuses an ambiguous pipeline or missing status',async()=>{
  for(const ambiguous of [true,false]){
   const c=client(async url=>new URL(url).pathname==='/v1/pipelines'?page([{id:1},{id:2}]):page(visaKeyCRM.qualifiedLabels.slice(0,ambiguous?3:2).map((name,i)=>({id:10+i,title:name}))));

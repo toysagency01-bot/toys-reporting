@@ -1,3 +1,4 @@
+import {keyCRMCampaign} from './keycrm-campaigns.js';
 // Read-only KeyCRM adapter. Credentials and provider payloads never leave it.
 const ORIGIN='https://openapi.keycrm.app/v1';
 export const visaKeyCRM=Object.freeze({
@@ -75,8 +76,7 @@ export function keyCRMClient(token,{fetcher=fetch,wait=ms=>new Promise(resolve=>
     if(id(card.pipeline_id)!==pipelineId)fail('keycrm_pipeline_mismatch');
     const statusId=id(card.status_id);
     // Persist no names, phones, emails, arbitrary custom fields or raw payloads.
-    // Ad attribution requires a separately verified source field mapping.
-    return {cardId:id(card.id),pipelineId,statusId,receivedAt:utc(card.created_at),qualified:qualified.has(statusId),utmSource:card.utm_source===visaKeyCRM.utmSource?visaKeyCRM.utmSource:null};
+    return {cardId:id(card.id),pipelineId,statusId,receivedAt:utc(card.created_at),qualified:qualified.has(statusId),utmSource:card.utm_source===visaKeyCRM.utmSource?visaKeyCRM.utmSource:null,...keyCRMCampaign(card,mapping.campaigns)};
    });
   },
   async cardsPage(mapping,page=1){
@@ -89,7 +89,7 @@ export function keyCRMClient(token,{fetcher=fetch,wait=ms=>new Promise(resolve=>
    const seen=new Set(),rows=body.data.map(card=>{
     if(id(card.pipeline_id)!==pipelineId)fail('keycrm_pipeline_mismatch');
     const cardId=id(card.id),statusId=id(card.status_id);if(!qualified.has(statusId)||card.deleted_at!=null)fail('keycrm_scope_mismatch');if(seen.has(cardId))fail('keycrm_snapshot_changed');seen.add(cardId);
-    return {cardId,pipelineId,statusId,receivedAt:utc(card.created_at),qualified:qualified.has(statusId),utmSource:card.utm_source===visaKeyCRM.utmSource?visaKeyCRM.utmSource:null};
+    return {cardId,pipelineId,statusId,receivedAt:utc(card.created_at),qualified:qualified.has(statusId),utmSource:card.utm_source===visaKeyCRM.utmSource?visaKeyCRM.utmSource:null,...keyCRMCampaign(card,mapping.campaigns)};
    });
    return {rows,total:body.total,done:page===body.last_page};
   }

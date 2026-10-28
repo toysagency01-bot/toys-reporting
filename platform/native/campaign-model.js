@@ -23,7 +23,8 @@ function business(node,range){
 }
 export function campaignMetrics(node,range){
  const totals=nodeTotals(node,range),outcomes=business(node,range);
- return {...totals,...outcomes,ctr:ratio(totals.clicks,totals.impressions,100),cpa:ratio(totals.spend,totals.conversions),roas:ratio(outcomes.purchaseValue,totals.spend)};
+ const qualifiedLeads=node.crmQualifiedLeads?.from===range.from&&node.crmQualifiedLeads?.to===range.to?valueOf(node.crmQualifiedLeads):outcomes.qualifiedLeads;
+ return {...totals,...outcomes,qualifiedLeads,cpql:ratio(totals.spend,qualifiedLeads),ctr:ratio(totals.clicks,totals.impressions,100),cpa:ratio(totals.spend,totals.conversions),roas:ratio(outcomes.purchaseValue,totals.spend)};
 }
 export function campaignIndex(projectId,providers,range){
  const roots=[],index=new Map();
@@ -31,10 +32,12 @@ export function campaignIndex(projectId,providers,range){
   const accounts=providers.filter(p=>p.provider===provider.provider);
   if(!accounts.every(p=>p.hierarchy&&p.requestedRange?.from===range.from&&p.requestedRange?.to===range.to))continue;
   const covered=date=>date>=range.from&&date<=range.to&&accounts.every(p=>coversDate(p,date));
+  const periodDays=(Date.parse(range.to)-Date.parse(range.from))/86400000+1;
+  const completePeriod=accounts.every(p=>p.coverage!=='partial'&&(!p.coveredDates||new Set(p.coveredDates.filter(d=>d>=range.from&&d<=range.to)).size===periodDays));
   const slice=node=>({...node,dailyMetrics:(node.dailyMetrics||[]).filter(d=>covered(d.date)),outcomeDaily:(node.outcomeDaily||[]).filter(d=>covered(d.date)),children:(node.children||[]).map(slice).filter(n=>n.dailyMetrics.length||n.children.length)});
   const visit=(node,path,parent=null)=>{
    const key=campaignKey(projectId,provider.provider,provider.integrationId,[...path,node.providerId]);
-   const entry={key,node,provider,parent,children:[]};index.set(key,entry);
+   const entry={key,node,provider,parent,children:[],completePeriod};index.set(key,entry);
    entry.children=(node.children||[]).map(child=>visit(child,[...path,node.providerId],entry));return entry;
   };
   roots.push(...(provider.hierarchy.children||[]).map(slice).filter(n=>n.dailyMetrics.length||n.children.length).map(n=>visit(n,[])));
@@ -46,7 +49,7 @@ export function presentCampaign(entry,range){
  return {key,name:text(node.name)||(({campaign:'Кампания',group:'Группа объявлений',ad:'Объявление'}[node.level])+' · '+text(node.providerId).slice(-6)),level:node.level,
   provider:provider.provider,currency:provider.hierarchy.currency||'',status:statuses.has(node.status)?node.status:null,
   childCount:children.length,groupKind:node.providerLevel==='asset_group'?'asset_group':'ad_group',
-  metrics:campaignMetrics(node,range),previewUrl:node.level==='ad'?safePreview(node.previewUrl):null,
+  metrics:{...campaignMetrics(node,range),...(!entry.completePeriod?{cpql:null}:{})},previewUrl:node.level==='ad'?safePreview(node.previewUrl):null,
   freshness:provider.freshness,from:dates[0]||null,to:dates.at(-1)||null,history:false};
 }
 export function historicalCampaigns(projectId,dashboard,providers,range){
@@ -58,7 +61,7 @@ export function historicalCampaigns(projectId,dashboard,providers,range){
  return campaignGroups(rows).map(group=>{
   const m=group.totals,spend=m.money[0]?.spend??null,dates=group.rows.map(r=>r.date).sort();
   return {key:campaignKey(projectId,group.provider,'history',[group.campaignId,group.currency]),name:text(group.name),level:'campaign',provider:group.provider,currency:group.currency,status:null,childCount:0,history:true,freshness:'snapshot',from:dates[0],to:dates.at(-1),previewUrl:null,
-   metrics:{impressions:m.impressions,clicks:m.clicks,spend,conversions:m.conversions,ctr:ratio(m.clicks,m.impressions,100),cpa:ratio(spend,m.conversions),purchases:null,purchaseValue:null,qualifiedLeads:null,roas:null}};
+   metrics:{impressions:m.impressions,clicks:m.clicks,spend,conversions:m.conversions,ctr:ratio(m.clicks,m.impressions,100),cpa:ratio(spend,m.conversions),purchases:null,purchaseValue:null,qualifiedLeads:null,cpql:null,roas:null}};
  });
 }
 export function campaignDataset(tree,history,range,{maxRows=2000,maxBytes=1500000}={}){
@@ -84,7 +87,7 @@ export function campaignPage({tree,history=[],range,parent='',provider='',query=
  const candidates=(entry?entry.children:tree.roots).filter(e=>(!provider||e.provider.provider===provider)&&matches(e));
  let rows=candidates.map(e=>presentCampaign(e,range));
  if(!parent)rows.push(...history.filter(r=>(!provider||r.provider===provider)&&(!q||r.name.toLocaleLowerCase().includes(q))));
- const compare=sort==='name'?(a,b)=>a.name.localeCompare(b.name,'ru'):(a,b)=>(b.metrics[sort]??-Infinity)-(a.metrics[sort]??-Infinity);
+ const compare=sort==='name'?(a,b)=>a.name.localeCompare(b.name,'ru'):sort==='cpql'?(a,b)=>(a.metrics.cpql??Infinity)-(b.metrics.cpql??Infinity):(a,b)=>(b.metrics[sort]??-Infinity)-(a.metrics[sort]??-Infinity);
  rows.sort((a,b)=>a.provider.localeCompare(b.provider)||a.currency.localeCompare(b.currency)||compare(a,b)||a.key.localeCompare(b.key));
  return {rows:rows.slice(offset,offset+limit),total:rows.length,nextOffset:offset+limit<rows.length?offset+limit:null,parent:entry?presentCampaign(entry,range):null,
   breadcrumbs:entry?(()=>{const path=[];for(let e=entry;e;e=e.parent)path.unshift({key:e.key,name:text(e.node.name),level:e.node.level});return path;})():[]};

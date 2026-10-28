@@ -55,6 +55,14 @@ generation restarts, preventing mixed verification. Later source changes are
 reflected when a card is observed; known own milestones retain normal absence
 handling. Source gating applies only to KeyCRM qualification summaries.
 
+Migration `0038_keycrm_campaigns.sql` adds verified campaign identity and a scan
+revision. Each scan freezes a catalogue from this project's configured advertising
+accounts. `utm_campaign` must equal an owned campaign ID or exact unique known
+name; ambiguous, missing and unknown tags remain unmatched. Only verified
+provider/account/campaign IDs and a reason enum are persisted. Legacy generations
+keep their source-verified totals but cannot publish campaign attribution until
+a complete revised scan finishes. Known absent cards retain verified attribution.
+
 Page rows and their checkpoint are committed together. Duplicate IDs, changing
 totals, missing rows, mismatched scopes, or changed intake dates fail the scan.
 Only a complete generation becomes visible, in the same transaction as its
@@ -79,8 +87,13 @@ The dashboard and master overview display this limitation and last successful
 refresh, including stale/error state while retries run.
 
 Ad attribution is unverified: `source_id` and arbitrary UTM strings are not ad
-identities. All qualifications are reported as unmatched; ad-level qualifications
-remain unavailable. A provider-filtered summary returns `qualified: null` rather
+identities. Ad-level qualifications remain unavailable. Campaign attribution uses
+the verified `utm_campaign` mapping above and is returned separately in
+`byCampaign`, gated by `campaignAttributionAvailable`. The campaign browser shows
+its matched counts, cost per qualification, and unmatched total. Partial ad-spend
+coverage does not produce a full-period qualification price. The main overview
+also displays project spend divided by its filtered CRM qualifications.
+A provider-filtered summary returns `qualified: null` rather
 than fabricating zero or assigning all CRM records to Meta. Sales are null and
 revenue is unavailable. Advertising conversions retain their existing source.
 
@@ -94,6 +107,8 @@ python scripts/rollout-keycrm.py schema
 python scripts/rollout-keycrm.py activate
 python scripts/rollout-keycrm.py pause
 python scripts/rollout-keycrm.py filter-toys
+python scripts/rollout-keycrm.py campaigns
+node scripts/verify-campaign-crm-readback.mjs
 ```
 
 Activation requires the existing encrypted secret and recorded successful live
@@ -105,6 +120,9 @@ an active configuration: it deliberately refuses to overwrite differing settings
 Deploy the source-filter-aware Worker after applying `schema`, then use
 `filter-toys` to record the approved criterion and request a complete rescan. The
 command refuses to replace an active scan lease; retry after that scan ends.
+For campaign attribution, apply `schema`, deploy the campaign-aware Worker, then
+request the next complete scan with `campaigns`. It never interrupts an active
+lease. Do not backfill unknown UTM data from campaign names guessed by similarity.
 
 Inspect only aggregates and `last_error`, never provider payloads or contacts:
 
