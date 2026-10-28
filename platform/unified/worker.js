@@ -81,7 +81,7 @@ export default {
       if(clientCRM&&!await crmAllowed(env,clientCRM[1],auth))return Response.json({ok:false,error:'admin_role_required'},{status:403,headers:{'cache-control':'no-store'}});
       const project=clientCRM?await crmProject(env,clientCRM[1]):null;
       if(clientCRM&&!project)return new Response('Not found',{status:404});
-      const context=project?{project:{id:project.id,slug:project.slug,name:project.name,currency:project.currency},canEdit:true}:null;
+      const context=project?{project:{id:project.id,slug:project.slug,name:project.name,currency:project.currency},canEdit:auth.readOnly!==true,canManageClientAccess:['admin','team'].includes(auth.platformRole)}:null;
       if(clientCRM&&url.searchParams.get('format')==='json')return Response.json({ok:true,context},{headers:{'cache-control':'no-store'}});
       if(clientCRM&&projects.has(clientCRM[1]))return html(clientCRM[1],true,null,auth.role,dashboardCacheScope(request,auth));
       const coreStyle=nativeAssets['core/core.js'].body.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';

@@ -1,0 +1,5 @@
+export function seedCompetitorAnalysis(db){
+ const rows=[['Synthetic market analysis'],['1. Alpha\nИз брифа','Позиционирование','','','Synthetic Trustpilot service'],['','Рекламные офферы','','','Оффер: $399 за результат'],['','Ссылки на креативы конкурента','','','https://www.facebook.com/ads/library/?id=123','','','','A source note with https://source.example.test/'],['','Недостатки сайта','','','Synthetic assessment'],['Общие выводы и наблюдения:'],['1. First conclusion\n2. Second conclusion'],['Дополнительные конкуренты, обслуживающие UK'],['Beta\nВторой приоритет','','','','Additional competitor retained'],['Расхождения сайта и брифа'],['Срок удаления','','','','Mismatch retained'],['Источники и границы проверки'],['Методика / дата','','','','Method retained']];
+ const data={status:'ok',table:{rows:rows.map(r=>({c:r.map(v=>({v}))})),cols:Array.from({length:9},()=>({label:'',type:'string'}))}};
+ db.prepare("UPDATE project_tabs SET mode='competitors',content_json=?,raw_content_json=? WHERE project_id='prj_reviews_plus' AND tab_key='meta-competitors'").run(JSON.stringify(data),JSON.stringify(data));
+}

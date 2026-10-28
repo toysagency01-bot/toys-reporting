@@ -2953,8 +2953,10 @@ async function authorizeAccess(request, env, projectSlug, requiredRole) {
     else if(!access.userId){const legacy=safeJson(env.MVP_CLIENT_PROJECTS);if(Array.isArray(legacy[email])&&legacy[email].includes(projectSlug))role='viewer';}
   }
   if(!role)return {ok:false,status:403,error:'project_scope_forbidden'};
+  const readOnly=access.readOnlySlugs?.includes(projectSlug)===true;
+  if(readOnly&&!['GET','HEAD','OPTIONS'].includes(request.method))return {ok:false,status:403,error:'read_only_access'};
   if(requiredRole==='editor'&&role!=='editor')return {ok:false,status:403,error:'editor_role_required'};
-  return {ok:true,role,subject,email,projectSlug,...access};
+  return {ok:true,role,subject,email,projectSlug,readOnly,...access};
 }
 __name(authorizeAccess, "authorizeAccess");
 async function sha256Text3(value2) {

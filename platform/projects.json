@@ -162,6 +162,7 @@
       "meta"
     ],
     "contentRevision": "meta-materials-20261028",
-    "preparedMaterials": true
+    "preparedMaterials": true,
+    "readableCompetitors": true
   }
 }

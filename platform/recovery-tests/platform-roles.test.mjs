@@ -109,3 +109,22 @@ test('private sales demo is admin-only even with explicit grants and public allo
   assert.equal((await call('admin','/api/v2/master/access',{name:'Demo client',email:'demo-recipient@example.test',role:'client',enabled:true,version:0,projects:['nova-sales-demo']})).status,400);
  }finally{db.close();}
 });
+test('team-created client accounts can read their projects but cannot mutate CRM, content or grants',async()=>{
+ const {db,call,tokens}=setup();try{
+  const created=await call('team','/api/v2/master/access',{email:'readonly@example.test',name:'Reader',role:'client',enabled:true,projects:['housevip-cxp7'],version:0});assert.equal(created.status,200);const user=await created.json();
+  assert.equal(db.prepare('SELECT role FROM project_memberships WHERE user_id=?').get(user.id).role,'client_viewer');
+  db.prepare("UPDATE users SET status='active' WHERE id=?").run(user.id);
+  const token=randomBytes(32).toString('hex');tokens.reader=token;
+  db.prepare("INSERT INTO portal_credentials(user_id,password_hash,updated_at) VALUES(?,'unused',datetime('now'))").run(user.id);
+  db.prepare('INSERT INTO portal_sessions(token_hash,user_id,credential_version,expires_at,created_at) VALUES(?,?,1,?,?)').run(digest(token),user.id,Math.floor(Date.now()/1000)+3600,Math.floor(Date.now()/1000));
+  for(const path of ['/housevip-cxp7/',base+'/dashboard',base+'/crm',base+'/content/tabs'])assert.equal((await call('reader',path)).status,200,path);
+  const context=await(await call('reader',base+'/content-crm?format=json')).json();assert.equal(context.context.canEdit,false);assert.equal(context.context.canManageClientAccess,false);
+  const teamContext=await(await call('team',base+'/content-crm?format=json')).json();assert.equal(teamContext.context.canManageClientAccess,true);
+  for(const [path,method]of [[base+'/crm','POST'],[base+'/crm/leads/synthetic','PATCH'],[base+'/content/weekly-main/revisions','POST'],[base+'/content-project/creatives','POST']]){
+   const response=await call('reader',path,{name:'Blocked'},method);assert.equal(response.status,403,path);assert.equal((await response.json()).error,'read_only_access');
+  }
+  assert.equal((await call('reader','/api/v2/master/access')).status,403);
+  const invite=await call('team','/api/v2/master/access/invite',{userId:user.id});assert.equal(invite.status,200);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM leads').get().n,0);
+ }finally{db.close();}
+});

@@ -49,6 +49,7 @@ let calendar;
 function preset(days){if(days==='all'){$('dateFrom').value=$('dateTo').value='';calendar?.sync();return;}const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tbilisi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());$('dateTo').value=today;$('dateFrom').value=dateShift(today,1-days);calendar?.sync();}
 const periods={home:null,crm:{from:'',to:'',days:'all'}};let periodMode='home';
 function switchPeriod(mode){$('allDates').hidden=mode!=='crm';if(mode===periodMode)return;periods[periodMode]={from:$('dateFrom').value,to:$('dateTo').value,days:root.querySelector('#periodSeg button.active')?.dataset.days||''};periodMode=mode;const next=periods[mode];$('dateFrom').value=next.from;$('dateTo').value=next.to;$('periodSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.days===next.days));calendar?.sync();}
+if(client?.canManageClientAccess){const link=document.createElement('a');link.href='/master/#access';link.className='secondary';link.textContent='Доступы клиентов';root.querySelector('header').append(link);}
 if(embedded){$('theme').style.margin='0';root.querySelector('header').append($('theme'));}
 mountMasterMobileControls(root);
 function theme(){const light=document.documentElement.dataset.theme==='light',path='assets/'+(light?'toys-black.svg':'toys-logo.svg');if(!embedded)$('brandLogo').src=asset?asset(path):prefix+'/api/ui/reference/'+path;$('theme').textContent=light?'Тёмная тема':'Светлая тема';}

@@ -27,6 +27,13 @@ test('team master and client invitation show only assigned projects and no role 
 });
 test('unassigned team can enter master and existing client keeps dashboard and CRM access only',async({page})=>{
  await page.setExtraHTTPHeaders({'x-test-role':'empty'});await page.goto('/master/');await expect(page.locator('#message')).toContainText('Проекты ещё не назначены');await page.locator('[data-view=access]').click();await page.locator('#newClient').click();await expect(page.locator('#accessProjectChoices')).toContainText('Нет доступных проектов');
- await page.setExtraHTTPHeaders({'x-test-role':'client'});await page.goto('/housevip-cxp7/');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.locator('#platformCRMNav').click();await expect(page.locator('#platformClientCRM')).toBeVisible();await expect(page.locator('#platformClientCRM #connections')).toBeHidden();
+ await page.setExtraHTTPHeaders({'x-test-role':'client'});await page.goto('/housevip-cxp7/');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await page.getByRole('link',{name:'CRM',exact:true}).click();await expect(page.locator('#platformClientCRM')).toBeVisible();await expect(page.locator('#platformClientCRM #connections')).toBeHidden();
  const response=await page.request.get('/api/v2/master',{headers:{'x-test-role':'client'}});expect(response.status()).toBe(403);
+});
+test('team can open client access from the project CRM while clients cannot see the shortcut',async({page})=>{
+ await page.setExtraHTTPHeaders({'x-test-role':'team'});await page.goto('/api/v2/projects/housevip-cxp7/content-crm');
+ await expect(page.getByRole('link',{name:'Доступы клиентов',exact:true})).toHaveAttribute('href','/master/#access');
+ await page.getByRole('link',{name:'Доступы клиентов',exact:true}).click();await expect(page.locator('#newClient')).toHaveText('Добавить клиента');
+ await page.locator('#newClient').click();await expect(page.locator('#editorBody')).toContainText('только для чтения');await expect(page.locator('select[name=role]')).toHaveCount(0);
+ await page.setExtraHTTPHeaders({'x-test-role':'client'});await page.goto('/api/v2/projects/housevip-cxp7/content-crm');await expect(page.getByRole('link',{name:'Доступы клиентов',exact:true})).toHaveCount(0);
 });

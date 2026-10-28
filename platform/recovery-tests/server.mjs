@@ -1,3 +1,4 @@
+import {seedCompetitorAnalysis} from './competitor-analysis-fixture.mjs';
 import {seedReviewsPlus} from './reviews-plus-fixture.mjs';
 import {seedMonthly} from './monthly-fixture.mjs';
 import {seedOnboarding} from './onboarding-fixture.mjs';
@@ -20,6 +21,7 @@ if(process.env.TOYS_TEST_PROJECT_DESIGN==='true'){const registry=JSON.parse(read
 const roleTokens=process.env.TOYS_TEST_PLATFORM_ROLES==='true'?roleBrowserFixture(env,db):null;
 if(process.env.TOYS_TEST_ONBOARDING==='true')await seedOnboarding(env,db);
 if(process.env.TOYS_TEST_REVIEWS_PLUS==='true')seedReviewsPlus(env,db);
+if(process.env.TOYS_TEST_COMPETITOR_ANALYSIS==='true')seedCompetitorAnalysis(db);
 if(process.env.TOYS_TEST_MONTHLY==='true'&&roleTokens){for(const [id,role]of [['team','buyer'],['client','client_manager']])db.prepare('INSERT INTO project_memberships(project_id,user_id,role) VALUES(?,?,?)').run('prj_bs_clinic_a5b4','role-'+id,role);}
 if(process.env.TOYS_TEST_ADMIN_CRM==='true')db.prepare("INSERT INTO crm_projects(project_id,enabled_at,timezone,updated_at,access_mode) VALUES('prj_housevip_cxp7',?,'Asia/Tbilisi',?,'admin')").run(new Date().toISOString(),new Date().toISOString());
 http.createServer(async(req,res)=>{try{if(req.url==='/favicon.ico'){res.writeHead(204);res.end();return;}const chunks=[];for await(const c of req)chunks.push(c);const body=Buffer.concat(chunks);const publicMode=req.headers['x-test-public']==='true';const headers={...req.headers,...(!publicMode?{authorization:req.headers['x-test-viewer']==='true'?'Bearer synthetic-local-viewer-token':'Bearer synthetic-local-editor-token'}:{})};if(roleTokens){const role=req.headers['x-test-role']||'admin';headers.cookie='__Host-toys_session='+roleTokens[role];}const requestEnv=publicMode?{...env,ENVIRONMENT:'staging'}:env;const incoming=new Request('http://127.0.0.1:4173'+req.url,{method:req.method,headers,...(body.length?{body}: {})});const binding={fetch:request=>new URL(request.url).pathname.startsWith('/api/')?worker.fetch(request,requestEnv):Promise.resolve(new Response('OLD STATIC BOARD'))};const r=await pages.fetch(incoming,{STAGING_MVP:binding,PRODUCTION_API:binding});res.writeHead(r.status,Object.fromEntries(r.headers));res.end(Buffer.from(await r.arrayBuffer()));}catch(e){console.error(e);res.writeHead(500);res.end('Test server error');}}).listen(4173,'127.0.0.1');

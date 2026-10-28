@@ -1,3 +1,5 @@
+import {renderCompetitorAnalysis} from './competitor-analysis.js';
+import competitorAnalysisStyle from './competitor-analysis.css';
 import {mountMonthlyReports} from '../monthly/ui.js';
 import {currencySymbol} from '../unified/currency.js';
 import {advertisingBasis,qualificationBasis} from './ads-revision.js';
@@ -56,7 +58,7 @@ function notice(text,error=false){const n=$('platformNotice');if(n){n.textConten
 const load=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_SCRIPTS?.[path]){try{window.TOYS_BUNDLED_SCRIPTS[path]();resolve();}catch(e){reject(e);}return;}const s=document.createElement('script');s.src=asset(path);s.onload=resolve;s.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(s);});
 const css=path=>new Promise((resolve,reject)=>{if(window.TOYS_BUNDLED_STYLES?.[path]){const style=document.createElement('style');style.textContent=window.TOYS_BUNDLED_STYLES[path];document.head.append(style);resolve();return;}const l=document.createElement('link');l.rel='stylesheet';l.href=asset(path);l.onload=resolve;l.onerror=()=>reject(new Error('Не удалось загрузить '+path));document.head.append(l);});
 const metric=r=>r.metrics||[];
-window.TOYS_PLATFORM={today:()=>projectDay.format(new Date()),currencySymbol,invalidate(){dataCache.delete(demoTabsAddress);tabsPromise=json(demoTabsAddress).then(d=>(d.tabs||[]).filter(t=>slug!=='bs-clinic-a5b4'||t.sourceTitle!=='BSCLINIC - Месячная сводка'));materialCache.clear();},asset,scheduleRender,updateChart,observeScrollFades,async fx(from,to){const d=await json(`${api}/exchange-rate?base=${from}&quote=${to}`);return Response.json({date:d.rate.date,[from.toLowerCase()]:{[to.toLowerCase()]:Number(d.rate.rate)}});},tabs:()=>tabsPromise,afterRender(){if(ready){attachHierarchy();maskUnavailable();calendar?.sync();renderCRM();renderCreatives();salesFunnel?.sync();clientUX?.sync();}},async table(name,raw){
+window.TOYS_PLATFORM={competitors(data){if(!projectConfig.readableCompetitors)return false;renderCompetitorAnalysis($('gWrap'),data);for(const id of ['gLoading','gError'])$(id)?.classList.add('hidden');$('gPanel')?.classList.remove('hidden');return true;},today:()=>projectDay.format(new Date()),currencySymbol,invalidate(){dataCache.delete(demoTabsAddress);tabsPromise=json(demoTabsAddress).then(d=>(d.tabs||[]).filter(t=>slug!=='bs-clinic-a5b4'||t.sourceTitle!=='BSCLINIC - Месячная сводка'));materialCache.clear();},asset,scheduleRender,updateChart,observeScrollFades,async fx(from,to){const d=await json(`${api}/exchange-rate?base=${from}&quote=${to}`);return Response.json({date:d.rate.date,[from.toLowerCase()]:{[to.toLowerCase()]:Number(d.rate.rate)}});},tabs:()=>tabsPromise,afterRender(){if(ready){attachHierarchy();maskUnavailable();calendar?.sync();renderCRM();renderCreatives();salesFunnel?.sync();clientUX?.sync();}},async table(name,raw){
  if(name==='WeeklyComments')return weeklyTable((await json(api+'/weekly-reports')).reports||[]);
  if(['GoogleAds','MetaAds','InstashopSales','EcomFunnel','EcomFunnelCampaign','Insights','MetaAdsFormat','QualifiedLeads'].includes(name))return sourceTable(await snapshotPromise,name);
  const path=`${api}/content/tabs?tab=${encodeURIComponent(name)}${raw&&!projectConfig.preparedMaterials?'&raw=1':''}${materialRevision?'&materials='+materialRevision:''}`;return materialCache.get(path,()=>json(path));
@@ -166,6 +168,7 @@ async function boot(){
 
  // Font availability must never prevent the dashboard and data from opening.
 
+ if(projectConfig.readableCompetitors){const style=document.createElement('style');style.textContent=competitorAnalysisStyle;document.head.append(style);}
  const channels=projectConfig.channels.map(key=>({key,label:{smm:'SMM',meta:'Meta',google:'Google',project:'Проект'}[key]}));
  document.title=`TOYS × ${title} — Дашборд результатов`;const icon=document.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=window.TOYS_FAVICON||asset('assets/favicon.svg');document.head.append(icon);
  window.DASH_CONFIG={...(slug==='housevip-cxp7'?{spendFx:{from:'IDR',to:'EUR'}}:{}),title,locked:true,showDrafts:false,sheetId:'platform',projectSheetId:'platform',projectApiKey:'platform',projectChannels:channels,weeklyProjectKey:slug,weeklyFormUrl:'#platform-weekly',conversionLabel:projectConfig.conversionLabel||'Конверсии',conversionShortLabel:projectConfig.conversionShortLabel||'Конв.',platformExplicitTabs:projectConfig.explicitTabs===true};

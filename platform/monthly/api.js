@@ -12,7 +12,7 @@ export async function monthlyAPI(request,env,{authorizeMvp,sameOriginWrite}){
  try{
   const auth=await authorizeMvp(request,env,match[1],'viewer');if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
   const p=await env.TOYS_DB.prepare("SELECT id FROM projects WHERE slug=? AND status='active'").bind(match[1]).first();if(!p)fail('not_found',404);
-  const staff=['admin','team'].includes(auth.platformRole),permissions={canEditResults:true,canManageReports:staff,canEditAdvertising:staff};
+  const staff=['admin','team'].includes(auth.platformRole),permissions={canEditResults:auth.readOnly!==true,canManageReports:staff,canEditAdvertising:staff};
   const fetchReport=async id=>env.TOYS_DB.prepare('SELECT * FROM project_monthly_reports WHERE project_id=? AND id=?').bind(p.id,id).first();
   if(request.method==='GET'){
    if(match[2]){const report=await fetchReport(match[2]);if(!report)fail('not_found',404);return reply({ok:true,report:presentReport(report),permissions});}
