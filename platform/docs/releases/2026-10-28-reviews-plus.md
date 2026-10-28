@@ -120,3 +120,15 @@ Published Worker: `996d31a1-989d-47ce-b179-12b1f13b0020` (100%).
 Previous Worker: `a8236e02-3c6b-4ffe-9a91-65beefeb170e`.
 Import/verification command: `scripts/import-reviews-plus-materials.py`, with
 private connector snapshots and pre-import backup outside Git.
+
+## Remove outdated monthly source content
+
+At the user's request, cleared both presentation and raw content of only
+`meta-monthly-source` in Reviews Plus. The tab remains available. Verified empty
+payloads by D1 readback and confirmed all five other tab hashes are unchanged.
+Bumped the project material cache revision so reloads do not reuse the removed
+monthly content. Build and whitespace checks passed; no source spreadsheet,
+advertising facts or other project data were changed.
+
+Worker: `cf050f98-4725-4ae7-bcf0-943d386396b9`.
+Previous Worker: `4308e327-0424-4281-a50e-2ed5f6b02ffc`.
