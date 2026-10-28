@@ -35,3 +35,18 @@ Published Worker: `86d53f9c-756a-40de-b6c7-79f9c977f26a` (100%).
 Previous Worker: `83c723f2-a774-4df3-97b5-4a9000821605`.
 No new standalone dashboard route: this draft is opened through Master.
 Private source snapshots and import receipt are outside Git.
+
+## Project chooser correction
+
+The portal session chooser previously filtered out every project missing from
+the static dashboard registry, including prepared brief/manual project cards.
+It now includes those preparation cards for administrators and assigned staff,
+linking to the master project card with an explicit preparation label. Client
+and unassigned-staff visibility is unchanged. No public dashboard registration,
+role changes, membership changes or source-data mutations were needed.
+
+Twenty-two relevant portal, authorization and onboarding tests passed, including
+signed assigned-buyer/unassigned-staff/client chooser checks and exact navigation
+links. Production D1 confirms the Reviews Plus preparation marker. Published
+Worker: `54aea8ec-9540-45e8-a25a-36803539c689`; previous version:
+`86d53f9c-756a-40de-b6c7-79f9c977f26a`.

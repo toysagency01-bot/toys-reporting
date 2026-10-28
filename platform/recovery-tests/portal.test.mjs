@@ -83,3 +83,19 @@ test('exhausted-quota rollout reports pending setup and resumes additive migrati
   response=await worker.fetch(owner('/api/v2/master/access'),env);assert.equal((await response.json()).ready,true);
  }finally{db.close();}
 });
+test('project chooser includes preparation cards for admins and assigned buyers, with usable master links, but hides them from clients and unassigned staff',async()=>{
+ const {env,db}=fixture();env.MVP_EDITOR_PROJECTS+=',__master';
+ const saved=globalThis.fetch;
+ try{
+  db.prepare("INSERT INTO projects(id,organization_id,slug,name,project_type,status,settings_json) VALUES('prj_chooser_draft','org_toys_agency','chooser-draft','Synthetic Preparation Project','leadgen','draft',?)").run(JSON.stringify({onboarding:{kind:'brief-v1'}}));
+  let r=await worker.fetch(owner('/api/v2/portal/session?choose=1'),env);let html=await r.text();assert.match(html,/Synthetic Preparation Project/);assert.match(html,/href="\/master\/#home\?project=chooser-draft"/);assert.match(html,/Подготовка к запуску · Карточка и план/);assert.doesNotMatch(html,/href="\/chooser-draft\/"/);
+  for(const [id,email,role]of [['chooser-buyer','chooser-buyer@example.test','team'],['chooser-empty','chooser-empty@example.test','team'],['chooser-client','chooser-client@example.test','client']]){
+   db.prepare("INSERT INTO users(id,email,display_name,status) VALUES(?,?,?,'active')").run(id,email,id);db.prepare('INSERT INTO platform_user_roles(user_id,role) VALUES(?,?)').run(id,role);
+  }
+  db.prepare("INSERT INTO project_memberships(project_id,user_id,role) VALUES('prj_chooser_draft','chooser-buyer','buyer'),('prj_chooser_draft','chooser-client','client_owner')").run();
+  Object.assign(env,{ENVIRONMENT:'staging',CF_ACCESS_ISSUER:issuer,CF_ACCESS_AUD:aud,MVP_ALLOWED_EMAILS:'',MVP_MASTER_EMAILS:''});globalThis.fetch=async()=>Response.json({keys:[jwk]});
+  for(const [email,visible]of [['chooser-buyer@example.test',true],['chooser-empty@example.test',false],['chooser-client@example.test',false]]){
+   r=await worker.fetch(identityRequest('/api/v2/portal/session?choose=1',email),env);html=await r.text();assert.equal(html.includes('Synthetic Preparation Project'),visible,email);
+  }
+ }finally{globalThis.fetch=saved;db.close();}
+});
