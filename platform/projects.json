@@ -147,5 +147,17 @@
     },
     "synthetic": true,
     "adminOnly": true
+  },
+  "reviews-plus": {
+    "title": "Reviews Plus",
+    "channels": [
+      "meta",
+      "google"
+    ],
+    "conversionLabel": "Лиды",
+    "conversionShortLabel": "Лиды",
+    "explicitTabs": true,
+    "defaultLastDays": 7,
+    "periodTimezone": "Europe/Bucharest"
   }
 }

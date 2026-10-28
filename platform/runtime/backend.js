@@ -3623,8 +3623,8 @@ async function dashboard(request, env, slug2) {
   const generationId = manifest.datasets?.[0]?.generationId;
   const generation = generationId ? await generationRecord(env, project, generationId) : null;
   if (!generation) return response3({ ok: false, error: "release_generation_missing" }, 500);
-  const from = url.searchParams.get("from") || generation.observedFrom;
-  const toExclusive = url.searchParams.get("toExclusive") || generation.observedToExclusive;
+  const from = url.searchParams.get("from") || generation.observedFrom || generation.requestedFrom;
+  const toExclusive = url.searchParams.get("toExclusive") || generation.observedToExclusive || generation.requestedToExclusive;
   if (!validDate(from) || !validDate(toExclusive) || from >= toExclusive) {
     return response3({ ok: false, error: "invalid_range" }, 400);
   }

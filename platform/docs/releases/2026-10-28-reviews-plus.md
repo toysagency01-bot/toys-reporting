@@ -50,3 +50,29 @@ signed assigned-buyer/unassigned-staff/client chooser checks and exact navigatio
 links. Production D1 confirms the Reviews Plus preparation marker. Published
 Worker: `54aea8ec-9540-45e8-a25a-36803539c689`; previous version:
 `86d53f9c-756a-40de-b6c7-79f9c977f26a`.
+
+## Replace preparation popup with the standard dashboard
+
+User requested the normal dashboard and subpages, with the master task popup
+removed for now. Reviews Plus now uses the shared project registry and ordinary
+private `/reviews-plus/` board. Its existing plan (27 tasks) is preserved in the
+normal Meta plan section. Standard Meta weekly/monthly source sections,
+competitor analysis, creative brief and strategy, and Google monthly source
+section start empty. Template advertising statistics are not imported.
+
+The project is active as a dashboard, with an explicitly unconfigured, zero-row
+source generation and no ad observations. Currency/account timezone remain
+unknown. The generation storage clock is UTC, without claiming an account
+setting. Default dashboard ranges now fall back to the requested source window
+when no observed data exists. No source data is fabricated to boot the board.
+
+Master no longer offers or automatically opens the task checklist for any
+project. The separate administrator Forms-connection setup remains available.
+Existing saved onboarding/brief data is preserved. Master and portal chooser
+now link Reviews Plus to its ordinary board, with existing authorization rules.
+Private editor/view allowlists add only this slug; public allowlists stay intact.
+
+Validation: all 313 recovery cases passed; browser checks cover ordinary board,
+Meta/Google subpages, source-plan date, master dashboard link, disabled popup,
+assigned-buyer behavior and independent admin source setup. Production D1
+readback confirms seven tabs, active status, unknown ad source and zero facts.

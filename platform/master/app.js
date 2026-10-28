@@ -89,7 +89,7 @@ function renderOverview(){
  $('projectFeatures').hidden=!view.single;$('projectFeatures').innerHTML=view.projectPanel;
  $('projectResults').hidden=!!view.single;$('projectsTable').innerHTML=view.rows;$('attention').innerHTML=view.health;
  if(state.view==='home')$('heading').textContent=view.single?'Обзор проекта':state.platformRole==='team'?'Мои проекты':'Все проекты';
- if(state.view==='home'&&view.single?.onboarding)onboardingUI?.offer(view.single.slug);
+
 }
 
 let overviewScope;
