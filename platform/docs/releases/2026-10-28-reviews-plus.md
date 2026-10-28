@@ -76,3 +76,14 @@ Validation: all 313 recovery cases passed; browser checks cover ordinary board,
 Meta/Google subpages, source-plan date, master dashboard link, disabled popup,
 assigned-buyer behavior and independent admin source setup. Production D1
 readback confirms seven tabs, active status, unknown ad source and zero facts.
+
+Dashboard rollout: Worker `a8236e02-3c6b-4ffe-9a91-65beefeb170e` at 100%,
+previous Worker `54aea8ec-9540-45e8-a25a-36803539c689`. Pages gateway deployment
+`4c435f2d` was published from registry commit `7abe400`; full deployment ID is
+available through the release verification command. Downloaded Worker module
+matches the local tested build. All 27 source-plan tasks remain intact.
+Three Reviews Plus browser scenarios and three master-popup/setup scenarios
+passed. The server's unauthenticated external HTTP probe received a Cloudflare
+HTML 403 before the application route, so no authenticated production browser
+session is claimed; route behavior is covered locally and Pages registry/Worker
+activation were checked through the control plane.

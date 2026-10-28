@@ -21,5 +21,5 @@ test('campaigns, funnel, weekly reports and CRM open as ordinary project section
   await page.goto('/reviews-plus/#'+hash);await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
   await expect(page.locator('body')).not.toContainText('Не удалось загрузить борд');
  }
- await page.goto('/api/v2/projects/reviews-plus/content-crm');await expect(page.locator('#projectSelect')).toBeVisible();
+ await page.goto('/api/v2/projects/reviews-plus/content-crm');await expect(page.getByRole('button',{name:'Добавить лида',exact:true})).toBeVisible();
 });
