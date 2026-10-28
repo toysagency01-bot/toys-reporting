@@ -1,5 +1,5 @@
 import {test,expect} from '@playwright/test';
-test('Reviews Plus opens its usual dashboard with Meta and Google subpages and the imported plan',async({page})=>{
+test('Reviews Plus opens its usual dashboard with Meta subpages and the imported plan',async({page})=>{
  await page.goto('/reviews-plus/');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
  await expect(page.getByText('Reviews Plus',{exact:true}).first()).toBeVisible();
  await page.screenshot({path:'dist/reviews-plus-dashboard.png',fullPage:true});
@@ -9,7 +9,10 @@ test('Reviews Plus opens its usual dashboard with Meta and Google subpages and t
  await expect(page.getByRole('button',{name:'Стратегия',exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Креативный бриф',exact:true})).toBeVisible();
  await page.screenshot({path:'dist/reviews-plus-plan.png',fullPage:true});
- await page.goto('/reviews-plus/#google');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');await expect(page.getByRole('button',{name:'Месячная сводка',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Месячная сводка',exact:true}).click();
+ await expect(page.locator('#gWrap')).toContainText('Synthetic campaign');await expect(page.locator('#gWrap')).toContainText('120.50');
+ await expect(page.getByRole('button',{name:'Google',exact:true})).toHaveCount(0);
+ await expect(page.locator('#platformSeg [data-platform="Google Ads"]')).toHaveCount(0);
 });
 test('master opens the normal dashboard link and does not show a task popup',async({page})=>{
  await page.goto('/master/');await page.locator('#projectSelect').selectOption({label:'Reviews Plus'});

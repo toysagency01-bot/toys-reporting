@@ -38,7 +38,8 @@ const dataCache=responseCache({prefix:api+'/'});
 const materialCache=memoryCache({ttl:20*60*1000,maxEntries:30});
 const shop=slug==='profkit-instashop-r4vk';
 // Retire only the old, truncated Instashop snapshot cache after this schema fix.
-const demoTabsAddress=api+'/content/tabs'+(projectRegistry[slug]?.synthetic?'?demo=v2':'');
+const materialRevision=projectRegistry[slug]?.contentRevision?encodeURIComponent(projectRegistry[slug].contentRevision):'';
+const demoTabsAddress=api+'/content/tabs'+(projectRegistry[slug]?.synthetic?'?demo=v2':materialRevision?'?materials='+materialRevision:'');
 const dashboardAddress=api+'/dashboard'+(shop?'?coverage=streams-v2':'');
 const projectConfig=projectRegistry[slug];
 const title=projectConfig.title;
@@ -58,7 +59,7 @@ const metric=r=>r.metrics||[];
 window.TOYS_PLATFORM={today:()=>projectDay.format(new Date()),currencySymbol,invalidate(){dataCache.delete(demoTabsAddress);tabsPromise=json(demoTabsAddress).then(d=>(d.tabs||[]).filter(t=>slug!=='bs-clinic-a5b4'||t.sourceTitle!=='BSCLINIC - Месячная сводка'));materialCache.clear();},asset,scheduleRender,updateChart,observeScrollFades,async fx(from,to){const d=await json(`${api}/exchange-rate?base=${from}&quote=${to}`);return Response.json({date:d.rate.date,[from.toLowerCase()]:{[to.toLowerCase()]:Number(d.rate.rate)}});},tabs:()=>tabsPromise,afterRender(){if(ready){attachHierarchy();maskUnavailable();calendar?.sync();renderCRM();renderCreatives();salesFunnel?.sync();clientUX?.sync();}},async table(name,raw){
  if(name==='WeeklyComments')return weeklyTable((await json(api+'/weekly-reports')).reports||[]);
  if(['GoogleAds','MetaAds','InstashopSales','EcomFunnel','EcomFunnelCampaign','Insights','MetaAdsFormat','QualifiedLeads'].includes(name))return sourceTable(await snapshotPromise,name);
- const path=`${api}/content/tabs?tab=${encodeURIComponent(name)}${raw?'&raw=1':''}`;return materialCache.get(path,()=>json(path));
+ const path=`${api}/content/tabs?tab=${encodeURIComponent(name)}${raw&&!projectConfig.preparedMaterials?'&raw=1':''}${materialRevision?'&materials='+materialRevision:''}`;return materialCache.get(path,()=>json(path));
 }};
 const numberFormat=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2});
 const format=n=>n==null?'—':numberFormat.format(n);
@@ -176,6 +177,7 @@ async function boot(){
  if(shop){await load('core/instashop-model.js');await load('core/instashop.js');css('core/ux-v2.css');await load('core/ux-v2-instashop.js');}
  else{await load(slug==='housevip-cxp7'?'housevip-cxp7/core.js':'core/core.js');$('weeklyPanel')?.classList.remove('hidden');css(slug==='housevip-cxp7'?'housevip-cxp7/ux-v2.css':'core/ux-v2.css');await load(slug==='housevip-cxp7'?'housevip-cxp7/ux-v2.js':'core/ux-v2.js');}
  await load('core/theme.js');await css('platform-tools.css');
+ if(projectConfig.advertisingChannels)for(const button of document.querySelectorAll('#platformSeg [data-platform]')){const channel={'Google Ads':'google','Meta Ads':'meta'}[button.dataset.platform];if(channel&&!projectConfig.advertisingChannels.includes(channel))button.remove();}
  await snapshotPromise;allRows=snapshotRows(dashboard);await tabsPromise;
  await new Promise((resolve,reject)=>{const start=Date.now();const poll=()=>{if(['content','emptyState'].some(id=>$(id)&&!$(id).classList.contains('hidden')))resolve();else if(Date.now()-start>15000)reject(new Error('Данные не загрузились'));else setTimeout(poll,50);};poll();});
  const controls=$('controls')||document.querySelector('.controls');

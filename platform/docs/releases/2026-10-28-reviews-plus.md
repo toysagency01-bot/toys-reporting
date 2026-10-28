@@ -87,3 +87,36 @@ passed. The server's unauthenticated external HTTP probe received a Cloudflare
 HTML 403 before the application route, so no authenticated production browser
 session is claimed; route behavior is covered locally and Pages registry/Worker
 activation were checked through the control plane.
+
+## Meta-only navigation and complete source materials
+
+Removed Google from this project's channel navigation and advertising selector.
+The initial empty Google template tab was removed after checking it contained no
+rows; its project channel was disabled and a new published config revision points
+only at Meta. Other projects' channel navigation and source sheets are unchanged.
+
+Read all six Meta source tabs through bounded connector ranges. Preserved the
+plan and copied the remaining five pages, verifying each original source cell
+against reconstructed raw D1 JSON. Source row counts: weekly 0, monthly 15,
+competitors 59, creative brief 15, strategy 2. The source contains inherited
+Czech/ecommerce strategy and reporting material; these are copied as project
+materials only, with zero ad facts imported. The weekly source is actually empty.
+
+The complete raw source remains stored separately from presentation JSON. Monthly
+presentation includes a complete header before its original period row so all
+columns and narrative notes render. Creative-brief presentation uses its actual
+header and sections. Reviews Plus selects these prepared material payloads;
+other projects retain their existing raw-payload behavior. A material-revision
+cache key replaces previously cached empty page/catalogue responses.
+
+Verified exact source-cell reconstruction after production writes, three project
+browser scenarios, relevant unit/cache/gateway cases, and a local browser probe
+of the actual D1 material payloads for competitors, creative brief, strategy and
+monthly reporting. A synthetic monthly fixture guards against losing later
+columns behind a single-cell period title. No authenticated production browser
+session is claimed.
+
+Published Worker: `996d31a1-989d-47ce-b179-12b1f13b0020` (100%).
+Previous Worker: `a8236e02-3c6b-4ffe-9a91-65beefeb170e`.
+Import/verification command: `scripts/import-reviews-plus-materials.py`, with
+private connector snapshots and pre-import backup outside Git.

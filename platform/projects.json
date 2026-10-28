@@ -151,13 +151,17 @@
   "reviews-plus": {
     "title": "Reviews Plus",
     "channels": [
-      "meta",
-      "google"
+      "meta"
     ],
     "conversionLabel": "Лиды",
     "conversionShortLabel": "Лиды",
     "explicitTabs": true,
     "defaultLastDays": 7,
-    "periodTimezone": "Europe/Bucharest"
+    "periodTimezone": "Europe/Bucharest",
+    "advertisingChannels": [
+      "meta"
+    ],
+    "contentRevision": "meta-materials-20261028",
+    "preparedMaterials": true
   }
 }

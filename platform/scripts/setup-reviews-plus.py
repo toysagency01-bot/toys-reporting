@@ -21,10 +21,10 @@ def statements():
  insert('data_generations',dict(id=GEN,**scope,source_stream_id=STREAM,idempotency_key=GEN,source_hash=checksum,status='sealed',availability='not_configured',coverage='unknown',freshness='stale',requested_from='2026-10-27',requested_to_exclusive='2026-11-03',row_count=0,missing_ranges_json=j([{'from':'2026-10-27','toExclusive':'2026-11-03'}]),generated_at=now,sealed_at=now,details_json=j({'accountTimezoneKnown':False,'reason':'advertising_account_not_connected'})))
  insert('project_data_releases',dict(id=RELEASE,**scope,revision=1,status='sealed',manifest_json=j(manifest),source_hash=checksum))
  insert('project_data_release_pointers',dict(**scope,release_id=RELEASE,pointer_revision=1))
- config={'defaultView':'metrics','panels':['spend','impressions','clicks','ctr','reportedConversions','cpa'],'currencyPolicy':'native','contentNavigation':['meta','google']}
+ config={'defaultView':'metrics','panels':['spend','impressions','clicks','ctr','reportedConversions','cpa'],'currencyPolicy':'native','contentNavigation':['meta']}
  insert('dashboard_config_revisions',dict(id=CONFIG,**scope,revision_number=1,schema_version='toys-dashboard-config/1.0',preset='leadgen',config_json=j(config),status='published'))
  insert('dashboard_config_pointers',dict(**scope,revision_id=CONFIG))
- for key,label in [('all','Все'),('meta','Meta'),('google','Google')]:insert('project_channels',dict(**scope,channel_key=key,label=label))
+ for key,label in [('all','Все'),('meta','Meta')]:insert('project_channels',dict(**scope,channel_key=key,label=label))
  # Empty standard sections; never copy template advertising metrics or dates.
  for channel,key,title,mode,headers,pos in [
   ('meta','weekly-source','Еженедельная сводка (Meta)','table',['Период','Расход','Показы','Клики','Лиды','Комментарий'],1),
@@ -32,7 +32,7 @@ def statements():
   ('meta','competitors','Анализ конкурентов (Meta)','competitors',['Конкурент','Сайт','Реклама','Выводы'],3),
   ('meta','creative-brief','Креативный бриф (Meta)','table',['Формат','Оффер','Текст','Материалы','Статус'],4),
   ('meta','strategy','Стратегия (Meta)','table',['Раздел','Описание'],5),
-  ('google','monthly-source','Месячная сводка (Google)','table',['Месяц','Расход','Показы','Клики','Лиды','Комментарий'],6)]:
+]:
   table={'status':'ok','table':{'cols':[{'label':h,'type':'string'} for h in headers],'rows':[]}}
   insert('project_tabs',dict(id='tab_reviews_plus_'+channel+'_'+key,project_id=PROJECT,channel=channel,tab_key=channel+'-'+key,source_title=title,label=title.rsplit(' (',1)[0],mode=mode,position=pos,content_json=j(table),raw_content_json=j(table),source_hash=hashlib.sha256(j(table).encode()).hexdigest()))
  out.append("UPDATE projects SET status='active',project_type='leadgen',settings_json=json_remove(settings_json,'$.onboarding'),updated_at=datetime('now') WHERE id="+quote(PROJECT)+" AND slug="+quote(SLUG))
@@ -54,6 +54,6 @@ if __name__=='__main__':
  tabs=query('SELECT tab_key FROM project_tabs WHERE project_id=?',[PROJECT])
  gen=query('SELECT availability,row_count FROM data_generations WHERE id=?',[GEN])[0]
  assert current['status']=='active' and current['onboarding'] is None
- assert len(tabs)==7 and gen['availability']=='not_configured' and gen['row_count']==0
+ assert len(tabs)==6 and gen['availability']=='not_configured' and gen['row_count']==0
  assert query('SELECT count(*) n FROM fact_observations WHERE project_id=?',[PROJECT])[0]['n']==0
  print(j({'verified':True,'project':SLUG,'status':'active','tabs':len(tabs),'adSource':'not_configured','adFacts':0}))
