@@ -112,3 +112,7 @@ test('website intake keys and CAPI are scoped to the new project and dataset mem
  assert.equal((await f.call('team',path+'/disconnect',{provider:'capi'})).status,200);assert.equal(f.db.prepare('SELECT capi_token_cipher FROM crm_projects WHERE project_id=?').get(created.project.id).capi_token_cipher,null);
  }finally{f.db.close();}
 });
+test('optional URLs normalize domain inputs and expose exact invalid-field locations; baseline retains every stage',()=>{
+ const data=normalizeSetup({...setup(),website:' example.com/path ',tableUrl:' ',folderUrl:'',brief:{url:''},crm:{kind:'internal',url:''}});assert.equal(data.website,'https://example.com/path');assert.equal(data.tableUrl,'');assert.equal(data.tasks.length,27);assert.equal(new Set(data.tasks.map(t=>t.stage)).size,6);assert.ok(data.tasks.every(t=>!t.deadline&&t.status==='План'));assert.ok(data.tasks.some(t=>t.title.includes('Отчеты')));
+ for(const field of ['website','tableUrl','folderUrl','brief.url','crm.url']){const s=setup();s.brief={...s.brief};s.crm={...s.crm};const parts=field.split('.');if(parts.length===2)s[parts[0]][parts[1]]='не ссылка';else s[field]='не ссылка';assert.throws(()=>normalizeSetup(s),e=>e.code==='invalid_project_url'&&e.field===field&&Number.isInteger(e.step));}
+});
