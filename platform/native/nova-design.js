@@ -46,7 +46,8 @@ export function mountNovaDesign({slug}){
   const primary=feature?(cards.find(c=>c.querySelector('#kConv'))||cards[0]):null;
   if(primary)section.append(metric(primary,true));
   const items=document.createElement('div');items.className=feature?'nova-feature-secondary':'nova-metric-grid';
-  for(const card of cards)if(card!==primary)items.append(metric(card));section.append(items);return section;
+  const qualificationPair=feature&&cards.length===4&&['Квал-лиды CRM','Стоимость квала'].every(label=>cards.some(c=>c.querySelector('.label')?.textContent.trim()===label));
+  for(const card of cards)if(card!==primary){const item=metric(card);if(qualificationPair&&card.querySelector('#kCpa'))item.style.gridColumn='1 / -1';items.append(item);}section.append(items);return section;
  }
  function syncMetrics(){
   const panels=[...source.querySelectorAll(':scope>.client-metric-group')];
