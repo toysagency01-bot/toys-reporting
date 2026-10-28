@@ -1,3 +1,4 @@
+import {managedProjectAPI} from '../project-management/api.js';
 import {financeAPI} from '../finance/api.js';
 import {onboardingAPI,briefSetupAPI} from '../onboarding/api.js';
 import {crmAllowed} from '../crm/access.js';
@@ -18,6 +19,7 @@ export async function masterAPI(request,env,ctx){
  const auth=await masterAuth(request,env);if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  try{
  const path=m[1]||'';
+ const managed=await managedProjectAPI(request,env,auth,path,ctx);if(managed)return managed;
  if(path==='brief-source/setup')return briefSetupAPI(request,env,auth);
  const onboarding=path.match(/^projects\/([^/]+)\/onboarding$/);if(onboarding)return onboardingAPI(request,env,auth,onboarding[1]);
  const finance=path.match(/^finance(?:\/(.*))?$/);if(finance)return financeAPI(request,env,auth,finance[1]||'',ctx);
@@ -29,13 +31,13 @@ export async function masterAPI(request,env,ctx){
  if(path==='daily-review/telegram'&&request.method==='GET'){if(auth.platformRole!=='admin')return reply({ok:false,error:'forbidden'},403);return reply(await telegramReviewStatus(env.TOYS_DB));}
  if(path==='daily-review'&&request.method==='GET'){const review=await dailyReviewResponse(env.TOYS_DB,url.searchParams.get('date'));review.reports=review.reports.filter(r=>projectAllowed(auth,r.project.slug));review.counts=Object.fromEntries(Object.keys(review.counts).map(k=>[k,review.reports.filter(r=>r.priority===k).length]));if(auth.platformRole!=='admin')review.currentRun=null;return reply(review);}
  if(path===''&&request.method==='GET'){
- const projects=(await env.TOYS_DB.prepare(`SELECT p.id,p.slug,p.name,p.currency,p.timezone,p.project_type AS type,p.status,json_extract(p.settings_json,'$.onboarding.kind')='brief-v1' AS onboarding,(SELECT COUNT(*) FROM leads l WHERE l.project_id=p.id AND l.deleted_at IS NULL) AS leadCount,(SELECT MAX(last_good_at) FROM ads_on_demand_cache c WHERE c.project_id=p.id) AS updatedAt,(SELECT COUNT(*) FROM crm_delivery d WHERE d.project_id=p.id AND d.state IN ('blocked','error') AND COALESCE(d.last_error,'')!='lead_deleted') AS deliveryIssues FROM projects p WHERE p.organization_id='org_toys_agency' AND p.status IN ('active','draft') ORDER BY p.name`).all()).results||[];
+ const projects=(await env.TOYS_DB.prepare(`SELECT p.id,p.slug,p.name,p.currency,p.timezone,p.project_type AS type,p.status,json_extract(p.settings_json,'$.setupCRM') AS crmKind,json_extract(p.settings_json,'$.managedProject')=1 AS managed,json_extract(p.settings_json,'$.onboarding.kind')='brief-v1' AS onboarding,(SELECT COUNT(*) FROM leads l WHERE l.project_id=p.id AND l.deleted_at IS NULL) AS leadCount,(SELECT MAX(last_good_at) FROM ads_on_demand_cache c WHERE c.project_id=p.id) AS updatedAt,(SELECT COUNT(*) FROM crm_delivery d WHERE d.project_id=p.id AND d.state IN ('blocked','error') AND COALESCE(d.last_error,'')!='lead_deleted') AS deliveryIssues FROM projects p WHERE p.organization_id='org_toys_agency' AND p.status IN ('active','draft') ORDER BY p.name`).all()).results||[];
  const integrations=(await env.TOYS_DB.prepare('SELECT project_id AS projectId,provider,status FROM integrations').all()).results||[];
  const pages=(await env.TOYS_DB.prepare('SELECT page_id AS id,name,project_id AS projectId,subscribed FROM crm_pages ORDER BY name').all()).results||[];
  const imports=env.DIRECT_ADS_IMPORT_ENABLED==='true'?(await env.TOYS_DB.prepare('SELECT project_id AS projectId,provider,state,last_success_at AS lastSuccessAt,last_attempt_at AS lastAttemptAt,last_error_code AS errorCode,range_from AS fromDate,range_to AS toDate FROM ads_import_status').all()).results||[]:[];
  const channels=(await env.TOYS_DB.prepare('SELECT provider,external_id AS id,name,project_id AS projectId FROM crm_channels ORDER BY provider,name').all()).results||[];
  const visible=await Promise.all(projects.filter(p=>projectAllowed(auth,p.slug)).map(async p=>{const canCRM=await crmAllowed(env,p.slug,auth);return {...p,canCRM,...(!canCRM?{leadCount:null,deliveryIssues:null}:{})};}));
- return reply({ok:true,access:{role:auth.platformRole,canManageIntegrations:auth.platformRole==='admin',canManageTeam:auth.platformRole==='admin'},channels:auth.platformRole==='admin'?channels:[],projects:visible.map(p=>({...p,imports:imports.filter(i=>i.projectId===p.id),integrations:integrations.filter(i=>i.projectId===p.id)})),pages:auth.platformRole==='admin'?pages:[]});
+ return reply({ok:true,access:{role:auth.platformRole,canManageIntegrations:auth.platformRole==='admin',canManageTeam:auth.platformRole==='admin',canCreateProjects:['admin','team'].includes(auth.platformRole)},channels:auth.platformRole==='admin'?channels:[],projects:visible.map(p=>({...p,imports:imports.filter(i=>i.projectId===p.id),integrations:integrations.filter(i=>i.projectId===p.id)})),pages:auth.platformRole==='admin'?pages:[]});
  }
  if(path==='discover-pages'&&request.method==='POST'){
  if(auth.platformRole!=='admin')return reply({ok:false,error:'admin_role_required'},403);

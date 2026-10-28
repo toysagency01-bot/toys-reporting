@@ -1,3 +1,4 @@
+import {managedDashboard} from '../project-management/dashboard.js';
 import {reportCollection,reportKey} from '../reports/collection.js';
 import {commerceRange} from '../native/commerce-range.js';
 import {reportDeletionRoute} from '../reports/deletions.js';
@@ -2421,7 +2422,7 @@ function createOnDemandAdsService({
     if (!scope.accountId || !scope.timezone) {
       return unavailable(scope, "missing", !scope.accountId ? "account_scope_missing" : "account_timezone_missing");
     }
-    if (storedOnly && Object.hasOwn(projectRegistry,scope.projectSlug)) return await readAdsSnapshot(db,scope,from,to,instant(now(),"now").getTime()) || unavailable(scope,"missing","direct_import_pending");
+    if (storedOnly && (Object.hasOwn(projectRegistry,scope.projectSlug)||scope.projectSlug.startsWith('project-')&&scope.config.source!=='managed_csv')) return await readAdsSnapshot(db,scope,from,to,instant(now(),"now").getTime()) || unavailable(scope,"missing","direct_import_pending");
     const adapter = adapterFunction(providers[scope.provider]);
     if (!adapter) return unavailable(scope, "unsupported", "provider_adapter_unavailable");
     const key = cacheKey(scope, from, to);
@@ -2974,6 +2975,7 @@ async function authorizeMvp(request, env, projectSlug, requiredRole = "viewer", 
     return auth.platformRole==='admin'?{...auth,projectSlug}:{ok:false,status:403,error:'admin_role_required'};
   }
   if (String(env.ENVIRONMENT || "") === "staging") {
+    if(/^project-[a-z0-9][a-z0-9-]{3,100}$/.test(projectSlug))return authorizeAccess(request,env,projectSlug,requiredRole);
     if (requiredRole === "viewer" && ["dashboard", "exchange-rate"].includes(resource)) {
       if (!["GET", "HEAD"].includes(request.method)) {
         return { ok: false, status: 403, error: "public_method_forbidden" };
@@ -3114,7 +3116,7 @@ function onDemandAdsService(env,ctx=null) {
     });
     return createOnDemandAdsService({
       db: env.TOYS_DB,
-      providers: {google_ads:createGoogleReceiverAdapter(env.TOYS_DB),...(metaAdapter?{meta_ads:metaAdapter}:{})},
+      providers: {google_ads:createGoogleReceiverAdapter(env.TOYS_DB,{env}),...(metaAdapter?{meta_ads:metaAdapter}:{})},
       cacheTtlMinutes: 20,
       storedOnly: env.DIRECT_ADS_READ_ENABLED === "true",
       ...(ctx?.waitUntil?{waitUntil:promise=>ctx.waitUntil(promise)}:{})
@@ -3612,6 +3614,7 @@ async function dashboard(request, env, slug2) {
   const url = new URL(request.url);
   const project = await projectRecord(env, slug2);
   if (!project) return response3({ ok: false, error: "not_found" }, 404);
+  const managed=await managedDashboard(env,project,url,auth);if(managed)return managed;
   const release = await releaseRecord(env, project);
   if (!release) return response3({ ok: false, error: "no_published_release" }, 409);
   const manifest = JSON.parse(release.manifestJson || "{}");

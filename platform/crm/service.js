@@ -1,3 +1,4 @@
+import {managedCRMSummary} from '../project-management/keycrm.js';
 import {getBoard,listBoards,boardId} from './boards.js';
 import {keyCRMSummary} from './keycrm-sync.js';
 import {statusExpression,isQualifiedStage} from './pipelines.js';
@@ -84,6 +85,7 @@ export async function updateLead(env,p,id,body,actor,key){
 }
 export async function summary(env,p,from,to,provider=null){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(from||'')||!/^\d{4}-\d{2}-\d{2}$/.test(to||'')||from>to)fail('invalid_range');
+ const managed=parse(p.settingsJson).managedProject?await managedCRMSummary(env,p,from,to,provider):null;if(managed)return managed;
  const keycrm=await keyCRMSummary(env,p,from,to,provider);if(keycrm)return keycrm;
  const cfg=await env.TOYS_DB.prepare('SELECT timezone,enabled_at FROM crm_projects WHERE project_id=?').bind(p.id).first();
  if(!cfg)return {available:false,qualified:0,sales:0,revenue:[],byAd:[]};

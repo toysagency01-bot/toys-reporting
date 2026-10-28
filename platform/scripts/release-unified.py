@@ -32,6 +32,9 @@ def verify_pages_registry():
     source=subprocess.run(['git','show',commit+':platform/projects.json'],capture_output=True,text=True)
     if source.returncode:raise SystemExit('Pages source commit is missing locally; fetch it before releasing.')
     missing=set(json.loads(pathlib.Path('projects.json').read_text()))-set(json.loads(source.stdout))
+    if 'dynamic-managed-projects-v1' in pathlib.Path('pages-hotfix/_worker.js').read_text():
+        gateway=subprocess.run(['git','show',commit+':platform/pages-hotfix/_worker.js'],capture_output=True,text=True)
+        if gateway.returncode or 'dynamic-managed-projects-v1' not in gateway.stdout:raise SystemExit('Pages gateway does not resolve managed projects yet; publish the current gateway first.')
     if missing:raise SystemExit('Pages gateway is missing projects: '+', '.join(sorted(missing))+'. Commit and run npm run pages:gateway:deploy before releasing the Worker.')
     return {'pages_deployment':deployment['id'],'registry_verified':True}
 
@@ -88,7 +91,7 @@ if __name__=='__main__':
                     values=[v.strip() for v in b['text'].split(',') if v.strip()]
                     if project not in values: values.append(project)
                     b['text']=','.join(values)
-        routes=['/login','/login/','/master','/master/','/api/*']+[route for slug in registry for route in ['/'+slug,'/'+slug+'/*']]
+        routes=['/login','/login/','/master','/master/','/api/*','/project-*']+[route for slug in registry for route in ['/'+slug,'/'+slug+'/*']]
         metadata={'main_module':'unified-worker.js','compatibility_date':settings['compatibility_date'],'compatibility_flags':settings['compatibility_flags'],'bindings':bindings,'keep_bindings':['secret_text'],'keep_assets':True,'assets':{'config':{'run_worker_first':routes}},'annotations':{'workers/message':'Unified platform '+hashlib.sha256(pathlib.Path('dist/unified-worker.js').read_bytes()).hexdigest()[:16]}}
         boundary='toys-'+uuid.uuid4().hex
         parts=[]

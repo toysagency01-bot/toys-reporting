@@ -30,7 +30,7 @@ export async function accessManagement(request,env){
   }
   return reply(await createInvitation(env,user.id,auth.subject,{guard}));
  }
- const allProjects=(await db.prepare(`SELECT id,slug,name,json_extract(settings_json,'$.onboarding.kind')='brief-v1' AS onboarding FROM projects WHERE organization_id='org_toys_agency' AND status IN ('active','draft') ORDER BY name`).all()).results.filter(p=>(platformSlugs.includes(p.slug)||p.onboarding)&&!adminOnlyProject(p.slug));
+ const allProjects=(await db.prepare(`SELECT id,slug,name,json_extract(settings_json,'$.managedProject')=1 AS managed,json_extract(settings_json,'$.onboarding.kind')='brief-v1' AS onboarding FROM projects WHERE organization_id='org_toys_agency' AND status IN ('active','draft') ORDER BY name`).all()).results.filter(p=>(platformSlugs.includes(p.slug)||p.managed||p.onboarding)&&!adminOnlyProject(p.slug));
  if(request.method==='GET'){
   const users=(await directory(db)).map(u=>({...u,role:roleFor(u,env)})).filter(u=>admin||u.role==='client'&&u.projects.some(p=>projectAllowed(auth,p.slug)));
   return reply({ok:true,ready:true,actorRole:auth.platformRole,canManageTeam:admin,users:users.map(u=>({...u,canInvite:admin||u.projects.every(p=>projectAllowed(auth,p.slug)),projects:u.projects.filter(p=>admin||projectAllowed(auth,p.slug)).map(({slug,name})=>({slug,name}))})),projects:allProjects.filter(p=>projectAllowed(auth,p.slug)),loginUrl});
@@ -45,7 +45,7 @@ export async function accessManagement(request,env){
  if(!admin&&(role!=='client'||!body.enabled))fail('admin_role_required',403);
  // Old callers cannot accidentally turn a legacy staff account into a client.
  if(!body.role&&staffIdentity(email,env))fail('staff_access_managed_separately',403);
- if(!Array.isArray(body.projects)||body.projects.length>platformSlugs.length||body.projects.some(s=>!platformSlugs.includes(s)))fail('invalid_projects');
+ if(!Array.isArray(body.projects)||body.projects.length>1000||body.projects.some(s=>!allProjects.some(p=>p.slug===s)))fail('invalid_projects');
  const slugs=role==='admin'?[]:[...new Set(body.projects)].sort();
  if(!admin&&slugs.some(s=>!projectAllowed(auth,s)))fail('project_scope_forbidden',403);
  const assigned=slugs.map(s=>allProjects.find(p=>p.slug===s));if(assigned.some(p=>!p))fail('invalid_projects');

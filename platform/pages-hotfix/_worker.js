@@ -1,6 +1,7 @@
 import projectRegistry from '../projects.json' with {type:'json'};
 // Preserve the frozen, previously deployed Pages site for unrelated static routes.
 const LEGACY_ORIGIN='https://3c1b0ab9.toys-agency-dashboard.pages.dev';
+// dynamic-managed-projects-v1: the API authenticates and resolves each new project.
 const projects=new Set(Object.keys(projectRegistry));
 export default {
  async fetch(request,env){
@@ -10,7 +11,7 @@ export default {
   if(['/login','/login/'].includes(incoming.pathname)){target.pathname='/api/v2/portal/login';service=env.STAGING_MVP;}
   else if(['/master','/master/','/mvp/master','/mvp/master/'].includes(incoming.pathname)){target.pathname='/api/v2/master/view';service=env.STAGING_MVP;}
   else
-  if(short&&projects.has(short[1])){target.pathname=`/api/v2/projects/${short[1]}/board`;service=env.STAGING_MVP;}
+  if(short&&(projects.has(short[1])||/^project-[a-z0-9][a-z0-9-]{3,100}$/.test(short[1]))){target.pathname=`/api/v2/projects/${short[1]}/board`;service=env.STAGING_MVP;}
   else if(incoming.pathname.startsWith('/mvp/api/')){target.pathname=incoming.pathname.slice(4);service=env.STAGING_MVP;}
   else if(/^\/api\/(?:v2|ui|crm)(?:\/|$)/.test(incoming.pathname))service=env.STAGING_MVP;
   else if(incoming.pathname.startsWith('/api/'))service=env.PRODUCTION_API;

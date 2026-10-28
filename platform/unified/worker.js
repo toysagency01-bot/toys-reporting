@@ -1,3 +1,6 @@
+import {managedBrowserProject} from '../project-management/dashboard.js';
+import {managedSlug} from '../project-management/model.js';
+import {runManagedCRMSync} from '../project-management/keycrm.js';
 import {syncBank} from '../finance/bank.js';
 import {briefIntakeAPI} from '../onboarding/api.js';
 import {runKeyCRMSync} from '../crm/keycrm-sync.js';
@@ -45,12 +48,13 @@ function bundledShell(slug){
  const paths=shop?['core/instashop-model.js','core/instashop.js','core/ux-v2-instashop.js','core/theme.js']:[`${base}/core.js`,`${base}/ux-v2.js`,'core/theme.js'];
  return `window.TOYS_BUNDLED_SCRIPTS={${paths.map(p=>JSON.stringify(p)+':function(){'+nativeAssets[p].body+'\n}').join(',')}};window.TOYS_BUNDLED_STYLES=${JSON.stringify(Object.fromEntries([`${base}/ux-v2.css`,'platform-tools.css'].map(p=>[p,nativeAssets[p].body])))};`;
 }
-const html = (slug,privateMode=true,assetBase=null,role=null,cacheScope=null,canCRM=true) => {
- const redesigned=projects.has(slug);
+const html = (slug,privateMode=true,assetBase=null,role=null,cacheScope=null,canCRM=true,config=null) => {
+ const projectConfig=config||projectRegistry[slug];
+ const redesigned=!!projectConfig;
  const loadingHead=redesigned?`<style id="novaBootStyles">${novaLoadingStyle}</style><script>try{document.documentElement.dataset.theme=localStorage.getItem('toys-dashboard-theme')==='light'?'light':'dark'}catch{document.documentElement.dataset.theme='dark'}</script>`:'';
  const logo=path=>'data:image/svg+xml,'+encodeURIComponent(nativeAssets[path].body);
- const loadingBody=redesigned?`<div id="novaBootScreen" role="status" aria-live="polite"><div class="nova-boot-header"><img class="nova-boot-dark" src="${logo('assets/toys-logo.svg')}" alt="TOYS"><img class="nova-boot-light" src="${logo('assets/toys-black.svg')}" alt="TOYS"><span>${escapeHtml(projectRegistry[slug].title)}</span></div><p class="nova-boot-status">Загружаю данные…</p><div class="nova-boot-grid" aria-hidden="true"><div class="nova-boot-feature"><i></i><i></i></div><div class="nova-boot-support"><div><i></i><i></i><i></i><i></i></div><div><i></i><i></i><i></i><i></i></div></div></div></div>`:'';
- return new Response(`<!doctype html><html lang="ru"${redesigned?' data-nova-boot="pending"':''}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title><style>${nativeAssets['platform-fonts.css'].body}</style><style>#loading{display:none!important}body[data-platform-loading] #content{display:block!important}body[data-platform-loading] .value{color:transparent!important;background:var(--panel-2);border-radius:8px;min-height:28px}body[data-platform-loading] #controls,body[data-platform-loading] .controls{pointer-events:none;opacity:.6}</style>${loadingHead}</head><body data-platform-loading="true"${redesigned?' aria-busy="true"':''}>${loadingBody}<script>window.TOYS_CRM_ALLOWED=${JSON.stringify(canCRM)};window.TOYS_CACHE_SCOPE=${JSON.stringify(cacheScope)};window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_FAVICON=${JSON.stringify('data:image/svg+xml,'+encodeURIComponent(nativeAssets['assets/favicon.svg'].body))};window.TOYS_MVP_PROJECT_PORTAL=${privateMode};window.TOYS_ACCESS_ROLE=${JSON.stringify(role)};window.TOYS_UI_ASSET_BASE=${JSON.stringify(assetBase)};${(bundledShell(slug)+nativeBoot).replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
+ const loadingBody=redesigned?`<div id="novaBootScreen" role="status" aria-live="polite"><div class="nova-boot-header"><img class="nova-boot-dark" src="${logo('assets/toys-logo.svg')}" alt="TOYS"><img class="nova-boot-light" src="${logo('assets/toys-black.svg')}" alt="TOYS"><span>${escapeHtml(projectConfig.title)}</span></div><p class="nova-boot-status">Загружаю данные…</p><div class="nova-boot-grid" aria-hidden="true"><div class="nova-boot-feature"><i></i><i></i></div><div class="nova-boot-support"><div><i></i><i></i><i></i><i></i></div><div><i></i><i></i><i></i><i></i></div></div></div></div>`:'';
+ return new Response(`<!doctype html><html lang="ru"${redesigned?' data-nova-boot="pending"':''}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>TOYS — Рабочий кабинет</title><style>${nativeAssets['platform-fonts.css'].body}</style><style>#loading{display:none!important}body[data-platform-loading] #content{display:block!important}body[data-platform-loading] .value{color:transparent!important;background:var(--panel-2);border-radius:8px;min-height:28px}body[data-platform-loading] #controls,body[data-platform-loading] .controls{pointer-events:none;opacity:.6}</style>${loadingHead}</head><body data-platform-loading="true"${redesigned?' aria-busy="true"':''}>${loadingBody}<script>window.TOYS_PROJECT_CONFIG=${JSON.stringify(config).replace(/</g,'\\u003c')};window.TOYS_CRM_ALLOWED=${JSON.stringify(canCRM)};window.TOYS_CACHE_SCOPE=${JSON.stringify(cacheScope)};window.TOYS_UNIFIED_PROJECT=${JSON.stringify(slug)};window.TOYS_FAVICON=${JSON.stringify('data:image/svg+xml,'+encodeURIComponent(nativeAssets['assets/favicon.svg'].body))};window.TOYS_MVP_PROJECT_PORTAL=${privateMode};window.TOYS_ACCESS_ROLE=${JSON.stringify(role)};window.TOYS_UI_ASSET_BASE=${JSON.stringify(assetBase)};${(bundledShell(slug)+nativeBoot).replace(/<\/script/gi,'<\\/script')}</script></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','x-frame-options':'DENY','referrer-policy':'same-origin'}});
 };
 
 export default {
@@ -83,7 +87,7 @@ export default {
       if(clientCRM&&!project)return new Response('Not found',{status:404});
       const context=project?{project:{id:project.id,slug:project.slug,name:project.name,currency:project.currency},canEdit:auth.readOnly!==true,canManageClientAccess:['admin','team'].includes(auth.platformRole)}:null;
       if(clientCRM&&url.searchParams.get('format')==='json')return Response.json({ok:true,context},{headers:{'cache-control':'no-store'}});
-      if(clientCRM&&projects.has(clientCRM[1]))return html(clientCRM[1],true,null,auth.role,dashboardCacheScope(request,auth));
+      if(clientCRM){const config=managedSlug(clientCRM[1])?await managedBrowserProject(env,clientCRM[1]):null;if(projects.has(clientCRM[1])||config)return html(clientCRM[1],true,null,auth.role,dashboardCacheScope(request,auth),true,config);}
       const coreStyle=nativeAssets['core/core.js'].body.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';
       const doc=masterDocument.replace('</head>',`<style>${nativeAssets['platform-fonts.css'].body}${coreStyle}${nativeAssets['platform-tools.css'].body}${masterStyle}${invoiceStyle}${financeStyle}${fieldFocusStyle}</style></head>`).replace('</body>',`<script>window.TOYS_CACHE_SCOPE=${JSON.stringify(dashboardCacheScope(request,auth))};window.TOYS_CLIENT_CRM=${JSON.stringify(context).replace(/</g,'\\u003c')};${masterClient.replace(/<\/script/gi,'<\\/script')}</script></body>`);
       return new Response(doc,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'same-origin'}});
@@ -138,8 +142,10 @@ export default {
     }
     const assetKey=url.pathname.startsWith('/api/ui/reference/')?url.pathname.slice('/api/ui/reference/'.length):null;
     if(assetKey && Object.hasOwn(nativeAssets,assetKey) && ['GET','HEAD'].includes(request.method)){const a=nativeAssets[assetKey];return new Response(request.method==='HEAD'?null:a.body,{headers:{'content-type':a.type,'cache-control':'no-cache','x-content-type-options':'nosniff'}});}
+    const dynamicSlug=url.pathname.match(/^\/api\/v2\/projects\/(project-[a-z0-9-]+)\/(?:board|content-project|content-editor|content-crm)$/)?.[1]||url.pathname.match(/^\/(project-[a-z0-9-]+)\/?$/)?.[1];
+    const dynamicConfig=dynamicSlug&&managedSlug(dynamicSlug)?await managedBrowserProject(env,dynamicSlug):null;
     const publicBoard=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/board$/)||url.pathname.match(/^\/([^/]+)\/(?:index\.html)?$/)||url.pathname.match(/^\/([^/]+)$/);
-    if(publicBoard && projects.has(publicBoard[1]) && request.method==='GET'){
+    if(publicBoard && (projects.has(publicBoard[1])||dynamicConfig) && request.method==='GET'){
       const slug=publicBoard[1];
       const publicAuth=await authorizeMvp(request,env,slug,'viewer','dashboard');
       if(!publicAuth.ok){
@@ -149,10 +155,10 @@ export default {
       const resource=url.searchParams.get('ui');
       if(resource!==null){const a=nativeAssets[resource];if(!Object.hasOwn(nativeAssets,resource))return new Response('Not found',{status:404});return new Response(a.body,{headers:{'content-type':a.type,'cache-control':'no-store','x-content-type-options':'nosniff'}});}
       const member=await authorizeMvp(request,env,slug,'viewer');
-      return html(slug,member.ok,'?ui=',member.role,dashboardCacheScope(request,member.ok?member:publicAuth),await crmAllowed(env,slug,member));
+      return html(slug,member.ok,'?ui=',member.role,dashboardCacheScope(request,member.ok?member:publicAuth),await crmAllowed(env,slug,member),dynamicConfig);
     }
     const portal=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/content-(project|editor)$/);
-    if(portal && projects.has(portal[1]) && request.method==='GET') {
+    if(portal && (projects.has(portal[1])||dynamicConfig) && request.method==='GET') {
       const auth=await authorizeMvp(request,env,portal[1],portal[2]==='editor'?'editor':'viewer');
       if(!auth.ok){if(!url.searchParams.has('ui')&&request.headers.get('accept')?.includes('text/html'))return loginRedirect(request,auth);return Response.json({ok:false,error:auth.error},{status:auth.status,headers:{'cache-control':'no-store'}});}
       const resource=url.searchParams.get('ui');
@@ -161,7 +167,7 @@ export default {
         const asset=nativeAssets[resource];
         return new Response(asset.body,{headers:{'content-type':asset.type,'cache-control':'no-store','x-content-type-options':'nosniff'}});
       }
-      return html(portal[1],true,null,auth.role,dashboardCacheScope(request,auth),await crmAllowed(env,portal[1],auth));
+      return html(portal[1],true,null,auth.role,dashboardCacheScope(request,auth),await crmAllowed(env,portal[1],auth),dynamicConfig);
     }
     const response=await backend.fetch(request,env,ctx);
     if(request.method==='GET' && response.ok && /^\/api\/v2\/projects\/[^/]+\/content-project\/ads\/hierarchy$/.test(url.pathname)) {
@@ -184,6 +190,7 @@ export default {
   },
   async scheduled(event,env,ctx){
     const at=event.scheduledTime??Date.now();
+    ctx.waitUntil(runManagedCRMSync(env).catch(()=>console.error('Managed CRM synchronization deferred')));
     ctx.waitUntil(runKeyCRMSync(env,at).catch(()=>console.error('KeyCRM synchronization deferred')));
     ctx.waitUntil(syncBank(env,at).catch(()=>console.error('Bank read synchronization deferred')));
     if(new Date(at).getUTCMinutes()===0)ctx.waitUntil(cleanAuthRecords(env).catch(()=>console.error('Auth cleanup deferred')));

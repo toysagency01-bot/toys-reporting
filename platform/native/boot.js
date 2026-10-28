@@ -1,3 +1,4 @@
+import {mountProjectGoals} from '../project-management/overview.js';
 import {renderCompetitorAnalysis} from './competitor-analysis.js';
 import competitorAnalysisStyle from './competitor-analysis.css';
 import {mountMonthlyReports} from '../monthly/ui.js';
@@ -40,10 +41,11 @@ const dataCache=responseCache({prefix:api+'/'});
 const materialCache=memoryCache({ttl:20*60*1000,maxEntries:30});
 const shop=slug==='profkit-instashop-r4vk';
 // Retire only the old, truncated Instashop snapshot cache after this schema fix.
-const materialRevision=projectRegistry[slug]?.contentRevision?encodeURIComponent(projectRegistry[slug].contentRevision):'';
+const projectConfig=window.TOYS_PROJECT_CONFIG||projectRegistry[slug];
+const materialRevision=projectConfig?.contentRevision?encodeURIComponent(projectConfig.contentRevision):'';
 const demoTabsAddress=api+'/content/tabs'+(projectRegistry[slug]?.synthetic?'?demo=v2':materialRevision?'?materials='+materialRevision:'');
 const dashboardAddress=api+'/dashboard'+(shop?'?coverage=streams-v2':'');
-const projectConfig=projectRegistry[slug];
+
 const title=projectConfig.title;
 const projectDay=new Intl.DateTimeFormat('en-CA',{timeZone:projectConfig.periodTimezone||'Asia/Tbilisi',year:'numeric',month:'2-digit',day:'2-digit'});
 const $=id=>document.getElementById(id);
@@ -122,7 +124,7 @@ function renderCRM(){
  panel.hidden=!crmStats?.available&&crmStats?.source!=='keycrm';if(panel.hidden){clientUX?.sync();return;}
  const demoRows=projectConfig.synthetic?selectedRows().filter(r=>!salesContext().provider||r.provider===salesContext().provider):null;
  const cost=crmStats.source==='keycrm'?qualificationCost(advertisingModel(dashboard,ads,range()),crmStats):null;
- const signature=JSON.stringify([crmStats,demoRows,cost]);if(panel._renderSignature!==signature){panel._renderSignature=signature;const cards=[['Квал-лиды CRM',format(crmStats.qualified)],...(crmStats.source==='keycrm'?[['Стоимость квала',cost?format(cost.value)+' '+h(currencySymbol(cost.currency)):'—','Расход на рекламу ÷ квал-лиды CRM за выбранный период · utm_source=toys']]:[]),...(crmStats.qualificationOnly?[]:[['Продажи CRM',format(crmStats.sales)],['Выручка CRM',(crmStats.revenue||[]).map(r=>format(r.value)+' '+h(currencySymbol(r.currency))).join('<br>')||'—']])];if(projectConfig.synthetic){const rows=demoRows,cost=aggregate(rows).money.find(m=>m.currency==='EUR')?.spend,revenue=(crmStats.revenue||[]).find(m=>m.currency==='EUR')?.value;cards.push(['Стоимость квала',cost!=null&&crmStats.qualified>0?format(cost/crmStats.qualified)+' '+currencySymbol('EUR'):'—'],['Стоимость продажи',cost!=null&&crmStats.sales>0?format(cost/crmStats.sales)+' '+currencySymbol('EUR'):'—'],['ROAS CRM',cost>0&&revenue!=null?format(revenue/cost)+'×':'—']);}panel.innerHTML=cards.map(([label,value,hint])=>`<div class="card"><div class="label">${label}</div><div class="value">${value}</div>${hint||crmStats.source==='keycrm'?`<div class="note">${h(hint||keyCRMCoverage(crmStats))}</div>`:''}</div>`).join('');}
+ const signature=JSON.stringify([crmStats,demoRows,cost]);if(panel._renderSignature!==signature){panel._renderSignature=signature;const cards=[['Квал-лиды CRM',format(crmStats.qualified)],...(crmStats.source==='keycrm'?[['Стоимость квала',cost?format(cost.value)+' '+h(currencySymbol(cost.currency)):'—',projectConfig.managed?'Расход на рекламу ÷ квал-лиды CRM за выбранный период. Привязка к кампаниям не установлена.':'Расход на рекламу ÷ квал-лиды CRM за выбранный период · utm_source=toys']]:[]),...(crmStats.qualificationOnly?[]:[['Продажи CRM',format(crmStats.sales)],['Выручка CRM',(crmStats.revenue||[]).map(r=>format(r.value)+' '+h(currencySymbol(r.currency))).join('<br>')||'—']])];if(projectConfig.synthetic){const rows=demoRows,cost=aggregate(rows).money.find(m=>m.currency==='EUR')?.spend,revenue=(crmStats.revenue||[]).find(m=>m.currency==='EUR')?.value;cards.push(['Стоимость квала',cost!=null&&crmStats.qualified>0?format(cost/crmStats.qualified)+' '+currencySymbol('EUR'):'—'],['Стоимость продажи',cost!=null&&crmStats.sales>0?format(cost/crmStats.sales)+' '+currencySymbol('EUR'):'—'],['ROAS CRM',cost>0&&revenue!=null?format(revenue/cost)+'×':'—']);}panel.innerHTML=cards.map(([label,value,hint])=>`<div class="card"><div class="label">${label}</div><div class="value">${value}</div>${hint||crmStats.source==='keycrm'?`<div class="note">${h(hint||keyCRMCoverage(crmStats))}</div>`:''}</div>`).join('');}
  clientUX?.sync();
 }
 function renderCreatives(){if(!ready)return;const channels=Object.keys(dashboard.advertising?.channels||{}).map(c=>/google/i.test(c)?'google_ads':'meta_ads');renderTopCreatives({rankings:creativeRankings,state:creativeState,activeChannel:document.querySelector('#platformSeg .active')?.dataset.platform||'__all',range:range(),channels:channels.length?[...new Set(channels)]:['meta_ads'],slug});}
@@ -168,11 +170,16 @@ async function boot(){
 
  // Font availability must never prevent the dashboard and data from opening.
 
+
  if(projectConfig.readableCompetitors){const style=document.createElement('style');style.textContent=competitorAnalysisStyle;document.head.append(style);}
  const channels=projectConfig.channels.map(key=>({key,label:{smm:'SMM',meta:'Meta',google:'Google',project:'Проект'}[key]}));
  document.title=`TOYS × ${title} — Дашборд результатов`;const icon=document.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=window.TOYS_FAVICON||asset('assets/favicon.svg');document.head.append(icon);
  window.DASH_CONFIG={...(slug==='housevip-cxp7'?{spendFx:{from:'IDR',to:'EUR'}}:{}),title,locked:true,showDrafts:false,sheetId:'platform',projectSheetId:'platform',projectApiKey:'platform',projectChannels:channels,weeklyProjectKey:slug,weeklyFormUrl:'#platform-weekly',conversionLabel:projectConfig.conversionLabel||'Конверсии',conversionShortLabel:projectConfig.conversionShortLabel||'Конв.',platformExplicitTabs:projectConfig.explicitTabs===true};
  window.INSTASHOP_CONFIG={title,sheetId:'platform',weeklyFormUrl:'#platform-weekly'};
+ if(projectConfig.managed&&materialRevision){
+  const revisionKey='toys-project-revision:'+slug;
+  try{if(sessionStorage.getItem(revisionKey)!==materialRevision){dataCache.clear();sessionStorage.setItem(revisionKey,materialRevision);}}catch{dataCache.clear();}
+ }
  const savedSnapshot=await dataCache.load(dashboardAddress);
  if(savedSnapshot)lastAutoRefresh=savedSnapshot.at;
  snapshotPromise=(savedSnapshot?Promise.resolve(savedSnapshot.value):json(dashboardAddress)).then(d=>dashboard=d.dashboard);tabsPromise=json(demoTabsAddress).then(d=>(d.tabs||[]).filter(t=>slug!=='bs-clinic-a5b4'||t.sourceTitle!=='BSCLINIC - Месячная сводка'));
@@ -183,10 +190,12 @@ async function boot(){
  if(projectConfig.advertisingChannels)for(const button of document.querySelectorAll('#platformSeg [data-platform]')){const channel={'Google Ads':'google','Meta Ads':'meta'}[button.dataset.platform];if(channel&&!projectConfig.advertisingChannels.includes(channel))button.remove();}
  await snapshotPromise;allRows=snapshotRows(dashboard);await tabsPromise;
  await new Promise((resolve,reject)=>{const start=Date.now();const poll=()=>{if(['content','emptyState'].some(id=>$(id)&&!$(id).classList.contains('hidden')))resolve();else if(Date.now()-start>15000)reject(new Error('Данные не загрузились'));else setTimeout(poll,50);};poll();});
+ if(projectConfig.managed&&window.TOYS_ACCESS_ROLE==='editor'){const a=document.createElement('a');a.href='/master/#home?project='+encodeURIComponent(slug)+'&setup=1';a.className='secondary';a.style.margin='0 0 18px';a.textContent='Настроить проект';const heading=$('uxProject')?.querySelector('h1,h2');if(heading)heading.after(a);else document.querySelector('header')?.append(a);}
  const controls=$('controls')||document.querySelector('.controls');
  const n=document.createElement('div');n.id='platformNotice';n.className='platform-notice';n.setAttribute('role','status');controls.after(n);notice(dashboard.coverage?.warning||'');
  ready=true;mountTools();mountMonthlyReports({slug,entryHash});clientUX=mountClientUX();
  mountNovaDesign({slug});
+ mountProjectGoals(dashboard);
  maskUnavailable();
  if(!allRows.length&&$('updated'))$('updated').textContent='Нет рекламной активности в загруженном периоде';
  clientNavigation=mountClientNavigation({slug,api,prefix,asset,initialCRM,onChange:async()=>{await refreshCRM();await refreshCreatives();if(projectConfig.synthetic)campaignBrowser?.refresh();}});

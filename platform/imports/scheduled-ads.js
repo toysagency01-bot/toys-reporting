@@ -15,7 +15,7 @@ export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,
  const rows=(await db.prepare(`SELECT i.id,i.provider,i.external_account_id AS externalAccountId,i.config_json AS configJson,
   p.id AS projectId,p.organization_id AS organizationId,p.slug,p.timezone,p.currency
   FROM integrations i JOIN projects p ON p.id=i.project_id WHERE (p.status='active' OR (p.status='draft' AND json_extract(i.config_json,'$.onboardingImport')=1)) AND i.status='active'
-  AND i.provider IN ('meta_ads','google_ads') AND p.slug IN (${slugs.map(()=>'?').join(',')})
+  AND COALESCE(json_extract(i.config_json,'$.source'),'')!='managed_csv' AND i.provider IN ('meta_ads','google_ads') AND (p.slug IN (${slugs.map(()=>'?').join(',')}) OR json_extract(p.settings_json,'$.managedProject')=1)
   ${requestedOnly?"AND json_extract(i.config_json,'$.refreshRequestedAt')>COALESCE((SELECT s.last_attempt_at FROM ads_import_status s WHERE s.integration_id=i.id),'') AND json_extract(i.config_json,'$.refreshRequestedAt')<=?":''}`).bind(...slugs,...requestedOnly?[iso(now())]:[]).all()).results||[];
  const run=async row=>{
   const at=iso(now()),token=crypto.randomUUID();
@@ -37,7 +37,7 @@ export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,
    }
    const scope=makeScope({...row,id:row.projectId},row,metrics);
    to=new Intl.DateTimeFormat('en-CA',{timeZone:scope.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));from=shift(to,-29);
-   const adapter=row.provider==='meta_ads'?metaAdapter:createGoogleReceiverAdapter(db);
+   const adapter=row.provider==='meta_ads'?metaAdapter:createGoogleReceiverAdapter(db,{env});
    if(!adapter)throw Object.assign(new Error('Provider credentials missing'),{code:'provider_credentials_missing'});
    const result=await adapter({project:{id:scope.projectId,slug:scope.projectSlug,organizationId:scope.organizationId},integration:{id:scope.integrationId,accountId:scope.accountId,timezone:scope.timezone,currency:scope.currency,config:scope.config},request:{from,to,level:'ad',metrics}});
    if(result.sourceFetchedAt&&adsAreStale(result.sourceFetchedAt,now(),20))throw Object.assign(new Error('Provider delivery stale'),{code:'upstream_delivery_stale'});

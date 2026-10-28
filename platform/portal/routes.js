@@ -23,8 +23,8 @@ export async function portalRoute(request,env,assets){
  if(!identity.ok)return portalPage({assets,prefix,notice:'Не удалось подтвердить вход. Попробуйте войти ещё раз.'});
  const access=identity.localMaster?{platformRole:'admin',projectSlugs:null}:await platformAccess(env,identity.email);
  const master=['admin','team'].includes(access.platformRole),staff=master;
- const all=(await env.TOYS_DB.prepare(`SELECT slug,name,json_extract(settings_json,'$.onboarding.kind')='brief-v1' AS onboarding FROM projects WHERE organization_id='org_toys_agency' AND status IN ('active','draft') ORDER BY name`).all()).results;
- const projects=all.filter(p=>(platformSlugs.includes(p.slug)||staff&&p.onboarding)&&(access.platformRole==='admin'||access.projectSlugs.includes(p.slug))).map(p=>({...p,preparing:!platformSlugs.includes(p.slug)}));
+ const all=(await env.TOYS_DB.prepare(`SELECT slug,name,json_extract(settings_json,'$.managedProject')=1 AS managed,json_extract(settings_json,'$.onboarding.kind')='brief-v1' AS onboarding FROM projects WHERE organization_id='org_toys_agency' AND status IN ('active','draft') ORDER BY name`).all()).results;
+ const projects=all.filter(p=>(platformSlugs.includes(p.slug)||p.managed||staff&&p.onboarding)&&(access.platformRole==='admin'||access.projectSlugs.includes(p.slug))).map(p=>({...p,preparing:!platformSlugs.includes(p.slug)&&!p.managed}));
  if(!master&&!staff&&projects.length)await env.TOYS_DB.prepare(`UPDATE users SET status='active',last_login_at=? WHERE email=? AND status IN ('invited','active') AND (status='invited' OR last_login_at IS NULL OR last_login_at<?)`).bind(new Date().toISOString(),identity.email,new Date(Date.now()-86400000).toISOString()).run();
  if(!url.searchParams.has('choose')&&(master||projects.length===1))return new Response(null,{status:302,headers:{location:master?'/master/':'/'+encodeURIComponent(projects[0].slug)+'/','cache-control':'no-store'}});
  return portalPage({assets,prefix,projects,email:identity.email,master});
