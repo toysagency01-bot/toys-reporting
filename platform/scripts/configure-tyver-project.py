@@ -14,7 +14,7 @@ def query(sql,params=None):
 def rows(sql,params=None):return query(sql,params)['results']
 def status():
  return rows("SELECT p.slug,p.status,p.currency,p.timezone,i.status AS integrationStatus,json_extract(i.config_json,'$.accountMetadataCheckedAt') AS verifiedAt,s.state AS importState,s.last_success_at,s.last_error_code FROM projects p LEFT JOIN integrations i ON i.project_id=p.id AND i.id=? LEFT JOIN ads_import_status s ON s.integration_id=i.id WHERE p.id=?",[IID,PID])
-action=sys.argv[1] if len(sys.argv)>1 else 'status';assert action in ('prepare','confirm','status')
+action=sys.argv[1] if len(sys.argv)>1 else 'status';assert action in ('prepare','confirm','refresh','status')
 if action=='prepare':
  assert not rows("SELECT id FROM projects WHERE lower(name)='tyver' AND id!=?",[PID]),'A different TYVER project exists; preserve it'
  assert not rows("SELECT id FROM integrations WHERE provider='meta_ads' AND external_account_id=? AND project_id!=? AND status='active'",[ACCOUNT,PID]),'Account already in use'
@@ -35,4 +35,9 @@ if action=='confirm':
  # Version guard protects any setup edits made in the meantime.
  query("UPDATE projects SET timezone=?,currency=?,settings_json=json_set(settings_json,'$.browserProject.periodTimezone',?,'$.browserProject.contentRevision','tyver-verified-v1') WHERE id=? AND EXISTS(SELECT 1 FROM project_setup_state WHERE project_id=? AND version=1)",[config['accountTimezone'],config['expectedCurrency'],config['accountTimezone'],PID,PID])
  query("UPDATE project_setup_state SET setup_json=json_set(setup_json,'$.timezone',?,'$.currency',?),version=version+1 WHERE project_id=? AND version=1",[config['accountTimezone'],config['expectedCurrency'],PID])
+if action=='refresh':
+ r=rows("SELECT config_json FROM integrations WHERE id=? AND project_id=? AND external_account_id=? AND status='active'",[IID,PID,ACCOUNT]);assert len(r)==1
+ config=json.loads(r[0]['config_json']);assert config.get('productFunnel') and config.get('accountMetadataCheckedAt'),'Verified product account required'
+ at=datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')
+ query("UPDATE integrations SET config_json=json_set(config_json,'$.refreshRequestedAt',?,'$.productEventRevision','tyver-Trial-v1') WHERE id=? AND project_id=? AND external_account_id=? AND status='active'",[at,IID,PID,ACCOUNT])
 print(json.dumps(status()))

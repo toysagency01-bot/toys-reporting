@@ -21,8 +21,9 @@ Dimensions use available source evidence:
   account currencies are never added together. Dates use the account timezone.
 
 All event counts come from Meta Insights, with one alternative action key chosen
-per event. Standard CompleteRegistration and StartTrial events are initially
-supported. If no matching event is observed in the imported window, that metric
+per event. CompleteRegistration and the observed TYVER custom pixel event `Trial` are
+supported, with standard StartTrial alternatives. The Trial campaign selector
+can reproduce the three named Trial campaigns in the supplied report. If no matching event is observed in the imported window, that metric
 remains unknown, rather than claiming a zero for an unverified custom event.
 Safe observed action-type identifiers are retained for scoped diagnostics;
 credentials, provider error bodies and URL query strings are not returned.
