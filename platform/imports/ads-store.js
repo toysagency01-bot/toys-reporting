@@ -15,7 +15,7 @@ function mergeNode(target,source){
  target.dailyMetrics.push(...source.dailyMetrics);
  if(source.outcomeDaily)target.outcomeDaily=[...(target.outcomeDaily||[]),...source.outcomeDaily];
  // Latest metadata wins, without losing metrics from earlier dates.
- for(const key of ['name','status','previewUrl','previewStatus','creativeRef'])if(source[key]!=null)target[key]=source[key];
+ for(const key of ['name','status','previewUrl','previewStatus','creativeRef','funnelDimensions','funnelEventTypes'])if(source[key]!=null)target[key]=source[key];
  const byId=new Map(target.children.map(n=>[n.providerId,n]));
  for(const child of source.children){const existing=byId.get(child.providerId);if(existing)mergeNode(existing,child);else{const copy=structuredClone(child);target.children.push(copy);byId.set(child.providerId,copy);}}
  return target;

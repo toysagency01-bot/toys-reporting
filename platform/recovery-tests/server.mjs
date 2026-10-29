@@ -1,3 +1,4 @@
+import {seedProductFunnel} from './product-funnel-fixture.mjs';
 import {seedCompetitorAnalysis} from './competitor-analysis-fixture.mjs';
 import {seedReviewsPlus} from './reviews-plus-fixture.mjs';
 import {seedMonthly} from './monthly-fixture.mjs';
@@ -20,6 +21,7 @@ if(process.env.TOYS_TEST_MONTHLY==='true'){seedMonthly(db);if(process.env.TOYS_T
 if(process.env.TOYS_TEST_PROJECT_MANAGEMENT==='true'){env.CRM_ENCRYPTION_KEY=Buffer.alloc(32,7).toString('base64');env.META_ADS_ACCESS_TOKEN='synthetic-setup-token';env.PROJECT_SETUP_FETCH=async url=>{if(url.includes('graph.facebook.com'))return Response.json({account_id:'123456789',name:'Synthetic browser account',currency:'EUR',timezone_name:'UTC'});if(url.includes('/cards?'))return Response.json({current_page:1,last_page:1,total:0,data:[]});if(url.includes('/statuses?'))return Response.json({last_page:1,data:[{id:2,title:'Qualified'}]});return Response.json({last_page:1,data:[{id:1,title:'Synthetic pipeline'}]});};}
 if(process.env.TOYS_TEST_PROJECT_DESIGN==='true'){const registry=JSON.parse(readFileSync('projects.json','utf8'));env.MVP_EDITOR_PROJECTS=Object.keys(registry).join(',')+',__master';env.MVP_VIEW_PROJECTS=env.MVP_EDITOR_PROJECTS;}
 const roleTokens=process.env.TOYS_TEST_PLATFORM_ROLES==='true'?roleBrowserFixture(env,db):null;
+if(process.env.TOYS_TEST_PRODUCT_FUNNEL==='true')await seedProductFunnel(env,db);
 if(process.env.TOYS_TEST_ONBOARDING==='true')await seedOnboarding(env,db);
 if(process.env.TOYS_TEST_REVIEWS_PLUS==='true')seedReviewsPlus(env,db);
 if(process.env.TOYS_TEST_COMPETITOR_ANALYSIS==='true')seedCompetitorAnalysis(db);

@@ -1,3 +1,4 @@
+import {productFunnelAPI} from '../product-funnel/api.js';
 import {managedBrowserProject} from '../project-management/dashboard.js';
 import {managedSlug} from '../project-management/model.js';
 import {runManagedCRMSync} from '../project-management/keycrm.js';
@@ -77,6 +78,7 @@ export default {
       const scope=await authorizeMvp(request,env,signedProject,'viewer');
       if(!scope.ok){if(!url.pathname.startsWith('/api/')&&!url.searchParams.has('ui')&&request.headers.get('accept')?.includes('text/html'))return loginRedirect(request,scope);return Response.json({ok:false,error:scope.error},{status:scope.status,headers:{'cache-control':'no-store'}});}
     }
+    const productAnalytics=await productFunnelAPI(request,env,ctx,{authorize:authorizeMvp,projectRecord,adsService:onDemandAdsService});if(productAnalytics)return productAnalytics;
     const entry=await portalRoute(request,env,nativeAssets);if(entry)return entry;
     const access=await accessManagement(request,env);if(access)return access;
     const clientCRM=url.pathname.match(/^\/api\/v2\/projects\/([^/]+)\/content-crm$/);

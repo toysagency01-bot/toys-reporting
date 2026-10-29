@@ -1,3 +1,5 @@
+import {attachProductDimensions} from '../product-funnel/metadata.js';
+import {safeDimensions} from '../product-funnel/model.js';
 import {managedDashboard} from '../project-management/dashboard.js';
 import {reportCollection,reportKey} from '../reports/collection.js';
 import {commerceRange} from '../native/commerce-range.js';
@@ -2026,6 +2028,8 @@ function normalizeEntity(raw, { level, providerLevel, parentProviderId = null, .
     output.previewStatus = ['ready','request_failed','image_unavailable'].includes(raw?.previewStatus)?raw.previewStatus:'not_requested';
     if(raw?.previewError)output.previewError=raw.previewError;
     output.outcomeDaily = normalizeOutcomes(raw?.outcomeDaily,context.from,context.to);
+    if(raw?.funnelDimensions)output.funnelDimensions=safeDimensions(raw.funnelDimensions);
+    if(Array.isArray(raw?.funnelEventTypes))output.funnelEventTypes=raw.funnelEventTypes.filter(t=>typeof t==='string'&&/^[a-zA-Z0-9_.]{1,200}$/.test(t)).slice(0,100);
   }
   return output;
 }
@@ -2744,7 +2748,7 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       time_range: JSON.stringify({ since: from, until: to }),
       limit: "500"
     });
-    if(integration?.config?.resultMode==='adset_optimization')params.set('fields',params.get('fields')+',conversions');
+    if(integration?.config?.resultMode==='adset_optimization'||integration?.config?.productFunnel)params.set('fields',params.get('fields')+',conversions');
     const rows = [];
     const windows=[];
     const shiftDate=(date,days)=>new Date(Date.parse(date+'T12:00:00Z')+days*86400000).toISOString().slice(0,10);
@@ -2819,7 +2823,8 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
       }
     }
     const normalized = hierarchy(rows, expectedAccountId);
-    const creativeData = enrichMetaOutcomes(normalized, rows);
+    const creativeData = enrichMetaOutcomes(normalized, rows,{productFunnel:integration?.config?.productFunnel===true});
+    if(integration?.config?.productFunnel)await attachProductDimensions(creativeData.ads,rows,async(ids,fields)=>page(fetchImpl,`https://graph.facebook.com/${apiVersion}/`,new URLSearchParams({ids:ids.join(','),fields,appsecret_proof:proof}),token,{maxAttempts:1,signal:deadline}),expectedAccountId);
     const previewDeadline=AbortSignal.any([deadline,AbortSignal.timeout(6000)]);
     await attachMetaPreviews(creativeData.ads,creativeData.ids,(id,fields,extra={})=>page(fetchImpl,`https://graph.facebook.com/${apiVersion}/${id}`,new URLSearchParams({appsecret_proof:proof,fields,...extra}),token,{maxAttempts:1,signal:previewDeadline}));
     if (normalized.accountCurrency && integration.currency && normalized.accountCurrency !== integration.currency) {

@@ -30,14 +30,15 @@ export function normalizeSetup(body){
  if(!Array.isArray(tasks)||tasks.length>100)fail('invalid_project_tasks');
  const ids=new Set();tasks=tasks.map((t,i)=>{if(!object(t))fail('invalid_project_tasks');const id=string(t.id,80)||'task-'+i;if(ids.has(id)||!/^[\w-]+$/.test(id))fail('invalid_project_tasks');ids.add(id);const title=string(t.title,1000),status=string(t.status,40)||'План';if(!title||!['План','В работе','Готово','Не используется'].includes(status))fail('invalid_project_tasks');return {id,title,stage:string(t.stage,100),deadline:date(t.deadline),owner:string(t.owner,120),status};});
  const notes=object(body.notes)?body.notes:{};
- return {name,company,type,timezone,currency:currency||null,channels,startDate,launchDate,
+ if(body.analyticsProfile!=null&&!['standard','product_trial'].includes(body.analyticsProfile))fail('invalid_project_setup');
+ return {analyticsProfile:body.analyticsProfile||'standard',name,company,type,timezone,currency:currency||null,channels,startDate,launchDate,
   website:url(body.website,'website'),tableUrl:url(body.tableUrl,'tableUrl'),folderUrl:url(body.folderUrl,'folderUrl'),
   brief:{url:url(brief.url,'brief.url'),product:string(brief.product),audience:string(brief.audience),geography:string(brief.geography,2000),language:string(brief.language,200),contacts:string(brief.contacts,4000),text:string(brief.text,30000)},
   kpi:{metric:kpi.metric,target:number(kpi.target),maxCost:number(kpi.maxCost),budget:number(kpi.budget),note:string(kpi.note,4000)},
   crm:{kind:crm.kind,qualification:string(crm.qualification,4000),capi:crm.capi===true,url:url(crm.url,'crm.url')},
   tasks,notes:{strategy:string(notes.strategy,30000),competitors:string(notes.competitors,30000),creativeBrief:string(notes.creativeBrief,30000)}};
 }
-export function browserProject(p,setup,version=1){return {contentRevision:`setup-${version}`,title:p.name||setup.name,channels:setup.channels,advertisingChannels:setup.channels.filter(c=>c!=='smm'),periodTimezone:setup.timezone,conversionLabel:'Конверсии рекламы',conversionShortLabel:'Конверсии',explicitTabs:true,defaultLastDays:7,managed:true,preparedMaterials:true};}
+export function browserProject(p,setup,version=1){return {productFunnel:setup.analyticsProfile==='product_trial',contentRevision:`setup-${version}`,title:p.name||setup.name,channels:setup.channels,advertisingChannels:setup.channels.filter(c=>c!=='smm'),periodTimezone:setup.timezone,conversionLabel:'Конверсии рекламы',conversionShortLabel:'Конверсии',explicitTabs:true,defaultLastDays:7,managed:true,preparedMaterials:true};}
 const grid=(headers,rows)=>({status:'ok',table:{cols:headers.map(label=>({label,type:'string'})),rows:rows.map(r=>({c:r.map(v=>({v}))}))}});
 export function projectMaterials(setup){
  const tabs=[];for(const channel of setup.channels){const label={meta:'Meta',google:'Google',smm:'SMM'}[channel];

@@ -1,0 +1,23 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {fixture,testWorker} from './fixture.mjs';
+import {roleBrowserFixture} from './roles-browser-fixture.mjs';
+import {seedProductFunnel} from './product-funnel-fixture.mjs';
+import {campaignDimensions,productRows,summarize,actionValue} from '../product-funnel/model.js';
+import {enrichMetaOutcomes,normalizeOutcomes} from '../native/outcomes.js';
+import {attachProductDimensions} from '../product-funnel/metadata.js';
+const worker=await testWorker();
+test('product funnel totals and simultaneous dimensions reconcile without averaging ratios or mixing currencies',async()=>{
+ const f=fixture();roleBrowserFixture(f.env,f.db);try{const {payload}=await seedProductFunnel(f.env,f.db),rows=productRows(payload),all=summarize(rows,{currency:'EUR'});assert.equal(all.totals.spend,400);assert.equal(all.totals.registrations,55);assert.equal(all.totals.trials,9);assert.equal(all.totals.registrationTrialRate,9/55*100);assert.equal(all.totals.roas,80/400);const filtered=summarize(rows,{currency:'EUR',language:'ru',geo:'EU',landing:'quiz'});assert.equal(filtered.rows,1);assert.equal(filtered.totals.spend,200);assert.equal(filtered.totals.trialCost,200);assert.equal(summarize(rows,{landing:'missing'}).totals.spend,null);assert.equal(summarize([...rows,{...rows[0],currency:'USD'}],{currency:'EUR'}).totals.spend,400);}finally{f.db.close();}
+});
+test('Meta event aliases are selected once and absent/unmapped events stay unknown until observed',()=>{
+ const raw={ad_id:'1',date_start:'2026-10-28',actions:[{action_type:'complete_registration',value:'8'},{action_type:'offsite_conversion.fb_pixel_complete_registration',value:'8'},{action_type:'landing_page_view',value:'9'}]};assert.equal(actionValue(raw,['offsite_conversion.fb_pixel_complete_registration','complete_registration']),8);
+ const n={campaigns:[{adsets:[{ads:[{id:'1',dailyMetrics:[]}]}]}]};enrichMetaOutcomes(n,[raw],{productFunnel:true});const result=normalizeOutcomes(n.campaigns[0].adsets[0].ads[0].outcomeDaily,'2026-10-28','2026-10-28');assert.equal(result[0].metrics.registrations.value,'8');assert.equal(result[0].metrics.trials.value,null);
+});
+test('dimensions distinguish targeting from actual country, preserve unknowns and refuse split attribution for multiple landing URLs',async()=>{
+ const d=campaignDimensions('Toys / EU / ru','quiz',{creative:{object_story_spec:{link_data:{link:'https://example.test/warp?email=private&access_token=secret'}}}});assert.equal(d.language,'ru');assert.equal(d.geo,'EU');assert.equal(d.landing,'warp');assert.equal(d.landingBasis,'creative_url');assert.ok(!JSON.stringify(d).includes('secret'));assert.equal(campaignDimensions('Main / eng','generic').geo,'unknown');assert.equal(campaignDimensions('Main','generic',{creative:{asset_feed_spec:{link_urls:[{website_url:'https://example.test/quiz'},{website_url:'https://example.test/warp'}]}}}).landing,'multiple');
+ const ads=[{id:'1'}];await attachProductDimensions(ads,[{ad_id:'1',campaign_name:'Main',ad_name:'Generic'}],async()=>({'1':{id:'1',account_id:'WRONG',creative:{object_url:'https://example.test/quiz'}}}),'123');assert.equal(ads[0].funnelDimensions.landing,'unknown');
+});
+test('TYVER normal private dashboard and product API enforce scopes, reject malformed ranges and use only real stored snapshots',async()=>{
+ const f=fixture(),tokens=roleBrowserFixture(f.env,f.db);try{await seedProductFunnel(f.env,f.db);const call=(path,who='admin')=>worker.fetch(new Request('https://test.local'+path,{headers:who?{cookie:'__Host-toys_session='+tokens[who]}:{}}),f.env,{});const path='/api/v2/projects/project-tyver/product-funnel?from=2026-10-28&to=2026-10-28';assert.equal((await call('/project-tyver/')).status,200);const r=await call(path,'client');assert.equal(r.status,200);const data=await r.json();assert.equal(data.rows.length,4);assert.equal(summarize(data.rows).totals.spend,400);assert.equal((await call(path,'empty')).status,403);assert.equal((await call(path,null)).status,401);assert.equal((await call('/api/v2/projects/project-tyver/product-funnel?from=no&to=no')).status,400);const missing=await(await call('/api/v2/projects/project-tyver/product-funnel?from=2026-10-01&to=2026-10-02')).json();assert.deepEqual(missing.rows,[]);}finally{f.db.close();}
+});
