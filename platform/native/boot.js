@@ -140,7 +140,7 @@ function queueRefresh(){crmStats=null;renderCRM();creativeSequence++;creativeRan
 let lastAutoRefresh=Date.now(),autoRunning=false;
 async function autoRefresh(force=false){
  if(autoRunning||document.hidden||!force&&Date.now()<nextRefreshAt(lastAutoRefresh)+60000)return;autoRunning=true;lastAutoRefresh=Date.now();materialCache.clear();
- try{const d=await json(dashboardAddress);const changed=JSON.stringify(d.dashboard)!==JSON.stringify(dashboard);dashboard=d.dashboard;snapshotPromise=Promise.resolve(dashboard);if(changed){appliedAds='';allRows=snapshotRows(dashboard);const names=['MetaAds','GoogleAds','InstashopSales','EcomFunnel','EcomFunnelCampaign'];window.TOYS_NATIVE.refreshSnapshot(Object.fromEntries(names.map(n=>[n,sourceTable(dashboard,n)])));}await Promise.all([refresh(),refreshCreatives(),refreshCRM()]);campaignBrowser?.refresh();}catch(e){notice('Автообновление временно недоступно. Сохранены последние данные.',true);}finally{autoRunning=false;}
+ try{const d=await json(dashboardAddress);const changed=JSON.stringify(d.dashboard)!==JSON.stringify(dashboard);dashboard=d.dashboard;snapshotPromise=Promise.resolve(dashboard);if(changed){appliedAds='';allRows=snapshotRows(dashboard);const names=['MetaAds','GoogleAds','InstashopSales','EcomFunnel','EcomFunnelCampaign'];window.TOYS_NATIVE.refreshSnapshot(Object.fromEntries(names.map(n=>[n,sourceTable(dashboard,n)])));}await Promise.all([refresh(),refreshCreatives(),refreshCRM(),productFunnel?.sync(true)]);campaignBrowser?.refresh();}catch(e){notice('Автообновление временно недоступно. Сохранены последние данные.',true);}finally{autoRunning=false;}
 }
 
 function mountTools(){
