@@ -20,6 +20,9 @@ Dimensions use available source evidence:
 - Unknown values remain in totals and have a visible filter option. Several
   account currencies are never added together. Dates use the account timezone.
 
+Product clicks use the `link_click` action, matching the reference report; they
+are separate from the generic dashboard all-clicks metric.
+
 All event counts come from Meta Insights, with one alternative action key chosen
 per event. CompleteRegistration and the observed TYVER custom pixel event `Trial` are
 supported, with standard StartTrial alternatives. The Trial campaign selector

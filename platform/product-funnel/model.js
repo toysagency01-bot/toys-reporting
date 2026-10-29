@@ -1,6 +1,6 @@
 import {valueOf} from '../unified/model.js';
-export const productKeys=['landingViews','registrations','trials'];
-export const eventKeys={landingViews:['landing_page_view'],registrations:['offsite_conversion.fb_pixel_complete_registration','complete_registration','omni_complete_registration'],trials:['offsite_conversion.fb_pixel_custom.Trial','offsite_conversion.fb_pixel_start_trial','start_trial_website','start_trial','start_trial_total','omni_start_trial']};
+export const productKeys=['linkClicks','landingViews','registrations','trials'];
+export const eventKeys={linkClicks:['link_click'],landingViews:['landing_page_view'],registrations:['offsite_conversion.fb_pixel_complete_registration','complete_registration','omni_complete_registration'],trials:['offsite_conversion.fb_pixel_custom.Trial','offsite_conversion.fb_pixel_start_trial','start_trial_website','start_trial','start_trial_total','omni_start_trial']};
 export function actionValue(row,keys){for(const key of keys){const a=[...(row.actions||[]),...(row.conversions||[])].find(a=>a.action_type===key&&a.value!=null);if(a){const n=Number(a.value);return Number.isFinite(n)&&n>=0?n:null;}}return 0;}
 export function campaignDimensions(name,adName='',metadata=null){
  const tokens=String(name||'').toLowerCase().split(/[\s/|_\-]+/).filter(Boolean);
@@ -24,7 +24,7 @@ export function productRows(provider){
  if(provider.provider!=='meta_ads'||!provider.hierarchy)return [];
  const rows=[];const currency=provider.hierarchy.currency;
  for(const c of provider.hierarchy.children||[])for(const g of c.children||[])for(const a of g.children||[]){const outcomes=new Map((a.outcomeDaily||[]).map(d=>[d.date,d.metrics]));
- for(const d of a.dailyMetrics||[]){const o=outcomes.get(d.date)||{},m=d.metrics||{};rows.push({date:d.date,campaignId:c.providerId,campaign:c.name||c.providerId,adId:a.providerId,currency,dimensions:safeDimensions(a.funnelDimensions)||campaignDimensions(c.name,a.name),spend:valueOf(m.spend),impressions:valueOf(m.impressions),clicks:valueOf(m.clicks),...Object.fromEntries(['landingViews','leads','registrations','trials','purchases','purchaseValue'].map(k=>[k,valueOf(o[k])]))});}
+ for(const d of a.dailyMetrics||[]){const o=outcomes.get(d.date)||{},m=d.metrics||{};rows.push({date:d.date,campaignId:c.providerId,campaign:c.name||c.providerId,adId:a.providerId,currency,dimensions:safeDimensions(a.funnelDimensions)||campaignDimensions(c.name,a.name),spend:valueOf(m.spend),impressions:valueOf(m.impressions),clicks:valueOf(o.linkClicks),...Object.fromEntries(['landingViews','leads','registrations','trials','purchases','purchaseValue'].map(k=>[k,valueOf(o[k])]))});}
  }return rows;
 }
 export const metricKeys=['spend','impressions','clicks','landingViews','leads','registrations','trials','purchases','purchaseValue'];

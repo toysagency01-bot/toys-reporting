@@ -39,5 +39,5 @@ if action=='refresh':
  r=rows("SELECT config_json FROM integrations WHERE id=? AND project_id=? AND external_account_id=? AND status='active'",[IID,PID,ACCOUNT]);assert len(r)==1
  config=json.loads(r[0]['config_json']);assert config.get('productFunnel') and config.get('accountMetadataCheckedAt'),'Verified product account required'
  at=datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')
- query("UPDATE integrations SET config_json=json_set(config_json,'$.refreshRequestedAt',?,'$.productEventRevision','tyver-Trial-v1') WHERE id=? AND project_id=? AND external_account_id=? AND status='active'",[at,IID,PID,ACCOUNT])
+ query("UPDATE integrations SET config_json=json_set(config_json,'$.refreshRequestedAt',?,'$.productEventRevision','tyver-Trial-linkclick-v2') WHERE id=? AND project_id=? AND external_account_id=? AND status='active'",[at,IID,PID,ACCOUNT])
 print(json.dumps(status()))
