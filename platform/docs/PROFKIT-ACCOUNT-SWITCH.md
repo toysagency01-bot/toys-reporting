@@ -27,3 +27,9 @@ Operations: `scripts/switch-profkit-account.py prepare EXPECTED_VERSION`, then
 `switch EXPECTED_VERSION` after metadata verification; `verify` compares the
 complete frozen old snapshot capture with the current rows. Each modifying step
 is gated to the expected deployed Worker and exact project/account identities.
+
+Completed 2026-11-02 after account access was granted: old source is a read-only
+archive, new source is active and imported 223 days from 25 March. Both use USD
+and Europe/Kiev. All 222 completed new-account days passed independent account
+reconciliation. Old snapshot bytes remain unchanged. See release receipt
+releases/2026-11-02-profkit-account-switch-complete.md.
