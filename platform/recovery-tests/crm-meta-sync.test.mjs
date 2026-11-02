@@ -182,3 +182,34 @@ test('explicit page reconnection refreshes a stale cached token from the active 
   assert.equal(await crypt(env,db.prepare('SELECT token_cipher FROM crm_pages').get().token_cipher,true),'synthetic-page');
  }finally{db.close();}
 });
+test('CAPI discovers a single verified account dataset and never sends a setup conversion',async()=>{
+ const {env,db}=await setup();try{
+  db.prepare("UPDATE crm_projects SET dataset_id=NULL,capi_setup_state='pending',capi_kinds='qualified'").run();
+  env.CRM_FETCH=async raw=>{const u=new URL(raw);assert.ok(!u.pathname.endsWith('/events'));if(u.pathname.endsWith('/adspixels'))return Response.json({data:[{id:'777777',name:'Selected account pixel'}]});if(u.pathname.endsWith('/777777'))return Response.json({id:'777777'});return Response.json({data:[]});};
+  await runMetaLeadSync(env,at);const cfg=db.prepare('SELECT dataset_id,capi_enabled,capi_setup_state FROM crm_projects').get();assert.equal(cfg.dataset_id,'777777');assert.equal(cfg.capi_enabled,1);assert.equal(cfg.capi_setup_state,'configured');assert.equal(db.prepare("SELECT COUNT(*) n FROM crm_delivery WHERE kind='capi'").get().n,0);
+ }finally{db.close();}
+});
+test('CAPI never guesses between multiple account datasets or enables an empty account',async()=>{
+ for(const data of [[],[{id:'777777'},{id:'888888'}]]){const {env,db}=await setup();try{
+  db.prepare("UPDATE crm_projects SET dataset_id=NULL,capi_setup_state='pending',capi_kinds='qualified'").run();env.CRM_FETCH=async raw=>Response.json({data:new URL(raw).pathname.endsWith('/adspixels')?data:[]});
+  await runMetaLeadSync(env,at);const cfg=db.prepare('SELECT capi_enabled,capi_setup_error FROM crm_projects').get();assert.equal(cfg.capi_enabled,0);assert.equal(cfg.capi_setup_error,data.length?'dataset_selection_required':'dataset_account_missing');assert.equal(db.prepare('SELECT state FROM crm_meta_sources').get().state,'ready');
+ }finally{db.close();}}
+});
+test('editing a historical qualified card does not invent a qualification or CAPI event; new qualifications are deduplicated',async()=>{
+ const {env,db}=await setup();try{
+  db.prepare("UPDATE projects SET settings_json=json_set(settings_json,'$.crmTemplate','automotive') WHERE id=?").run(p.id);db.prepare("UPDATE crm_projects SET capi_kinds='qualified'").run();
+  const old=await ingest(env,p,{email:'historical@example.test'},'manual','old-qualified');db.prepare("UPDATE leads SET current_status='Смета отправлена' WHERE id=?").run(old.id);
+  await updateLead(env,p,old.id,{status:'Смета отправлена',version:1,note:'Only a note'},'synthetic','edit-note');assert.equal(db.prepare('SELECT COUNT(*) n FROM crm_milestones').get().n,0);assert.equal(db.prepare("SELECT COUNT(*) n FROM crm_delivery WHERE kind='capi'").get().n,0);
+  const fresh=await ingest(env,p,{email:'fresh@example.test'},'manual','fresh-qualification');await updateLead(env,p,fresh.id,{status:'Квалифицирован',version:1},'synthetic','fresh-qual');await updateLead(env,p,fresh.id,{status:'Смета отправлена',version:2},'synthetic','advance-qualified');
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM crm_milestones WHERE kind='qualified'").get().n,1);assert.equal(db.prepare("SELECT COUNT(*) n FROM crm_delivery WHERE kind='capi'").get().n,1);
+ }finally{db.close();}
+});
+test('verified CAPI setup resumes only blocked events after its cutoff',async()=>{
+ const {env,db}=await setup();try{
+  db.prepare("UPDATE crm_projects SET dataset_id='333333',capi_setup_state='pending',capi_kinds='qualified',capi_from=?").run(n);
+  const ids=[];for(const key of ['old-cutoff','new-cutoff']){const lead=await ingest(env,p,{email:key+'@example.test'},'manual',key);ids.push(lead.id);await updateLead(env,p,lead.id,{status:'Квалифицирован',version:1},'synthetic',key);}
+  db.prepare("UPDATE crm_delivery SET state='blocked',last_error='capi_not_configured' WHERE kind='capi'").run();db.prepare("UPDATE crm_milestones SET occurred_at='2025-01-01T00:00:00Z' WHERE lead_id=?").run(ids[0]);
+  env.CRM_FETCH=async raw=>{const path=new URL(raw).pathname;if(path.endsWith('/adspixels'))return Response.json({data:[{id:'333333'}]});if(path.endsWith('/333333'))return Response.json({id:'333333'});assert.ok(!path.endsWith('/events'));return Response.json({data:[]});};
+  await runMetaLeadSync(env,at);assert.equal(db.prepare('SELECT state FROM crm_delivery WHERE lead_id=?').get(ids[0]).state,'blocked');assert.equal(db.prepare('SELECT state FROM crm_delivery WHERE lead_id=?').get(ids[1]).state,'pending');
+ }finally{db.close();}
+});

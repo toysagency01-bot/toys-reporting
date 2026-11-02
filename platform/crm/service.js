@@ -67,7 +67,9 @@ export async function updateLead(env,p,id,body,actor,key){
  let value=null,currency=null;
  if(stage.kind==='sale'){value=text(body.value,30);currency=text(body.currency,3).toUpperCase();if(!/^(0|[1-9]\d{0,11})(\.\d{1,2})?$/.test(value)||Number(value)<=0||!/^[A-Z]{3}$/.test(currency))fail('sale_value_currency_required');}
  const n=NOW(),event=crypto.randomUUID();
- const milestoneKinds=[...new Set([...(isQualifiedStage(stage)?['qualified']:[]),...(stage.kind?[stage.kind]:[])])];
+ const previousLabel=pipeline.aliases?.[lead.current_status]||lead.current_status,previousStage=pipeline.stages.find(s=>s.label===previousLabel);
+ const newlyQualified=isQualifiedStage(stage)&&!(previousStage&&isQualifiedStage(previousStage));
+ const milestoneKinds=[...new Set([...(newlyQualified?['qualified']:[]),...(stage.kind&&stage.kind!=='qualified'?[stage.kind]:[])])];
  const response={ok:true,id,status:desired,boardId:board.id,version:body.version+1};
  const db=env.TOYS_DB;
  // A compare-and-swap claim gates every subsequent statement inside one D1 transaction.

@@ -16,19 +16,29 @@ async function configureCapi(env,source,n){
  if(cfg?.capi_setup_state!=='pending')return;
  try{
   const token=env.META_ADS_ACCESS_TOKEN;if(!token)fail('meta_token_missing');
-  let after=null,found=false;
+  let after=null,found=false;const datasets=new Map();let datasetId=cfg.dataset_id;
   for(let i=0;i<50;i++){
    const response=await meta(env,'act_'+source.account_id+'/adspixels',token,{query:{fields:'id,name',limit:'100',...(after?{after}:{})}});
    if(!Array.isArray(response.data))fail('meta_invalid_datasets');
-   if(response.data.some(p=>String(p.id)===cfg.dataset_id)){found=true;break;}
+   for(const pixel of response.data){if(!/^\d{1,30}$/.test(String(pixel.id||'')))fail('meta_invalid_datasets');datasets.set(String(pixel.id),{id:String(pixel.id),name:String(pixel.name||pixel.id).slice(0,250)});}
+   if(datasetId&&datasets.has(datasetId)){found=true;break;}
    after=cursor(response,after);if(!after)break;
   }
+  if(!datasetId){
+   if(after)fail('meta_pagination_incomplete');
+   await env.TOYS_DB.prepare('INSERT INTO crm_agent_accounts(account_id,name,pixels_json,updated_at) VALUES(?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET pixels_json=excluded.pixels_json,updated_at=excluded.updated_at').bind(source.account_id,source.account_id,JSON.stringify([...datasets.values()]),n).run();
+   if(datasets.size!==1)fail(datasets.size?'dataset_selection_required':'dataset_account_missing');
+   datasetId=[...datasets.keys()][0];found=true;
+  }
   if(!found)fail('dataset_account_mismatch');
-  const dataset=await meta(env,cfg.dataset_id,token,{query:{fields:'id,name'}});
-  if(String(dataset.id)!==cfg.dataset_id)fail('dataset_identity_mismatch');
+  const dataset=await meta(env,datasetId,token,{query:{fields:'id,name'}});
+  if(String(dataset.id)!==datasetId)fail('dataset_identity_mismatch');
   // No synthetic conversion is sent to production. Delivery is confirmed only
   // after Meta acknowledges a real, explicitly qualified CRM lead.
-  await env.TOYS_DB.prepare("UPDATE crm_projects SET capi_enabled=1,capi_token_cipher=?,capi_setup_state='configured',capi_setup_error=NULL,updated_at=? WHERE project_id=? AND capi_setup_state='pending' AND dataset_id=?").bind(await crypt(env,token),n,source.project_id,cfg.dataset_id).run();
+  await env.TOYS_DB.batch([
+   env.TOYS_DB.prepare("UPDATE crm_projects SET dataset_id=?,capi_enabled=1,capi_token_cipher=?,capi_setup_state='configured',capi_setup_error=NULL,updated_at=? WHERE project_id=? AND capi_setup_state='pending' AND dataset_id IS ? AND updated_at=?").bind(datasetId,await crypt(env,token),n,source.project_id,cfg.dataset_id,cfg.updated_at),
+   env.TOYS_DB.prepare("UPDATE crm_delivery SET state='pending',attempts=0,next_attempt_at=? WHERE project_id=? AND kind='capi' AND state='blocked' AND last_error='capi_not_configured' AND EXISTS(SELECT 1 FROM crm_projects c JOIN crm_milestones m ON m.project_id=c.project_id AND m.id=crm_delivery.source_id WHERE c.project_id=crm_delivery.project_id AND c.capi_enabled=1 AND c.capi_setup_state='configured' AND c.updated_at=? AND m.occurred_at>=COALESCE(c.capi_from,?) AND instr(','||c.capi_kinds||',',','||m.kind||',')>0)").bind(n,source.project_id,n,n)
+  ]);
  }catch(e){
   await env.TOYS_DB.prepare("UPDATE crm_projects SET capi_setup_state='error',capi_setup_error=?,updated_at=? WHERE project_id=? AND capi_setup_state='pending'").bind(safeError(e),n,source.project_id).run();
  }
