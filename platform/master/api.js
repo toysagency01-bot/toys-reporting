@@ -3,8 +3,8 @@ import {financeAPI} from '../finance/api.js';
 import {onboardingAPI,briefSetupAPI} from '../onboarding/api.js';
 import {crmAllowed} from '../crm/access.js';
 import {projectAllowed} from '../portal/access.js';
-import {hierarchyRows,total} from '../unified/model.js';
-import {authorizeMvp,onDemandAdsService} from '../runtime/backend.js';
+import {hierarchyRows,total,advertisingModel,dateShift} from '../unified/model.js';
+import backend,{authorizeMvp,onDemandAdsService} from '../runtime/backend.js';
 import {project,summary,reply,readJSON,crypt} from '../crm/service.js';
 import {discoverPages} from '../crm/connections.js';
 import {dailyReviewResponse} from './review-service.js';
@@ -53,7 +53,7 @@ export async function masterAPI(request,env,ctx){
  if(p.status==='draft')return reply({ok:true,project:p,crm,ads:ads.filter(a=>!provider||a.provider===provider),liveError});
  try{const live=await onDemandAdsService(env,ctx).getStats({organizationId:p.organizationId,projectSlug:p.slug,from,to});refreshing=live.providers.some(p=>p.refresh?.state==='refreshing'||p.refresh?.state==='rate_limited');
  for(const name of new Set((live.providers||[]).map(s=>s.provider))){const sources=live.providers.filter(s=>s.provider===name);if(!sources.every(s=>s.hierarchy&&s.requestedRange?.from===from&&s.requestedRange?.to===to))continue;ads=ads.filter(a=>a.provider!==name);
- const rows=sources.flatMap(hierarchyRows).filter(r=>r.date>=from&&r.date<=to);for(const currency of new Set(rows.map(r=>r.currency))){const group=rows.filter(r=>r.currency===currency);ads.push({provider:name,currency,spend:total(group,'spend'),impressions:total(group,'impressions'),clicks:total(group,'clicks'),conversions:total(group,'conversions'),freshness:sources.every(s=>s.freshness==='fresh')?'fresh':'stale'});}}}
+ let rows=sources.flatMap(hierarchyRows).filter(r=>r.date>=from&&r.date<=to);if(sources.some(s=>s.readOnlyArchive)){const address=new URL(request.url);address.pathname='/api/v2/projects/'+encodeURIComponent(p.slug)+'/dashboard';address.search=new URLSearchParams({from,toExclusive:dateShift(to,1)}).toString();const original=await backend.fetch(new Request(address,{headers:request.headers}),env,ctx);if(!original.ok)throw Error('Historical baseline unavailable');const snapshot=await original.json();rows=advertisingModel(snapshot.dashboard,{providers:sources},{from,to}).filter(r=>r.provider===name);}for(const currency of new Set(rows.map(r=>r.currency))){const group=rows.filter(r=>r.currency===currency);ads.push({provider:name,currency,spend:total(group,'spend'),impressions:total(group,'impressions'),clicks:total(group,'clicks'),conversions:total(group,'conversions'),freshness:sources.every(s=>s.freshness==='fresh')?'fresh':'stale'});}}}
 
  catch(e){liveError='live_unavailable';}
  return reply({ok:true,project:p,crm,ads:ads.filter(a=>!provider||a.provider===provider),liveError,refreshing,imports:env.DIRECT_ADS_IMPORT_ENABLED==='true'?(await env.TOYS_DB.prepare('SELECT provider,state,last_success_at AS lastSuccessAt,last_error_code AS errorCode,range_to AS toDate FROM ads_import_status WHERE project_id=?').bind(p.id).all()).results:[]});

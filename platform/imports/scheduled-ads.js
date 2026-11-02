@@ -43,6 +43,10 @@ export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,
    }
    const scope=makeScope({...row,id:row.projectId},row,metrics);
    to=new Intl.DateTimeFormat('en-CA',{timeZone:scope.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now()));from=shift(to,-29);
+   if(config.initialBackfillFrom){
+    const prior=await db.prepare('SELECT last_success_at FROM ads_import_status WHERE integration_id=?').bind(row.id).first();
+    if(!prior?.last_success_at){const initial=config.initialBackfillFrom;if(!/^\d{4}-\d{2}-\d{2}$/.test(initial)||!Number.isFinite(Date.parse(initial))||initial>to||(Date.parse(to)-Date.parse(initial))/86400000>365)throw Object.assign(new Error('Invalid initial history window'),{code:'invalid_backfill_range'});if(initial<from)from=initial;}
+   }
    const adapter=row.provider==='meta_ads'?metaAdapter:createGoogleReceiverAdapter(db,{env});
    if(!adapter)throw Object.assign(new Error('Provider credentials missing'),{code:'provider_credentials_missing'});
    const result=await adapter({project:{id:scope.projectId,slug:scope.projectSlug,organizationId:scope.organizationId},integration:{id:scope.integrationId,accountId:scope.accountId,timezone:scope.timezone,currency:scope.currency,config:scope.config},request:{from,to,level:'ad',metrics}});

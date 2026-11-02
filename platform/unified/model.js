@@ -39,8 +39,9 @@ export function advertisingModel(dashboard, ads, range) {
   for (const name of new Set(providers.map(p => p.provider))) {
     const group = providers.filter(p => p.provider === name);
     if (group.every(p => p.hierarchy && p.requestedRange?.from === range.from && p.requestedRange?.to === range.to)) {
-      rows = rows.filter(r => r.provider !== name || !group.every(p=>coversDate(p,r.date)))
-        .concat(group.flatMap(hierarchyRows).filter(r=>group.every(p=>coversDate(p,r.date))));
+      const archived=group.filter(p=>p.readOnlyArchive),baseline=archived.length?archived:group;
+      rows = rows.filter(r => r.provider !== name || !baseline.every(p=>coversDate(p,r.date)))
+        .concat(group.flatMap(p=>hierarchyRows(p).filter(r=>archived.length?coversDate(p,r.date):group.every(a=>coversDate(a,r.date)))));
     }
   }
   return rows.filter(r => r.date >= range.from && r.date <= range.to);

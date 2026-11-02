@@ -31,9 +31,10 @@ export function campaignIndex(projectId,providers,range){
  for(const provider of providers||[]){
   const accounts=providers.filter(p=>p.provider===provider.provider);
   if(!accounts.every(p=>p.hierarchy&&p.requestedRange?.from===range.from&&p.requestedRange?.to===range.to))continue;
-  const covered=date=>date>=range.from&&date<=range.to&&accounts.every(p=>coversDate(p,date));
+  const archiveMode=accounts.some(p=>p.readOnlyArchive),coverageAccounts=archiveMode?[provider]:accounts;
+  const covered=date=>date>=range.from&&date<=range.to&&coverageAccounts.every(p=>coversDate(p,date));
   const periodDays=(Date.parse(range.to)-Date.parse(range.from))/86400000+1;
-  const completePeriod=accounts.every(p=>p.coverage!=='partial'&&Array.from({length:periodDays},(_,i)=>new Date(Date.parse(range.from+'T12:00:00Z')+i*86400000).toISOString().slice(0,10)).every(d=>coversDate(p,d)));
+  const completePeriod=coverageAccounts.every(p=>p.coverage!=='partial'&&Array.from({length:periodDays},(_,i)=>new Date(Date.parse(range.from+'T12:00:00Z')+i*86400000).toISOString().slice(0,10)).every(d=>coversDate(p,d)));
   const slice=node=>({...node,dailyMetrics:(node.dailyMetrics||[]).filter(d=>covered(d.date)),outcomeDaily:(node.outcomeDaily||[]).filter(d=>covered(d.date)),children:(node.children||[]).map(slice).filter(n=>n.dailyMetrics.length||n.children.length)});
   const visit=(node,path,parent=null)=>{
    const key=campaignKey(projectId,provider.provider,provider.integrationId,[...path,node.providerId]);
@@ -56,7 +57,8 @@ export function historicalCampaigns(projectId,dashboard,providers,range){
  let rows=snapshotRows(dashboard).filter(r=>r.date>=range.from&&r.date<=range.to);
  for(const name of new Set(providers.map(p=>p.provider))){
   const group=providers.filter(p=>p.provider===name);
-  if(group.every(p=>p.hierarchy&&p.requestedRange?.from===range.from&&p.requestedRange?.to===range.to))rows=rows.filter(r=>r.provider!==name||!group.every(p=>coversDate(p,r.date)));
+  const archived=group.filter(p=>p.readOnlyArchive),baseline=archived.length?archived:group;
+  if(group.every(p=>p.hierarchy&&p.requestedRange?.from===range.from&&p.requestedRange?.to===range.to))rows=rows.filter(r=>r.provider!==name||!baseline.every(p=>coversDate(p,r.date)));
  }
  return campaignGroups(rows).map(group=>{
   const m=group.totals,spend=m.money[0]?.spend??null,dates=group.rows.map(r=>r.date).sort();
