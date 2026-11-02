@@ -1,3 +1,4 @@
+import {readArchivedAdsSnapshot} from '../imports/archive-ads.js';
 import {attachProductDimensions} from '../product-funnel/metadata.js';
 import {safeDimensions} from '../product-funnel/model.js';
 import {managedDashboard} from '../project-management/dashboard.js';
@@ -2426,7 +2427,9 @@ function createOnDemandAdsService({
     if (!scope.accountId || !scope.timezone) {
       return unavailable(scope, "missing", !scope.accountId ? "account_scope_missing" : "account_timezone_missing");
     }
-    if (storedOnly && (Object.hasOwn(projectRegistry,scope.projectSlug)||scope.projectSlug.startsWith('project-')&&scope.config.source!=='managed_csv')) return await readAdsSnapshot(db,scope,from,to,instant(now(),"now").getTime()) || unavailable(scope,"missing","direct_import_pending");
+    if(scope.config.readOnlyArchive){return readArchivedAdsSnapshot(db,scope,from,to);}
+    if(scope.config.accountCreatedDate&&to<scope.config.accountCreatedDate)return {provider:scope.provider,integrationId:scope.integrationId,requestedRange:{from,to},activeFromDate:scope.config.accountCreatedDate,coveredDates:[],coverage:'complete',source:'not_applicable',freshness:'fresh',hierarchy:{level:'account',providerId:scope.accountId,timezone:scope.timezone,currency:scope.currency,dailyMetrics:[],children:[]},refresh:{state:'not_needed'}};
+    if (storedOnly && (Object.hasOwn(projectRegistry,scope.projectSlug)||scope.projectSlug.startsWith('project-')&&scope.config.source!=='managed_csv')) {const saved=await readAdsSnapshot(db,scope,from,to,instant(now(),"now").getTime());return saved?{...saved,...scope.config.accountCreatedDate?{activeFromDate:scope.config.accountCreatedDate}:{}}:unavailable(scope,"missing","direct_import_pending");}
     const adapter = adapterFunction(providers[scope.provider]);
     if (!adapter) return unavailable(scope, "unsupported", "provider_adapter_unavailable");
     const key = cacheKey(scope, from, to);
@@ -2479,7 +2482,7 @@ function createOnDemandAdsService({
       const integrations = await all(db, `SELECT id,provider,external_account_id AS externalAccountId,
           config_json AS configJson,secret_ref AS secretRef
         FROM integrations
-        WHERE project_id=? AND status='active' AND provider IN ('meta_ads','google_ads')
+        WHERE project_id=? AND (status='active' OR (status='disabled' AND json_extract(config_json,'$.readOnlyArchive')=1)) AND provider IN ('meta_ads','google_ads')
         ORDER BY provider,id`, [project.id]);
       const requestId2 = randomToken(randomId);
       if (!integrations.length) {
@@ -2851,13 +2854,13 @@ function createMetaAdsHierarchyAdapter({ accessToken, appSecret, fetchImpl = fet
     const config=JSON.parse(integration.configJson||'{}');
     const version=text2(config.apiVersion)||DEFAULT_API_VERSION;
     if(!/^v\d+\.\d+$/.test(version))fail3('invalid_integration_config');
-    const result=await page(fetchImpl,`https://graph.facebook.com/${version}/act_${expected}`,new URLSearchParams({fields:'account_id,currency,timezone_name',appsecret_proof:proof}),token,{maxAttempts:1,signal:AbortSignal.timeout(10000)});
+    const result=await page(fetchImpl,`https://graph.facebook.com/${version}/act_${expected}`,new URLSearchParams({fields:config.discoverCreatedTime?'account_id,name,currency,timezone_name,created_time':'account_id,currency,timezone_name',appsecret_proof:proof}),token,{maxAttempts:1,signal:AbortSignal.timeout(10000)});
     if(String(result.account_id)!==expected)fail3('account_scope_mismatch');
     if(!/^[A-Z]{3}$/.test(result.currency||''))fail3('account_currency_invalid');
     if(config.expectedCurrency?result.currency!==config.expectedCurrency:config.allowCurrencyDiscovery!==true)fail3('currency_scope_mismatch');
     try{new Intl.DateTimeFormat('en',{timeZone:result.timezone_name}).format();}catch{fail3('account_timezone_invalid');}
     if(!result.timezone_name)fail3('account_timezone_invalid');
-    return {accountTimezone:result.timezone_name,expectedCurrency:result.currency};
+    return {accountTimezone:result.timezone_name,expectedCurrency:result.currency,...config.discoverCreatedTime&&Number.isFinite(Date.parse(result.created_time))?{accountCreatedAt:new Date(result.created_time).toISOString(),accountCreatedDate:new Intl.DateTimeFormat('en-CA',{timeZone:result.timezone_name,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(result.created_time))}:{}};
   };
   return adapter;
 }

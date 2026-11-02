@@ -195,3 +195,25 @@ test('a discrepant historical day cannot erase the saved hierarchy while today s
   const state=db.prepare('SELECT state,last_error_code,next_attempt_at FROM ads_import_status').get();assert.equal(state.state,'error');assert.equal(state.last_error_code,'account_reconciliation_mismatch');assert.equal(state.next_attempt_at,'2026-10-13T12:20:00.000Z');
  }finally{db.close();}
 });
+test('pending account switch verifies metadata without importing or altering old snapshots',async()=>{
+ const {env,db}=setup();try{
+  env.DIRECT_ADS_IMPORT_ENABLED='true';const config={pendingAccountSwitch:true,verifyAccountMetadata:true,allowCurrencyDiscovery:true};
+  db.prepare("INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES('switch-verify','prj_housevip_cxp7','meta_ads','456','pending',?)").run(JSON.stringify(config));
+  let imports=0;const adapter=async()=>{imports++;throw Error('Must not import expenses');};adapter.accountMetadata=async()=>({expectedCurrency:'USD',accountTimezone:'Europe/Kyiv',accountCreatedDate:'2026-10-10'});
+  const out=await scheduledAds(env,{now:()=>Date.parse('2026-10-13T12:00:00Z'),makeScope:rt.integrationScope,normalize:rt.normalizeAdsHierarchy,metrics:rt.METRIC_NAMES,metaAdapter:adapter});assert.equal(out[0].status,'account_verified');assert.equal(imports,0);assert.equal(db.prepare("SELECT status FROM integrations WHERE id='switch-verify'").get().status,'pending');assert.equal(db.prepare('SELECT COUNT(*) n FROM ads_daily_snapshots').get().n,0);
+ }finally{db.close();}
+});
+test('closing an integration cancels in-flight snapshot writes without modifying prior history',async()=>{
+ const {env,db}=setup();try{
+  db.prepare("INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES(?,'prj_housevip_cxp7','meta_ads','123','active','{}')").run(scope.integrationId);await saveAdsSnapshot(env.TOYS_DB,scope,payload(),{expectedConfigJson:'{}'});const before=db.prepare('SELECT content_hash FROM ads_daily_snapshots ORDER BY local_date').all();db.prepare("UPDATE integrations SET status='disabled' WHERE id=?").run(scope.integrationId);
+  await assert.rejects(saveAdsSnapshot(env.TOYS_DB,scope,payload('2026-10-12T19:00:00Z','999'),{expectedConfigJson:'{}'}));assert.deepEqual(db.prepare('SELECT content_hash FROM ads_daily_snapshots ORDER BY local_date').all(),before);
+ }finally{db.close();}
+});
+test('archived accounts remain readable beside a new account without double-counting dates or losing older published history',async()=>{
+ const {env,db}=setup();try{
+  env.DIRECT_ADS_READ_ENABLED='true';db.prepare("INSERT INTO integrations(id,project_id,provider,external_account_id,status,config_json) VALUES(?,'prj_housevip_cxp7','meta_ads','123','disabled',?)").run(scope.integrationId,JSON.stringify({accountTimezone:'UTC',expectedCurrency:'IDR',readOnlyArchive:true,archiveThroughDate:'2026-10-12'}));await saveAdsSnapshot(env.TOYS_DB,scope,payload());
+  const response=await worker.fetch(request('/api/v2/projects/housevip-cxp7/content-project/ads/hierarchy?from=2026-10-10&to=2026-10-15'),env,{});assert.equal(response.status,200);const data=await response.json();const old=data.providers.find(p=>p.integrationId===scope.integrationId);assert.equal(old.readOnlyArchive,true);assert.equal(old.activeThroughDate,'2026-10-12');assert.equal(old.hierarchy.children[0].dailyMetrics[0].metrics.spend.value,'20');
+  const newProvider={...structuredClone(old),integrationId:'new-account',readOnlyArchive:false,activeThroughDate:null,activeFromDate:'2026-10-13',coveredDates:['2026-10-13','2026-10-14','2026-10-15']};newProvider.hierarchy.children[0].dailyMetrics[0].date='2026-10-13';newProvider.hierarchy.children[0].dailyMetrics[0].metrics.spend.value='30';
+  const rows=advertisingModel({facts:{rows:[{date:'2026-10-10',campaign:{label:'Earlier'},metrics:[{metricCode:'ads.spend',value:'7',state:'observed',currency:'IDR'}]}]}},{providers:[old,newProvider]},{from:'2026-10-10',to:'2026-10-15'});assert.deepEqual(rows.map(r=>[r.date,r.spend]),[['2026-10-10',7],['2026-10-12',20],['2026-10-13',30]]);
+ }finally{db.close();}
+});

@@ -30,7 +30,7 @@ export function hierarchyRows(provider) {
     conversionLabel: 'Конверсии Meta', source: provider.source, children: campaign.children || [],
   })));
 }
-export const coversDate=(provider,date)=>provider.coveredDates?provider.coveredDates.includes(date):date>=provider.requestedRange.from&&date<=provider.requestedRange.to;
+export const coversDate=(provider,date)=>(provider.activeFromDate&&date<provider.activeFromDate||provider.activeThroughDate&&date>provider.activeThroughDate)?true:provider.coveredDates?provider.coveredDates.includes(date):date>=provider.requestedRange.from&&date<=provider.requestedRange.to;
 export function advertisingModel(dashboard, ads, range) {
   let rows = snapshotRows(dashboard || {});
   const providers = ads?.providers || [];

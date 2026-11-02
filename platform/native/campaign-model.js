@@ -33,7 +33,7 @@ export function campaignIndex(projectId,providers,range){
   if(!accounts.every(p=>p.hierarchy&&p.requestedRange?.from===range.from&&p.requestedRange?.to===range.to))continue;
   const covered=date=>date>=range.from&&date<=range.to&&accounts.every(p=>coversDate(p,date));
   const periodDays=(Date.parse(range.to)-Date.parse(range.from))/86400000+1;
-  const completePeriod=accounts.every(p=>p.coverage!=='partial'&&(!p.coveredDates||new Set(p.coveredDates.filter(d=>d>=range.from&&d<=range.to)).size===periodDays));
+  const completePeriod=accounts.every(p=>p.coverage!=='partial'&&Array.from({length:periodDays},(_,i)=>new Date(Date.parse(range.from+'T12:00:00Z')+i*86400000).toISOString().slice(0,10)).every(d=>coversDate(p,d)));
   const slice=node=>({...node,dailyMetrics:(node.dailyMetrics||[]).filter(d=>covered(d.date)),outcomeDaily:(node.outcomeDaily||[]).filter(d=>covered(d.date)),children:(node.children||[]).map(slice).filter(n=>n.dailyMetrics.length||n.children.length)});
   const visit=(node,path,parent=null)=>{
    const key=campaignKey(projectId,provider.provider,provider.integrationId,[...path,node.providerId]);

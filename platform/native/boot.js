@@ -45,7 +45,7 @@ const shop=slug==='profkit-instashop-r4vk';
 const projectConfig=window.TOYS_PROJECT_CONFIG||projectRegistry[slug];
 const materialRevision=projectConfig?.contentRevision?encodeURIComponent(projectConfig.contentRevision):'';
 const demoTabsAddress=api+'/content/tabs'+(projectRegistry[slug]?.synthetic?'?demo=v2':materialRevision?'?materials='+materialRevision:'');
-const dashboardAddress=api+'/dashboard'+(shop?'?coverage=streams-v2':'');
+const dashboardAddress=api+'/dashboard'+(shop?'?coverage=streams-v3-usa2':'');
 
 const title=projectConfig.title;
 const projectDay=new Intl.DateTimeFormat('en-CA',{timeZone:projectConfig.periodTimezone||'Asia/Tbilisi',year:'numeric',month:'2-digit',day:'2-digit'});
@@ -177,7 +177,7 @@ async function boot(){
  document.title=`TOYS × ${title} — Дашборд результатов`;const icon=document.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=window.TOYS_FAVICON||asset('assets/favicon.svg');document.head.append(icon);
  window.DASH_CONFIG={...(slug==='housevip-cxp7'?{spendFx:{from:'IDR',to:'EUR'}}:{}),title,locked:true,showDrafts:false,sheetId:'platform',projectSheetId:'platform',projectApiKey:'platform',projectChannels:channels,weeklyProjectKey:slug,weeklyFormUrl:'#platform-weekly',conversionLabel:projectConfig.conversionLabel||'Конверсии',conversionShortLabel:projectConfig.conversionShortLabel||'Конв.',platformExplicitTabs:projectConfig.explicitTabs===true};
  window.INSTASHOP_CONFIG={title,sheetId:'platform',weeklyFormUrl:'#platform-weekly'};
- if(projectConfig.managed&&materialRevision){
+ if(materialRevision){
   const revisionKey='toys-project-revision:'+slug;
   try{if(sessionStorage.getItem(revisionKey)!==materialRevision){dataCache.clear();sessionStorage.setItem(revisionKey,materialRevision);}}catch{dataCache.clear();}
  }

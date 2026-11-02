@@ -20,7 +20,7 @@ function mergeNode(target,source){
  for(const child of source.children){const existing=byId.get(child.providerId);if(existing)mergeNode(existing,child);else{const copy=structuredClone(child);target.children.push(copy);byId.set(child.providerId,copy);}}
  return target;
 }
-export async function saveAdsSnapshot(db,scope,payload,{excludeDates=[]}={}){
+export async function saveAdsSnapshot(db,scope,payload,{excludeDates=[],expectedConfigJson=null}={}){
  if(payload.coverage!=='complete'||payload.integrationId!==scope.integrationId||payload.provider!==scope.provider||payload.hierarchy?.providerId!==scope.accountId||payload.hierarchy.timezone!==scope.timezone||payload.hierarchy.currency!==scope.currency)throw Object.assign(new Error('Invalid import scope'),{code:'snapshot_scope_mismatch'});
  const key=scopeKey(scope),at=payload.sourceFetchedAt||payload.fetchedAt;
  if(!Number.isFinite(Date.parse(at)))throw new Error('Import timestamp required');
@@ -29,10 +29,10 @@ export async function saveAdsSnapshot(db,scope,payload,{excludeDates=[]}={}){
   const day={schemaVersion:payload.schemaVersion,provider:payload.provider,integrationId:payload.integrationId,metricAvailability:payload.metricAvailability,levelsAreAlternative:true,hierarchy:sliceNode(payload.hierarchy,date)};
   const json=JSON.stringify(day);if(new TextEncoder().encode(json).length>1500000)throw Object.assign(new Error('Daily snapshot too large'),{code:'snapshot_too_large'});
   return db.prepare(`INSERT INTO ads_daily_snapshots(scope_key,local_date,organization_id,project_id,integration_id,provider,payload_json,content_hash,checked_at)
-   VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(scope_key,local_date) DO UPDATE SET
+   VALUES(?,?,?,${expectedConfigJson===null?'?':"CASE WHEN EXISTS(SELECT 1 FROM integrations WHERE id=? AND status='active' AND config_json=?) THEN ? ELSE NULL END"},?,?,?,?,?) ON CONFLICT(scope_key,local_date) DO UPDATE SET
    payload_json=CASE WHEN content_hash<>excluded.content_hash THEN excluded.payload_json ELSE payload_json END,
    content_hash=excluded.content_hash,checked_at=excluded.checked_at WHERE excluded.checked_at>=checked_at`)
-   .bind(key,date,scope.organizationId,scope.projectId,scope.integrationId,scope.provider,json,hash(day),at);
+   .bind(key,date,scope.organizationId,...expectedConfigJson===null?[scope.projectId]:[scope.integrationId,expectedConfigJson,scope.projectId],scope.integrationId,scope.provider,json,hash(day),at);
  });
  // One transaction: a failed page or DB write cannot publish half a period.
  if(statements.length)await db.batch(statements);return statements.length;

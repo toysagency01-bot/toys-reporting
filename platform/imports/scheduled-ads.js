@@ -14,7 +14,7 @@ export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,
  const db=env.TOYS_DB;
  const rows=(await db.prepare(`SELECT i.id,i.provider,i.external_account_id AS externalAccountId,i.config_json AS configJson,
   p.id AS projectId,p.organization_id AS organizationId,p.slug,p.timezone,p.currency
-  FROM integrations i JOIN projects p ON p.id=i.project_id WHERE (p.status='active' OR (p.status='draft' AND json_extract(i.config_json,'$.onboardingImport')=1)) AND i.status='active'
+  FROM integrations i JOIN projects p ON p.id=i.project_id WHERE (p.status='active' OR (p.status='draft' AND json_extract(i.config_json,'$.onboardingImport')=1)) AND (i.status='active' OR (i.status='pending' AND json_extract(i.config_json,'$.pendingAccountSwitch')=1))
   AND COALESCE(json_extract(i.config_json,'$.source'),'')!='managed_csv' AND i.provider IN ('meta_ads','google_ads') AND (p.slug IN (${slugs.map(()=>'?').join(',')}) OR json_extract(p.settings_json,'$.managedProject')=1)
   ${requestedOnly?"AND json_extract(i.config_json,'$.refreshRequestedAt')>COALESCE((SELECT s.last_attempt_at FROM ads_import_status s WHERE s.integration_id=i.id),'') AND json_extract(i.config_json,'$.refreshRequestedAt')<=?":''}`).bind(...slugs,...requestedOnly?[iso(now())]:[]).all()).results||[];
  const run=async row=>{
@@ -27,6 +27,12 @@ export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,
   let from,to;
   try{
    const config=JSON.parse(row.configJson||'{}');
+   if(config.pendingAccountSwitch){
+    if(row.provider!=='meta_ads'||!metaAdapter?.accountMetadata)throw Object.assign(new Error('Metadata reader missing'),{code:'account_metadata_unavailable'});
+    if(!config.accountMetadataCheckedAt){const metadata=await metaAdapter.accountMetadata(row);await db.prepare("UPDATE integrations SET config_json=? WHERE id=? AND project_id=? AND status='pending' AND config_json=?").bind(JSON.stringify({...config,...metadata,accountMetadataCheckedAt:at}),row.id,row.projectId,row.configJson).run();}
+    await db.prepare("UPDATE ads_import_status SET state='success',last_error_code=NULL,next_attempt_at=?,lease_token=NULL,lease_until=NULL WHERE integration_id=? AND lease_token=?").bind(iso(nextRefreshAt(now())),row.id,token).run();
+    return {integrationId:row.id,status:'account_verified'};
+   }
    if(config.verifyAccountMetadata&&!config.accountMetadataCheckedAt){
     if(row.provider!=='meta_ads'||!metaAdapter?.accountMetadata)throw Object.assign(new Error('Metadata reader missing'),{code:'account_metadata_unavailable'});
     const metadata=await metaAdapter.accountMetadata(row);
@@ -48,7 +54,7 @@ export async function scheduledAds(env,{metaAdapter,normalize,makeScope,metrics,
    const audit=result.accountReconciliation;
    const excludedDates=audit&&audit.status!=='matched'
     ?dates(from,shift(to,-1)).filter(date=>!audit.daily?.some(d=>d.date===date&&d.matched)) : [];
-   const rowsWritten=await saveAdsSnapshot(db,scope,payload,{excludeDates:excludedDates});
+   const rowsWritten=await saveAdsSnapshot(db,scope,payload,{excludeDates:excludedDates,expectedConfigJson:row.configJson});
    if(result.accountReconciliation){
     const audit=result.accountReconciliation;
     await db.prepare(`INSERT INTO sync_runs(project_id,provider,job_type,status,started_at,finished_at,rows_read,message,details_json) VALUES(?,'meta_ads','meta-account-reconciliation',?,?,?,?,?,?)`)
