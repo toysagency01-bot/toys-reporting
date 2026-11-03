@@ -13,9 +13,24 @@ membership is project membership, not a new department-level security boundary.
 
 Each new board snapshots a validated stage list: 2–30 unique labels, a normal
 first stage and one sale stage. Qualification and sales are explicit stage
-properties, never inferred from column position. A sale can also qualify when
-selected as «Продажа + квал». Stage editing in this release is available during
-creation only; there is no destructive board/stage deletion or mass migration.
+properties, never inferred from column position. In **CRM → board name →
+Настроить доску**, assigned team members and administrators select qualification
+stages using **Квалифицированный лид** checkboxes. The same checkboxes appear
+during board creation. A sale stage can also qualify when checked. The initial
+intake stage stays ordinary, and exactly one sale stage is required.
+
+Saving rules updates current board qualification counts without creating
+historical milestones or CAPI jobs. With CAPI connected and qualification events
+enabled, a new transition from an unqualified stage into a selected stage uses
+the existing stable first-qualification milestone and deduplicated delivery.
+Moving between selected stages does not create additional qualifications.
+Existing historical milestones are retained when an earlier stage is unchecked.
+External CRM import mappings and CAPI connection settings are configured
+separately; these checkboxes describe native leads on this board.
+
+Board editing supports renaming, reordering and explicit transfers before an
+occupied stage is removed. Version checks protect concurrent lead and board
+edits. It does not automatically migrate historical conversion events.
 
 `?board=ID` scopes CRM rows, search, dates, pagination and current KPIs. Omission
 selects the primary board for backward compatibility. Manual creation accepts

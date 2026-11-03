@@ -2,11 +2,44 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fixture,testWorker,request} from './fixture.mjs';
 import {getBoard,updateBoard,createBoard,boardDetails} from '../crm/boards.js';
-import {ingest,listLeads,updateLead} from '../crm/service.js';
+import {ingest,listLeads,updateLead,enable,crypt} from '../crm/service.js';
+import {drain} from '../crm/delivery.js';
 import {runLeadBatch} from '../master/crm-bulk.js';
 const p={id:'prj_housevip_cxp7',slug:'housevip-cxp7'};
 const stages=b=>b.pipeline.stages.map(s=>({...s,origin:s.label}));
 const view=env=>listLeads(env,p,new URL('http://test/?view=board'));
+test('changing qualification rules updates current counts without replaying history and sends one new QualifiedLead',async()=>{
+ const {env,db}=fixture();try{
+  env.CRM_ENCRYPTION_KEY=btoa('x'.repeat(32));await enable(env,p);
+  db.prepare("UPDATE crm_projects SET capi_enabled=1,capi_kinds='qualified',dataset_id='123456',capi_token_cipher=?").run(await crypt(env,'synthetic-only'));
+  const old=await ingest(env,p,{phone:'+995555010001'},'manual','existing');
+  await updateLead(env,p,old.id,{status:'В работе',version:1},'owner','working');
+  const board=await getBoard(env,p),next=stages(board);next.find(s=>s.label==='В работе').kind='qualified';
+  await updateBoard(env,p,'default',{name:board.name,version:board.version,stages:next},'owner','mark-qualified');
+  assert.equal((await view(env)).summary.qualified,1);
+  assert.equal(db.prepare('SELECT count(*) n FROM crm_milestones').get().n,0);
+  assert.equal(db.prepare('SELECT count(*) n FROM crm_delivery').get().n,0);
+  const oldVersion=db.prepare('SELECT version FROM crm_lead_state WHERE lead_id=?').get(old.id).version;
+  await updateLead(env,p,old.id,{status:'В работе',version:oldVersion,note:'Note only'},'owner','note');
+  assert.equal(db.prepare('SELECT count(*) n FROM crm_milestones').get().n,0);
+  const lead=await ingest(env,p,{phone:'+995555010002'},'manual','fresh');
+  await updateLead(env,p,lead.id,{status:'В работе',version:1},'owner','new-qualification');
+  await updateLead(env,p,lead.id,{status:'Квалифицирован',version:2},'owner','next-qualification');
+  let deliveries=0;env.CRM_FETCH=async(url,options)=>{
+   assert.equal(url,'https://graph.facebook.com/v26.0/123456/events');
+   const event=JSON.parse(options.body.get('data'))[0];assert.equal(event.event_name,'QualifiedLead');
+   assert.equal(event.event_id,db.prepare("SELECT id FROM crm_milestones WHERE lead_id=? AND kind='qualified'").get(lead.id).id);
+   deliveries++;return Response.json({events_received:1});
+  };
+  await drain(env);await drain(env);assert.equal(deliveries,1);
+  const edited=await getBoard(env,p),unmark=stages(edited);unmark.find(s=>s.label==='В работе').kind=null;
+  await updateBoard(env,p,'default',{name:edited.name,version:edited.version,stages:unmark},'owner','unmark');
+  assert.equal((await view(env)).summary.qualified,1);
+  await updateLead(env,p,lead.id,{status:'В работе',version:4},'owner','out');
+  await updateLead(env,p,lead.id,{status:'Квалифицирован',version:5},'owner','back');
+  await drain(env);assert.equal(deliveries,1);assert.equal(db.prepare('SELECT count(*) n FROM crm_milestones').get().n,1);
+ }finally{db.close();}
+});
 test('rename and reorder primary stages preserve every lead, versions, qualifications and conversion history',async()=>{
  const {env,db}=fixture();try{
   const a=await ingest(env,p,{phone:'+111',name:'A'},'manual','a');await updateLead(env,p,a.id,{status:'Квалифицирован',version:1},'admin','qualify');

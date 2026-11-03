@@ -1,0 +1,23 @@
+import {test,expect} from '@playwright/test';
+for(const width of [1440,390])test(`assigned team configures qualification checkboxes and preserves rules at ${width}px`,async({page})=>{
+ await page.setViewportSize({width,height:900});await page.setExtraHTTPHeaders({'x-test-role':'team'});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/api/v2/projects/housevip-cxp7/content-crm');
+ await page.locator('#boardTrigger').click();await page.locator('#editBoard').click();
+ const form=page.locator('#boardForm'),checkbox=i=>form.getByRole('checkbox',{name:`Квалифицированный лид — этап ${i}`,exact:true});
+ await expect(checkbox(1)).toBeDisabled();await expect(checkbox(2)).not.toBeChecked();await expect(checkbox(3)).toBeChecked();
+ await checkbox(2).check();await checkbox(4).check();
+ await expect(form.locator('#boardQualificationSummary')).toHaveText('Этапов квалификации: 3');
+ await expect(form).toContainText('Сохранение настроек не отправляет прошлые карточки');
+ expect(await page.locator('#editor').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+ await page.screenshot({path:`/tmp/crm-qualification-${width}.png`});
+ await form.getByRole('button',{name:'Сохранить изменения',exact:true}).click();await expect(page.locator('#editor')).not.toBeVisible();
+ await page.reload();await page.locator('#boardTrigger').click();await page.locator('#editBoard').click();
+ await expect(checkbox(2)).toBeChecked();await expect(checkbox(4)).toBeChecked();
+ await checkbox(2).uncheck();await checkbox(4).uncheck();
+ await form.getByRole('button',{name:'Сохранить изменения',exact:true}).click();await expect(page.locator('#editor')).not.toBeVisible();
+ const path='/api/v2/projects/housevip-cxp7/crm/boards/default';
+ const client=await page.request.get(path,{headers:{'x-test-role':'client'}});expect(client.status()).toBe(403);
+ const foreign=await page.request.get(path.replace('housevip-cxp7','amklinika-k8m2'),{headers:{'x-test-role':'team'}});expect(foreign.status()).toBe(403);
+ expect(errors).toEqual([]);
+});
