@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fixture,request,testWorker} from './fixture.mjs';
 import {formatTelegramReview,runTelegramReviews,telegramReviewStatus} from '../master/telegram-reviews.js';
+import {reviewProjectIncluded} from '../master/review-scope.js';
 const at=Date.parse('2026-10-19T05:30:00Z'),date='2026-10-19',org='org_toys_agency',chat='-2349758299';
 const report={project:{id:'prj_housevip_cxp7',slug:'housevip-cxp7',name:'Synthetic project'},reportDate:date,generatedAt:new Date(at).toISOString(),priority:'critical',headline:'Стоимость выросла',recommendation:'Проверить форму',findingCount:1,findings:[{evidence:'Цена выросла на 50%',path:[{name:'Campaign'}]}],accounts:[{provider:'meta_ads',currency:'CZK',available:true,periods:{day:{to:'2026-10-18'}},day:{spend:123,conversions:3,cpa:41,ctr:1.5}}]};
 function setup({state='ready',reviewState='complete',attempts=1}={}){
@@ -17,6 +18,21 @@ function transport(){const calls=[];return {calls,fetcher:async(url,options)=>{
  const result=method==='getMe'?{is_bot:true,username:'agencytoys_bot'}:method==='getChat'?{id:Number(chat),type:'group',title:'Synthetic work group'}:{message_id:calls.length,chat:{id:Number(chat)}};
  return Response.json({ok:true,result});
  }};}
+test('Telegram omits VISA Agency and Karlovarska Sul while keeping platform reviews and other projects',()=>{
+ const excluded=[
+  {id:'prj_visa_agency_qa3b',slug:'visa-agency-qa3b',name:'VISA Agency'},
+  {id:'prj_karlovarska_sul_k4rm',slug:'karlovarska-sul-k4rm',name:'Karlovarska Sul'}
+ ];
+ // Archived review payloads can have only one of the stable identifiers.
+ for(const identifiers of ['both','id','slug']){
+  const projects=excluded.map(p=>identifiers==='both'?p:{[identifiers]:p[identifiers],name:p.name});
+  for(const p of projects)assert.equal(reviewProjectIncluded(p),true);
+  const text=formatTelegramReview({reportDate:date,reports:[...projects.map(project=>({...report,project})),{...report,priority:'healthy'}]}).join('\n');
+  for(const project of excluded){assert.ok(!text.includes(project.name));assert.ok(!text.includes(project.slug));}
+  assert.ok(text.includes('Synthetic project'));assert.ok(text.includes('housevip-cxp7/'));
+  assert.ok(text.includes('<b>1 проектов</b>'));assert.ok(text.includes('Срочно: <b>0</b>'));assert.ok(text.includes('Стабильно: <b>1</b>'));
+ }
+});
 test('readable complete project coverage, priority order, safe text, currencies and bounded Telegram parts',()=>{
  const reports=Array.from({length:40},(_,i)=>({...report,project:{...report.project,name:`Project ${i} <b>&`,slug:'project-'+i},priority:i%2?'healthy':'critical',recommendation:'Действие 😀 '.repeat(500)}));
  const messages=formatTelegramReview({reportDate:date,reports});assert.ok(messages.length>1);assert.ok(messages.every(s=>s.length<4096));

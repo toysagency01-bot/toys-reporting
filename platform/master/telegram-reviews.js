@@ -1,7 +1,7 @@
 import {currencySymbol,currencyText} from '../unified/currency.js';
 import {dailyReviewResponse} from './review-service.js';
 import {localDay,PRIORITY} from './review-model.js';
-import {reviewProjectIncluded} from './review-scope.js';
+import {telegramProjectIncluded} from './review-scope.js';
 
 const ORG='org_toys_agency',iso=at=>new Date(at).toISOString();
 const labels={critical:'СРОЧНО',attention:'ОБРАТИТЬ ВНИМАНИЕ',healthy:'СТАБИЛЬНО',insufficient:'МАЛО ДАННЫХ'};
@@ -16,7 +16,7 @@ const day=value=>/^\d{4}-\d{2}-\d{2}$/.test(value||'')?value.split('-').reverse(
 const separator='━━━━━━━━━━━━━━━━';
 
 export function formatTelegramReview(review){
- const reports=review.reports.filter(r=>reviewProjectIncluded(r.project)).sort((a,b)=>(PRIORITY[a.priority]??9)-(PRIORITY[b.priority]??9)||a.project.name.localeCompare(b.project.name));
+ const reports=review.reports.filter(r=>telegramProjectIncluded(r.project)).sort((a,b)=>(PRIORITY[a.priority]??9)-(PRIORITY[b.priority]??9)||a.project.name.localeCompare(b.project.name));
  const generated=reports[0]?.generatedAt;
  const stamp=generated&&Number.isFinite(Date.parse(generated))?new Intl.DateTimeFormat('ru-RU',{timeZone:'Asia/Tbilisi',dateStyle:'short',timeStyle:'short'}).format(new Date(generated))+' · Тбилиси':review.reportDate;
  const counts=[['critical','Срочно'],['attention','Внимание'],['healthy','Стабильно'],['insufficient','Мало данных']].map(([k,label])=>`${label}: <b>${reports.filter(r=>r.priority===k).length}</b>`).join(' · ');
