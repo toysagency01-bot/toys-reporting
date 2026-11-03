@@ -51,7 +51,7 @@ export function mountMasterMobileControls(root) {
     more.className = 'master-more-nav';
     more.innerHTML = '<summary aria-label="Ещё разделы"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Ещё</span></summary><div class="master-more-panel" aria-label="Другие разделы"></div>';
     const panel = more.querySelector('.master-more-panel');
-    const secondary = [...nav.querySelectorAll('[data-view=reviews],[data-view=access],[data-view=audit]')].map(button => {
+    const secondary = [...nav.querySelectorAll('[data-view=reviews],[data-view=access],[data-view=audit],[data-view=wiki]')].map(button => {
       const marker = document.createComment('desktop navigation position');
       button.before(marker);
       return {button,marker};

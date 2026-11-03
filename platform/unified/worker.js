@@ -26,6 +26,7 @@ import {runDailyReview} from '../master/review-service.js';
 import {runTelegramReviews} from '../master/telegram-reviews.js';
 import masterDocument from '../master/index.html';
 import masterStyle from '../master/styles.css';
+import wikiStyle from '../wiki/styles.css';
 import financeStyle from '../finance/styles.css';
 import invoiceStyle from '../documents/styles.css';
 import fieldFocusStyle from '../native/field-focus.css';
@@ -91,7 +92,7 @@ export default {
       if(clientCRM&&url.searchParams.get('format')==='json')return Response.json({ok:true,context},{headers:{'cache-control':'no-store'}});
       if(clientCRM){const config=managedSlug(clientCRM[1])?await managedBrowserProject(env,clientCRM[1]):null;if(projects.has(clientCRM[1])||config)return html(clientCRM[1],true,null,auth.role,dashboardCacheScope(request,auth),true,config);}
       const coreStyle=nativeAssets['core/core.js'].body.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';
-      const doc=masterDocument.replace('</head>',`<style>${nativeAssets['platform-fonts.css'].body}${coreStyle}${nativeAssets['platform-tools.css'].body}${masterStyle}${invoiceStyle}${financeStyle}${fieldFocusStyle}</style></head>`).replace('</body>',`<script>window.TOYS_CACHE_SCOPE=${JSON.stringify(dashboardCacheScope(request,auth))};window.TOYS_CLIENT_CRM=${JSON.stringify(context).replace(/</g,'\\u003c')};${masterClient.replace(/<\/script/gi,'<\\/script')}</script></body>`);
+      const doc=masterDocument.replace('</head>',()=>`<style>${nativeAssets['platform-fonts.css'].body}${coreStyle}${nativeAssets['platform-tools.css'].body}${masterStyle}${wikiStyle}${invoiceStyle}${financeStyle}${fieldFocusStyle}</style></head>`).replace('</body>',()=>`<script>window.TOYS_CACHE_SCOPE=${JSON.stringify(dashboardCacheScope(request,auth))};window.TOYS_CLIENT_CRM=${JSON.stringify(context).replace(/</g,'\\u003c')};${masterClient.replace(/<\/script/gi,'<\\/script')}</script></body>`);
       return new Response(doc,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'same-origin'}});
     }
     const bridged=await agentBridge(request,env);if(bridged)return bridged;

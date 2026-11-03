@@ -1,4 +1,5 @@
 import {managedProjectAPI} from '../project-management/api.js';
+import {wikiAPI} from '../wiki/api.js';
 import {financeAPI} from '../finance/api.js';
 import {onboardingAPI,briefSetupAPI} from '../onboarding/api.js';
 import {crmAllowed} from '../crm/access.js';
@@ -19,6 +20,7 @@ export async function masterAPI(request,env,ctx){
  const auth=await masterAuth(request,env);if(!auth.ok)return reply({ok:false,error:auth.error},auth.status);
  try{
  const path=m[1]||'';
+ const wiki=path.match(/^wiki(?:\/(.*))?$/);if(wiki)return wikiAPI(request,env,auth,wiki[1]||'');
  const managed=await managedProjectAPI(request,env,auth,path,ctx);if(managed)return managed;
  if(path==='brief-source/setup')return briefSetupAPI(request,env,auth);
  const onboarding=path.match(/^projects\/([^/]+)\/onboarding$/);if(onboarding)return onboardingAPI(request,env,auth,onboarding[1]);
