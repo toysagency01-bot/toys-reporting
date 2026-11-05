@@ -24,8 +24,11 @@ CRM credentials are not committed or included in these notes.
 
 The subsequent CRM/GA4 request is not complete. The current environment's
 confirmed policy still excludes the CRM host, and there is no GA4 connection,
-Google runtime identity or Analytics credential configured. A GA4 property link
-was requested. An optional read connector was offered for source inspection;
+Google runtime identity or Analytics credential configured. The user supplied
+GA4 account `402165021`, property `546860661`, with access granted to
+`toysagency01@gmail.com`. Those identifiers are user-supplied; property metadata,
+timezone and events have not been verified through an authenticated API.
+An optional read connector was offered for source inspection;
 it has not been confirmed installed or authorized. Access granted to a Gmail
 address alone is not platform API authorization. No CRM field schema or GA4
 events have been verified yet. Before claiming lead-level attribution, inspect
