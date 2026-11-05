@@ -5,6 +5,7 @@ import {salesDemoProject,salesDemoAnalytics,attachDemoSales} from './sales-demo-
 import {summary as crmSummary} from '../crm/service.js';
 import {crmAllowed} from '../crm/access.js';
 import {attachCampaignQualifications} from './campaign-crm.js';
+import projectRegistry from '../projects.json' with {type:'json'};
 
 const reply=(body,status=200)=>Response.json(body,{status,headers:{'cache-control':'private, no-store'}});
 export async function campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,onDemandAdsService,backend}){
@@ -25,7 +26,7 @@ export async function campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,on
     if(!response.ok)throw new Error('Published history unavailable');
     const value=await response.json();if(!value.ok||!value.dashboard)throw new Error('Published history unavailable');return value.dashboard;
    })():null,
-   !match[2]&&!salesDemoProject(project.slug)&&env.TOYS_DB?(async()=>await crmAllowed(env,project.slug,auth)?crmSummary(env,project,range.from,range.to):{available:false,restricted:true})():null
+   !match[2]&&projectRegistry[project.slug]?.showCRMResults!==false&&!salesDemoProject(project.slug)&&env.TOYS_DB?(async()=>await crmAllowed(env,project.slug,auth)?crmSummary(env,project,range.from,range.to):{available:false,restricted:true})():null
   ]);
   const tree=campaignIndex(project.id,data.providers,range);
   const crmQualification=attachCampaignQualifications(tree,crm,range);

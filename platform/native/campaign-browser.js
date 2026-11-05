@@ -42,7 +42,7 @@ export function mountCampaignBrowser({slug,context}){
   return page?{...source,sources:(source?.sources||[]).filter(s=>!current.provider||s.provider===current.provider),...page,dataset:undefined}:null;
  }
  function accept(data,parent,more){
-  if(data.crmQualification){crmEnabled=data.crmQualification.enabled;columns=metricColumns();host.style.setProperty('--campaign-columns',columns.length);
+  if(data.crmQualification){crmEnabled=registry[slug]?.showCRMResults!==false&&data.crmQualification.enabled;columns=metricColumns();host.style.setProperty('--campaign-columns',columns.length);
    const select=host.querySelector('select');for(const [value,label] of [['qualifiedLeads','По квал-лидам CRM'],['cpql','По стоимости квала']]){const option=select.querySelector(`option[value="${value}"]`);if(crmEnabled&&!option)select.add(new Option(label,value));else if(!crmEnabled&&option)option.remove();}}
   if(data.dataset){
    dataset=data.dataset;source={sources:data.sources,refreshing:data.refreshing,range:data.range,crmQualification:data.crmQualification,manualReport:data.manualReport};
@@ -105,7 +105,7 @@ export function mountCampaignBrowser({slug,context}){
   const updated=(root?.sources||[]).map(s=>Date.parse(s.fetchedAt)).filter(Number.isFinite);
   if(updated.length){const at=new Intl.DateTimeFormat('ru-RU',{timeZone:'Asia/Tbilisi',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(Math.min(...updated)));note.textContent+=(note.textContent?' / ':'')+'Обновлено '+at;}
   const crm=root?.crmQualification;
-  if(crm?.enabled){const text=crm.status==='pending'?'CRM: ожидается импорт привязки к кампаниям.':`CRM проекта: сопоставлено ${number(crm.matched)} из ${number(crm.qualified)} квалов${crm.unmatched?' / Без привязки к строкам кампаний: '+number(crm.unmatched):''}. Стоимость квала = расход кампании ÷ её сопоставленные CRM-квалы.${crm.detailLevel==='campaign'?' Привязка CRM доступна на уровне кампаний.':''}`;note.textContent+=(note.textContent?' / ':'')+text;}
+  if(crmEnabled&&crm?.enabled){const text=crm.status==='pending'?'CRM: ожидается импорт привязки к кампаниям.':`CRM проекта: сопоставлено ${number(crm.matched)} из ${number(crm.qualified)} квалов${crm.unmatched?' / Без привязки к строкам кампаний: '+number(crm.unmatched):''}. Стоимость квала = расход кампании ÷ её сопоставленные CRM-квалы.${crm.detailLevel==='campaign'?' Привязка CRM доступна на уровне кампаний.':''}`;note.textContent+=(note.textContent?' / ':'')+text;}
   if(root?.manualReport?.available)note.textContent+=' / Лиды кампаний учитывают Report Sheet; группы и объявления показывают только результат Meta.';
   note.hidden=!note.textContent;
   summary.innerHTML=data?.parent?`<div class="campaign-parent-summary"><strong>${h(displayText(data.parent.name))}</strong><span>${h(displayText(`Расход ${number(data.parent.metrics.spend)} ${currencySymbol(data.parent.currency)} · Результаты ${number(data.parent.metrics.conversions)}`))}</span></div>`:'';

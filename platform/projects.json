@@ -11,6 +11,7 @@
   },
   "profkit-instashop-r4vk": {
     "title": "PROFKIT",
+    "showCRMResults": false,
     "periodTimezone": "Europe/Kyiv",
     "channels": [
       "smm",

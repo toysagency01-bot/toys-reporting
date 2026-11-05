@@ -1,3 +1,3 @@
 // Keep earlier lead-only responses out of VISA's browser and campaign caches.
-export const advertisingBasis=slug=>slug==='murmur-up8m'?'manual-leads-v1':slug==='monorey-acdk'?'report-conversions-v1':slug==='profkit-instashop-r4vk'?'profkit-client-source-v2':slug==='visa-agency-qa3b'?'meta-results-custom-events-v1':'daily-v2';
+export const advertisingBasis=slug=>slug==='murmur-up8m'?'manual-leads-v1':slug==='monorey-acdk'?'report-conversions-v1':slug==='profkit-instashop-r4vk'?'profkit-no-crm-v3':slug==='visa-agency-qa3b'?'meta-results-custom-events-v1':'daily-v2';
 export const qualificationBasis=slug=>slug==='visa-agency-qa3b'?'keycrm-utm-toys-v1':'received-v1';

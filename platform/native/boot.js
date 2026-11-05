@@ -119,12 +119,14 @@ async function refresh(){
 }
 
 async function refreshCRM(){
+ if(projectConfig.showCRMResults===false)return;
  if(projectConfig.synthetic)return salesFunnel?.sync(true);
  if(window.TOYS_CRM_ALLOWED===false)return;
  if(!privateMode)return;const requested=range();
  try{const d=await readJSON(`${api}/crm/summary?from=${requested.from}&to=${requested.to}`);if(JSON.stringify(range())===JSON.stringify(requested)){crmStats=d;renderCRM();}}catch{}
 }
 function renderCRM(){
+ if(projectConfig.showCRMResults===false){$('platformCRMStats')?.remove();crmStats=null;clientUX?.sync();return;}
  let panel=$('platformCRMStats');if(!panel){const host=$('mainCards')||$('cards')||document.querySelector('#uxOverview .cards');if(!host)return;panel=document.createElement('div');panel.id='platformCRMStats';panel.className='cards';host.after(panel);}
  panel.hidden=!crmStats?.available&&crmStats?.source!=='keycrm';if(panel.hidden){clientUX?.sync();return;}
  const demoRows=projectConfig.synthetic?selectedRows().filter(r=>!salesContext().provider||r.provider===salesContext().provider):null;
