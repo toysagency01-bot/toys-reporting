@@ -158,7 +158,7 @@
     "conversionShortLabel": "Лиды",
     "explicitTabs": true,
     "defaultLastDays": 7,
-    "periodTimezone": "Europe/Bucharest",
+    "periodTimezone": "Asia/Dubai",
     "advertisingChannels": [
       "meta"
     ],
