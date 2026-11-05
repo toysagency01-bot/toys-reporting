@@ -16,10 +16,10 @@ const values=page=>page.evaluate(()=>Object.fromEntries([...document.querySelect
 for(const width of [1440,390])test(`Profkit shows actual client counts and no invented qualifications at ${width}px`,async({page,request})=>{
  await page.clock.setFixedTime(new Date('2026-11-04T10:00:00Z'));await page.setViewportSize({width,height:950});await wire(page,request,45);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('/profkit-instashop-r4vk/');await expect(page.locator('body')).toHaveAttribute('data-platform-ready','true');
- await expect.poll(async()=>(await values(page))['Клики']).toBe('65');const v=await values(page);expect(v['Direct-обращения']).toMatch(/^10/);expect(v['Продажи']).toBe('25');expect(v['Квал. обращения']).toBe('—');expect(v['Цена квала']).toBe('—');expect(v['Расход']).toMatch(/900/);
+ await expect.poll(async()=>(await values(page))['Клики']).toBe('65');const v=await values(page);expect(v['Direct-обращения']).toMatch(/^10/);expect(v['Продажи']).toBe('25');expect(v).not.toHaveProperty('Квал. обращения');expect(v).not.toHaveProperty('Цена квала');expect(v['Расход']).toMatch(/900/);
  expect(v['Цена продажи']).toMatch(/^36\s*₴/);expect(v.ROAS).toMatch(/^84[.,]34/);expect(v['Цена продажи']).toContain('Предварительно');expect(v.ROAS).toContain('Предварительно');await expect(page.locator('#novaMetricGroups')).toContainText('Предварительно');
  await expect(page.locator('#uxInsightText')).toHaveText('Предварительный ROAS — 84.34×.');
- await expect(page.locator('#platformSalesCoverage')).toContainText('нет подтверждённого разделения');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);expect(errors).toEqual([]);await page.screenshot({path:`/tmp/profkit-audit-${width}.png`,fullPage:true});
+ await expect(page.locator('#platformSalesCoverage')).toContainText('предваритель');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);expect(errors).toEqual([]);await page.screenshot({path:`/tmp/profkit-audit-${width}.png`,fullPage:true});
 });
 test('missing FX retains current impressions/clicks and hides unavailable UAH cost',async({page,request})=>{
  await page.clock.setFixedTime(new Date('2026-11-04T10:00:00Z'));await wire(page,request,null);await page.goto('/profkit-instashop-r4vk/');await expect.poll(async()=>(await values(page))['Клики']).toBe('65');

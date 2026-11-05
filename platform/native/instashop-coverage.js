@@ -20,7 +20,6 @@ export function syncInstashopCoverage({dashboard,rows,ads,range,root=document}){
  if(partialSales||partialRevenue||partialDirect)messages.push(`В таблице клиента есть незаполненные дни. Показаны внесённые значения; продажи с выручкой заполнены по ${salesEnd||'неизвестную дату'}.`);
  if(partialSales&&complete.sales.size&&!missingSpend)messages.push(`Цена продажи предварительная: расход за весь выбранный период ÷ внесённые продажи. Дни с заполненными продажами: ${complete.sales.size} из ${dates.length}.`);
  if(partialRevenue&&complete.revenue.size&&!missingSpend)messages.push(`ROAS предварительный: внесённая выручка ÷ расход за весь выбранный период. Дни с заполненной выручкой: ${complete.revenue.size} из ${dates.length}.`);
- if(partialQuality)messages.push('В исходной таблице нет подтверждённого разделения обращений на квалы и неквалы. Эти показатели и связанные конверсии не рассчитаны.');
  if(missingFx)messages.push('Для части расходов нет подтверждённого курса: стоимость в гривнах и связанные коэффициенты не рассчитаны.');
  else if(missingSpend)messages.push('Не хватает подтверждённых данных о расходах за выбранный период. Цена продажи и ROAS не рассчитаны.');
  note.hidden=!messages.length;note.textContent=messages.join(' ');
@@ -28,6 +27,7 @@ export function syncInstashopCoverage({dashboard,rows,ads,range,root=document}){
  for(const [key,label]of [['direct','Direct-обращения'],['sales','Продажи'],['revenue','Выручка']])if(!complete[key].size)hide.add(label);
  for(const card of root.querySelectorAll('#cards .card')){
   const label=card.querySelector('.label')?.textContent.trim(),n=card.querySelector('.value');if(!n)continue;
+  if(label==='Квал. обращения'||label==='Цена квала'){card.remove();continue;}
   if(hide.has(label))n.textContent='—';
   const provisional=(label==='Цена продажи'&&partialSales||label==='ROAS'&&partialRevenue)&&!hide.has(label)&&n.firstChild?.textContent.trim()!=='—';
   card.dataset.provisional=String(Boolean(provisional));let hint=n.querySelector('.instashop-provisional');

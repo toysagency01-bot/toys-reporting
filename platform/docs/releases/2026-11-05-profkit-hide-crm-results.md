@@ -19,3 +19,10 @@ passed. Additional desktop/mobile inspection deliberately supplied an old
 panel, campaign qualification columns and sorting remained absent.
 
 Worker: `551d7085-7709-499f-a90c-1e7b7c59e386`.
+
+Follow-up: the overview still contained native Instashop quality cards, separate
+from the CRM results panel. Removed **Квал. обращения** and **Цена квала** from
+the overview on every render, together with their now-unneeded qualification
+coverage notice. Seven existing Profkit desktop/mobile checks passed with the
+updated expected card set; sales, cost per sale and ROAS remain visible.
+Follow-up Worker: `b967a590-74bc-458d-8f28-54eab08e5bee`.
