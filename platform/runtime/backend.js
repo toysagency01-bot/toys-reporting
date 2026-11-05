@@ -1,4 +1,5 @@
 import {readProfkitClient,PROFKit_CLIENT_BOOK,PROFKit_CLIENT_SHEET} from '../native/profkit-client-source.js';
+import {attachMonoreyConversions} from '../imports/monorey-report.js';
 import {readArchivedAdsSnapshot} from '../imports/archive-ads.js';
 import {attachProductDimensions} from '../product-funnel/metadata.js';
 import {safeDimensions} from '../product-funnel/model.js';
@@ -3123,13 +3124,14 @@ function onDemandAdsService(env,ctx=null) {
       accessToken: env.META_ADS_ACCESS_TOKEN,
       appSecret: env.META_APP_SECRET
     });
-    return createOnDemandAdsService({
+    const service=createOnDemandAdsService({
       db: env.TOYS_DB,
       providers: {google_ads:createGoogleReceiverAdapter(env.TOYS_DB,{env}),...(metaAdapter?{meta_ads:metaAdapter}:{})},
       cacheTtlMinutes: 20,
       storedOnly: env.DIRECT_ADS_READ_ENABLED === "true",
       ...(ctx?.waitUntil?{waitUntil:promise=>ctx.waitUntil(promise)}:{})
     });
+    return {...service,async getStats(request){return attachMonoreyConversions(env.TOYS_DB,request,await service.getStats(request));}};
 }
 __name(onDemandAdsService, "onDemandAdsService");
 async function protectedProject(request, env, slug2, requiredRole = "viewer") {

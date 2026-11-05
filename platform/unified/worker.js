@@ -12,6 +12,7 @@ import {cleanAuthRecords} from '../portal/password-auth.js';
 import {dashboardCacheScope} from '../portal/cache-scope.js';
 import projectRegistry from '../projects.json' with {type:'json'};
 import {refreshUsdUah} from '../imports/fx.js';
+import {syncMonoreyConversions} from '../imports/monorey-report.js';
 import {isReportRefreshSlot} from '../imports/refresh-policy.js';
 import {messageWebhook} from '../crm/messages.js';
 import {portalRoute,accessManagement,loginRedirect} from '../portal/routes.js';
@@ -121,7 +122,7 @@ export default {
         let data=await onDemandAdsService(env,ctx).getStats({organizationId:project.organizationId,projectSlug:top[1],...range});
         const refreshing=data.providers.some(p=>p.refresh?.state==='refreshing'||p.refresh?.state==='rate_limited');
         if(privateHierarchy)return Response.json({ok:true,exchangeRates:top[1]==='profkit-instashop-r4vk'?(await env.TOYS_DB.prepare("SELECT rate_date AS date,rate FROM exchange_rates WHERE base_currency='USD' AND quote_currency='UAH' AND rate_date>=? AND rate_date<=?").bind(range.from,range.to).all()).results:[],...(canCRM?await attachCRMQualification(data,env,project,range):data),refreshing,commerce:liveCommerce(data.providers,range),crm:canCRM?await crmSummary(env,project,range.from,range.to):restrictedCRM,access:{role:auth.role}},{headers:{'cache-control':'no-store'}});
-        if(top[2]==='ads-summary')return Response.json({ok:true,exchangeRates:top[1]==='profkit-instashop-r4vk'?(await env.TOYS_DB.prepare("SELECT rate_date AS date,rate FROM exchange_rates WHERE base_currency='USD' AND quote_currency='UAH' AND rate_date>=? AND rate_date<=?").bind(range.from,range.to).all()).results:[],requestedRange:range,refreshing,commerce:liveCommerce(data.providers,range),crm:canCRM?await crmSummary(env,project,range.from,range.to):restrictedCRM,providers:data.providers.map(p=>({provider:p.provider,integrationId:p.integrationId,readOnlyArchive:!!p.readOnlyArchive,activeFromDate:p.activeFromDate,activeThroughDate:p.activeThroughDate,freshness:p.freshness,requestedRange:p.requestedRange,coveredDates:p.coveredDates,coverage:p.coverage,fetchedAt:p.fetchedAt,refresh:p.refresh,hierarchy:p.hierarchy?{providerId:p.hierarchy.providerId,name:p.hierarchy.name,timezone:p.hierarchy.timezone,currency:p.hierarchy.currency,children:p.hierarchy.children.map(c=>({providerId:c.providerId,name:c.name,dailyMetrics:c.dailyMetrics,children:[]}))}:null}))},{headers:{'cache-control':'no-store'}});
+        if(top[2]==='ads-summary')return Response.json({ok:true,exchangeRates:top[1]==='profkit-instashop-r4vk'?(await env.TOYS_DB.prepare("SELECT rate_date AS date,rate FROM exchange_rates WHERE base_currency='USD' AND quote_currency='UAH' AND rate_date>=? AND rate_date<=?").bind(range.from,range.to).all()).results:[],requestedRange:range,reportConversions:data.reportConversions,manualReport:data.manualReport,refreshing,commerce:liveCommerce(data.providers,range),crm:canCRM?await crmSummary(env,project,range.from,range.to):restrictedCRM,providers:data.providers.map(p=>({provider:p.provider,integrationId:p.integrationId,readOnlyArchive:!!p.readOnlyArchive,activeFromDate:p.activeFromDate,activeThroughDate:p.activeThroughDate,freshness:p.freshness,requestedRange:p.requestedRange,coveredDates:p.coveredDates,coverage:p.coverage,fetchedAt:p.fetchedAt,refresh:p.refresh,hierarchy:p.hierarchy?{providerId:p.hierarchy.providerId,name:p.hierarchy.name,timezone:p.hierarchy.timezone,currency:p.hierarchy.currency,children:p.hierarchy.children.map(c=>({providerId:c.providerId,name:c.name,dailyMetrics:c.dailyMetrics,children:[]}))}:null}))},{headers:{'cache-control':'no-store'}});
         data=(canCRM?await attachCRMQualification(data,env,project,range):data);
         // Publish only top-three presentation fields; never the private hierarchy,
         // account identifiers, CRM records, drafts or integration configuration.
@@ -193,6 +194,7 @@ export default {
   },
   async scheduled(event,env,ctx){
     const at=event.scheduledTime??Date.now();
+    if(isReportRefreshSlot(at))ctx.waitUntil(syncMonoreyConversions(env).catch(()=>console.error('Monorey report synchronization deferred')));
     ctx.waitUntil(runManagedCRMSync(env).catch(()=>console.error('Managed CRM synchronization deferred')));
     ctx.waitUntil(runKeyCRMSync(env,at).catch(()=>console.error('KeyCRM synchronization deferred')));
     ctx.waitUntil(syncBank(env,at).catch(()=>console.error('Bank read synchronization deferred')));

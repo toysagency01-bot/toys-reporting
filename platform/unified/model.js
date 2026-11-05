@@ -44,7 +44,12 @@ export function advertisingModel(dashboard, ads, range) {
         .concat(group.flatMap(p=>hierarchyRows(p).filter(r=>archived.length?coversDate(p,r.date):group.every(a=>coversDate(a,r.date)))));
     }
   }
-  return rows.filter(r => r.date >= range.from && r.date <= range.to);
+  return reportConversions(rows.filter(r => r.date >= range.from && r.date <= range.to),ads?.reportConversions||[]);
+}
+export function reportConversions(rows,overrides){
+ const byKey=new Map(overrides.map(r=>[JSON.stringify([r.date,r.campaign]),r.conversions]));
+ const counts=new Map();for(const r of rows){const k=JSON.stringify([r.date,r.name]);counts.set(k,(counts.get(k)||0)+1);}
+ return rows.map(r=>{const key=JSON.stringify([r.date,r.name]);return r.provider==='meta_ads'&&byKey.has(key)&&counts.get(key)===1?{...r,metaConversions:r.metaConversions??r.conversions,conversions:byKey.get(key),conversionLabel:'Лиды · Report Sheet',conversionSource:'report_sheet'}:r;});
 }
 export function aggregate(rows) {
   return { impressions: total(rows, 'impressions'), clicks: total(rows, 'clicks'), conversions: total(rows, 'conversions'),

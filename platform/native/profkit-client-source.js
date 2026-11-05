@@ -38,12 +38,12 @@ export function profkitClientMonths(to,from='2026-03-25'){
  const out=[];let year=+from.slice(0,4),month=+from.slice(5,7);
  while(`${year}-${String(month).padStart(2,'0')}`<=to.slice(0,7)){out.push({year,month,sheet:`${monthNames[month-1]} ${year}`});if(++month===13){month=1;year++;}if(out.length>120)fail('profkit_client_period_too_large');}return out;
 }
-export function parseClientCSV(text){
+export function parseClientCSV(text,{maxRows=1100,maxColumns=40,returnRows=40}={}){
  const rows=[];let row=[],value='',quote=false;
  for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quote&&text[i+1]==='"'){value+='"';i++;}else quote=!quote;}
   else if(c===','&&!quote){row.push(value);value='';}else if((c==='\n'||c==='\r')&&!quote){if(c==='\r'&&text[i+1]==='\n')i++;row.push(value);rows.push(row);row=[];value='';}else value+=c;
  }
- if(quote)fail('profkit_client_response_invalid');if(value||row.length){row.push(value);rows.push(row);}if(rows.length>1100||rows.some(r=>r.length>40))fail('profkit_client_source_too_large');return rows.slice(0,40);
+ if(quote)fail('profkit_client_response_invalid');if(value||row.length){row.push(value);rows.push(row);}if(rows.length>maxRows||rows.some(r=>r.length>maxColumns))fail('profkit_client_source_too_large');return rows.slice(0,returnRows);
 }
 export async function readProfkitClient({fetchImpl=fetch,now=new Date(),from='2026-03-25'}={}){
  const to=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Kyiv',year:'numeric',month:'2-digit',day:'2-digit'}).format(now),months=profkitClientMonths(to,from);

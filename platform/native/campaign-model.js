@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {nodeTotals,valueOf,snapshotRows,campaignGroups,coversDate} from '../unified/model.js';
+import {nodeTotals,valueOf,snapshotRows,campaignGroups,coversDate,reportConversions} from '../unified/model.js';
 import {safePreview} from './outcomes.js';
 
 export const campaignKey=(projectId,provider,integration,path)=>createHash('sha256').update(JSON.stringify([projectId,provider,integration,path])).digest('hex');
@@ -53,14 +53,14 @@ export function presentCampaign(entry,range){
   metrics:{...campaignMetrics(node,range),...(!entry.completePeriod?{cpql:null}:{})},previewUrl:node.level==='ad'?safePreview(node.previewUrl):null,
   freshness:provider.freshness,from:dates[0]||null,to:dates.at(-1)||null,history:false};
 }
-export function historicalCampaigns(projectId,dashboard,providers,range){
+export function historicalCampaigns(projectId,dashboard,providers,range,manual=[]){
  let rows=snapshotRows(dashboard).filter(r=>r.date>=range.from&&r.date<=range.to);
  for(const name of new Set(providers.map(p=>p.provider))){
   const group=providers.filter(p=>p.provider===name);
   const archived=group.filter(p=>p.readOnlyArchive),baseline=archived.length?archived:group;
   if(group.every(p=>p.hierarchy&&p.requestedRange?.from===range.from&&p.requestedRange?.to===range.to))rows=rows.filter(r=>r.provider!==name||!baseline.every(p=>coversDate(p,r.date)));
  }
- return campaignGroups(rows).map(group=>{
+ return campaignGroups(reportConversions(rows,manual)).map(group=>{
   const m=group.totals,spend=m.money[0]?.spend??null,dates=group.rows.map(r=>r.date).sort();
   return {key:campaignKey(projectId,group.provider,'history',[group.campaignId,group.currency]),name:text(group.name),level:'campaign',provider:group.provider,currency:group.currency,status:null,childCount:0,history:true,freshness:'snapshot',from:dates[0],to:dates.at(-1),previewUrl:null,
    metrics:{impressions:m.impressions,clicks:m.clicks,spend,conversions:m.conversions,ctr:ratio(m.clicks,m.impressions,100),cpa:ratio(spend,m.conversions),purchases:null,purchaseValue:null,qualifiedLeads:null,cpql:null,roas:null}};

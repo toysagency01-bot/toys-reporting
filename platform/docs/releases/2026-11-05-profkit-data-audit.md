@@ -40,8 +40,8 @@ Validation on 2026-11-05:
 
 The initial corrected publication used an authenticated Google Drive cell
 capture. The deployed scheduled reader uses bounded public CSV requests to the
-original workbook. Its first subsequent scheduled execution still needs live
-confirmation; a successful manual publication does not prove that future run.
+original workbook. Its first subsequent live execution succeeded at
+2026-11-05T11:40:38Z, reading the original monthly business source and FX.
 
 Private source captures and reconciliation receipts are outside Git. No Google
 client spreadsheet, account campaign, credential or archived snapshot was edited.

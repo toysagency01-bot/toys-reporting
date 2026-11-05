@@ -45,7 +45,7 @@ export function mountCampaignBrowser({slug,context}){
   if(data.crmQualification){crmEnabled=data.crmQualification.enabled;columns=metricColumns();host.style.setProperty('--campaign-columns',columns.length);
    const select=host.querySelector('select');for(const [value,label] of [['qualifiedLeads','По квал-лидам CRM'],['cpql','По стоимости квала']]){const option=select.querySelector(`option[value="${value}"]`);if(crmEnabled&&!option)select.add(new Option(label,value));else if(!crmEnabled&&option)option.remove();}}
   if(data.dataset){
-   dataset=data.dataset;source={sources:data.sources,refreshing:data.refreshing,range:data.range,crmQualification:data.crmQualification};
+   dataset=data.dataset;source={sources:data.sources,refreshing:data.refreshing,range:data.range,crmQualification:data.crmQualification,manualReport:data.manualReport};
    for(const row of dataset.rows)nodes.set(row.key,row);
    // Keep already displayed pagination and open levels when a new snapshot arrives.
    for(const [key,old] of pages){const page=localPage(key);if(page){const count=Math.max(50,old.rows.length);const full=datasetPage(dataset,{parent:key,provider:current.provider||'',query,sort,limit:count});pages.set(key,{...page,...full});}}
@@ -106,6 +106,7 @@ export function mountCampaignBrowser({slug,context}){
   if(updated.length){const at=new Intl.DateTimeFormat('ru-RU',{timeZone:'Asia/Tbilisi',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(Math.min(...updated)));note.textContent+=(note.textContent?' / ':'')+'Обновлено '+at;}
   const crm=root?.crmQualification;
   if(crm?.enabled){const text=crm.status==='pending'?'CRM: ожидается импорт привязки к кампаниям.':`CRM проекта: сопоставлено ${number(crm.matched)} из ${number(crm.qualified)} квалов${crm.unmatched?' / Без привязки к строкам кампаний: '+number(crm.unmatched):''}. Стоимость квала = расход кампании ÷ её сопоставленные CRM-квалы.${crm.detailLevel==='campaign'?' Привязка CRM доступна на уровне кампаний.':''}`;note.textContent+=(note.textContent?' / ':'')+text;}
+  if(root?.manualReport?.available)note.textContent+=' / Лиды кампаний учитывают Report Sheet; группы и объявления показывают только результат Meta.';
   note.hidden=!note.textContent;
   summary.innerHTML=data?.parent?`<div class="campaign-parent-summary"><strong>${h(displayText(data.parent.name))}</strong><span>${h(displayText(`Расход ${number(data.parent.metrics.spend)} ${currencySymbol(data.parent.currency)} · Результаты ${number(data.parent.metrics.conversions)}`))}</span></div>`:'';
   list.innerHTML=`${!mobile.matches?`<div class="campaign-grid campaign-table-head"><span>${h(displayText(`Название · ${data?.total??'—'}`))}</span>${columns.map(c=>`<span>${c[1]}</span>`).join('')}</div>`:''}${levelHTML(parent)}`;

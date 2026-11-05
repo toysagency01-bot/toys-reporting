@@ -42,7 +42,7 @@ export async function campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,on
    const stored=row?JSON.parse(row.payload):null;
    return reply({ok:true,creative:{name:entry.node.name,provider:'google_ads',bodies:[],titles:[],descriptions:[],media:[],mediaStatus:'unavailable',contentStatus:'metadata_only',adType:stored?.creative?.type||null,destinationUrl:(stored?.creative?.finalUrls||[]).map(safeCreativeLink).find(Boolean)||null}});
   }
-  const history=snapshot?historicalCampaigns(project.id,snapshot,data.providers,range):[];
+  const history=snapshot?historicalCampaigns(project.id,snapshot,data.providers,range,data.reportConversions||[]):[];
   let page=campaignPage({tree,history,range,parent,provider,query,sort,offset});if(!page)return reply({ok:false,error:'campaign_not_found'},404);
   const dataset=!parent&&url.searchParams.get('dataset')==='1'?campaignDataset(tree,history,range):null;
   if(salesDemoProject(project.slug)){
@@ -50,6 +50,6 @@ export async function campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,on
    page=attachDemoSales(page,analytics,project);
    if(dataset)dataset.rows=attachDemoSales({rows:dataset.rows},analytics,project).rows;
   }
-  return reply({ok:true,...page,...(dataset?{dataset}:{}),crmQualification,range,sources:data.providers.filter(p=>dataset||!provider||p.provider===provider).map(p=>({provider:p.provider,available:Boolean(p.hierarchy),freshness:p.freshness,coverage:p.coverage,fetchedAt:p.fetchedAt,coveredFrom:p.coveredDates?.[0]||p.requestedRange?.from,coveredTo:p.coveredDates?.at(-1)||p.requestedRange?.to})),refreshing:data.providers.some(p=>['refreshing','rate_limited'].includes(p.refresh?.state))});
+  return reply({ok:true,...page,...(dataset?{dataset}:{}),crmQualification,manualReport:data.manualReport,range,sources:data.providers.filter(p=>dataset||!provider||p.provider===provider).map(p=>({provider:p.provider,available:Boolean(p.hierarchy),freshness:p.freshness,coverage:p.coverage,fetchedAt:p.fetchedAt,coveredFrom:p.coveredDates?.[0]||p.requestedRange?.from,coveredTo:p.coveredDates?.at(-1)||p.requestedRange?.to})),refreshing:data.providers.some(p=>['refreshing','rate_limited'].includes(p.refresh?.state))});
  }catch(error){return reply({ok:false,error:error.code==='creative_not_found'?'creative_not_found':match[2]?'creative_unavailable':'campaigns_unavailable'},error.code==='creative_not_found'?404:503);}
 }
