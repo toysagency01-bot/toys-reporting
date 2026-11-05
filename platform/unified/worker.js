@@ -12,7 +12,7 @@ import {cleanAuthRecords} from '../portal/password-auth.js';
 import {dashboardCacheScope} from '../portal/cache-scope.js';
 import projectRegistry from '../projects.json' with {type:'json'};
 import {refreshUsdUah} from '../imports/fx.js';
-import {syncMonoreyConversions} from '../imports/monorey-report.js';
+import {runMonoreyConversions} from '../imports/monorey-report.js';
 import {isReportRefreshSlot} from '../imports/refresh-policy.js';
 import {messageWebhook} from '../crm/messages.js';
 import {portalRoute,accessManagement,loginRedirect} from '../portal/routes.js';
@@ -194,7 +194,7 @@ export default {
   },
   async scheduled(event,env,ctx){
     const at=event.scheduledTime??Date.now();
-    if(isReportRefreshSlot(at))ctx.waitUntil(syncMonoreyConversions(env).catch(()=>console.error('Monorey report synchronization deferred')));
+    ctx.waitUntil(runMonoreyConversions(env,at).catch(()=>console.error('Monorey report synchronization deferred')));
     ctx.waitUntil(runManagedCRMSync(env).catch(()=>console.error('Managed CRM synchronization deferred')));
     ctx.waitUntil(runKeyCRMSync(env,at).catch(()=>console.error('KeyCRM synchronization deferred')));
     ctx.waitUntil(syncBank(env,at).catch(()=>console.error('Bank read synchronization deferred')));

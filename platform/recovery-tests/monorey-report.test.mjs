@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {fixture} from './fixture.mjs';
-import {parseMonoreyConversions,publishMonoreyConversions,attachMonoreyConversions,syncMonoreyConversions} from '../imports/monorey-report.js';
+import {parseMonoreyConversions,publishMonoreyConversions,attachMonoreyConversions,syncMonoreyConversions,runMonoreyConversions} from '../imports/monorey-report.js';
 import {advertisingModel} from '../unified/model.js';
 const header=['date','platform','account_name','account_id','currency','campaign','impressions','clicks','cost','conversions','conv_value'];
 const row=(date='2026-10-30',count=2)=>[date,'Meta Ads','Synthetic','act_1139444467187528','EUR','Campaign',100,10,5,count,null];
@@ -31,4 +31,13 @@ test('bounded CSV sync imports beyond the Profkit parser default of forty rows',
  const rows=[header,...Array.from({length:60},(_,i)=>{const r=row();r[5]='Campaign '+i;return r;})],csv=rows.map(r=>r.map(v=>JSON.stringify(String(v??''))).join(',')).join('\n');
  const result=await syncMonoreyConversions(env,{fetchImpl:async url=>{assert.match(url,/gid=2022069134/);return new Response(csv);}});assert.equal(result.ok,true);assert.equal(result.rows,60);
  }finally{db.close();}
+});
+test('an explicitly queued report read runs once between regular refresh slots',async()=>{
+ const {env,db}=fixture(),original=globalThis.fetch;try{
+ db.exec("INSERT INTO projects(id,organization_id,slug,name,status) VALUES('prj_monorey_acdk','org_toys_agency','monorey-acdk','Synthetic','active')");
+ let calls=0;globalThis.fetch=async()=>{calls++;return new Response([header,row()].map(r=>r.map(v=>JSON.stringify(String(v??''))).join(',')).join('\n'));};
+ const at=Date.parse('2026-11-05T11:47:00Z');assert.equal((await runMonoreyConversions(env,at)).status,'not_due');assert.equal(calls,0);
+ await publishMonoreyConversions(env.TOYS_DB,parseMonoreyConversions([header,row()]),'2026-11-05T10:00:00Z');db.exec("UPDATE report_conversion_state SET status='pending'");
+ assert.equal((await runMonoreyConversions(env,at)).ok,true);assert.equal(calls,1);assert.equal((await runMonoreyConversions(env,at)).status,'not_due');assert.equal(calls,1);
+ }finally{globalThis.fetch=original;db.close();}
 });

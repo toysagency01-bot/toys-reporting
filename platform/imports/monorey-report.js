@@ -1,9 +1,17 @@
 import {createHash} from 'node:crypto';
 import {parseClientCSV} from '../native/profkit-client-source.js';
+import {isReportRefreshSlot} from './refresh-policy.js';
 
 export const MONOREY_REPORT='1U-SaleigXPA34hPGs7eF0UqtkCy3okwptq0Q7Xx8Cis';
 const PROJECT='prj_monorey_acdk',ACCOUNT='1139444467187528';
 const fail=code=>{throw Object.assign(new Error(code),{code});};
+export async function runMonoreyConversions(env,at){
+ if(!isReportRefreshSlot(at)){
+  const pending=await env.TOYS_DB.prepare("SELECT 1 AS ready FROM report_conversion_state WHERE project_id=? AND status='pending'").bind(PROJECT).first();
+  if(!pending)return {ok:true,status:'not_due'};
+ }
+ return syncMonoreyConversions(env);
+}
 export function parseMonoreyConversions(values){
  if(values.length<2)fail('report_source_empty');
  const header=['date','platform','account_name','account_id','currency','campaign','impressions','clicks','cost','conversions','conv_value'];

@@ -47,8 +47,12 @@ The ordinary reporting refresh slots now read this one bounded Google CSV source
 Invalid schemas, wrong accounts, ambiguous campaign/day rows and failed reads
 preserve the previous snapshot. The UI identifies the Report Sheet basis and
 warns when the last read failed. An older capture cannot replace a newer pointer.
-The first live scheduled execution of this new Monorey reader remains pending
-at the time of deployment; the initial import used authenticated connector data.
+The initial import used authenticated connector data. A queued first execution
+then succeeded through the ordinary Worker scheduler at 2026-11-05T11:48:34Z.
+It fetched the real public CSV and published a successful source state. Explicit
+queued verification can run between normal slots; subsequent reads use the
+ordinary reporting refresh slots. Final Worker version:
+`357c29f5-6122-429c-ad64-5f09995e3242`.
 
 Validation: 359 recovery tests and a desktop/mobile browser scenario passed.
 Comparing actual stored Meta data for October 30–November 2 with the manual
