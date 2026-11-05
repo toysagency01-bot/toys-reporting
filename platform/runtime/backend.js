@@ -1,3 +1,4 @@
+import {readProfkitClient,PROFKit_CLIENT_BOOK,PROFKit_CLIENT_SHEET} from '../native/profkit-client-source.js';
 import {readArchivedAdsSnapshot} from '../imports/archive-ads.js';
 import {attachProductDimensions} from '../product-funnel/metadata.js';
 import {safeDimensions} from '../product-funnel/model.js';
@@ -5639,7 +5640,8 @@ __name(sourceDeliveryProvider, "sourceDeliveryProvider");
 function parseProfkit(snapshot, {businessOnly=false}={}) {
   const project = REAL_COMMERCE_PROJECTS["profkit-instashop-r4vk"];
   const meta = businessOnly ? {rows:[]} : table2(snapshot, "profkit_meta", ["date", "platform", "account_name", "account_id", "currency", "campaign", "impressions", "clicks", "cost", "conversions"], { workbook: PROFIT_BOOK, sheet: "MetaAds", optionalHeader: ["spend_usd", "fx_usd_uah", "meta_direct_inquiries"] });
-  const sales = table2(snapshot, "profkit_sales", ["date", "qualified_inquiries", "unqualified_inquiries", "direct_inquiries", "sales", "revenue_uah"], { workbook: PROFIT_BOOK, sheet: "InstashopSales", optionalHeader: ["avg_check_uah", "source_tab", "source_url"] });
+  const clientSales=snapshot.tables?.profkit_sales?.spreadsheet_id===PROFKit_CLIENT_BOOK;
+  const sales = table2(snapshot, "profkit_sales", ["date", "qualified_inquiries", "unqualified_inquiries", "direct_inquiries", "sales", "revenue_uah"], { workbook: clientSales?PROFKit_CLIENT_BOOK:PROFIT_BOOK, sheet: clientSales?PROFKit_CLIENT_SHEET:"InstashopSales", optionalHeader: ["avg_check_uah", "source_tab", "source_url"] });
   const fx = table2(snapshot, "profkit_fx", ["date", "usd_uah", "source_url"], { workbook: PROFIT_BOOK, sheet: "FxRates" });
   const weekly = businessOnly ? {rows:[]} : table2(snapshot, "profkit_weekly", WEEKLY_HEADER, { workbook: PROFIT_BOOK, sheet: "WeeklyComments" });
   const deliveryProvider = sourceDeliveryProvider(snapshot);
@@ -5677,7 +5679,7 @@ function parseProfkit(snapshot, {businessOnly=false}={}) {
       observedMetric("instashop.meta_direct", value(raw, meta, "meta_direct_inquiries"), "weighted_count", null, { basis: "platform_reported" })
     ]));
   });
-  const salesDescriptor = { key: "profkit_sales", channelKey: "instashop", viewRole: "sales", deliveryProvider, businessProvider: "instashop", stableSourceRef: `${PROFIT_BOOK}:InstashopSales`, sourceTimezone: "America/Los_Angeles", grain: "project_daily", sourceSchemaVersion: `${SCHEMA_VERSION}/profkit-sales` };
+  const salesDescriptor = { key: "profkit_sales", channelKey: "instashop", viewRole: "sales", deliveryProvider, businessProvider: "instashop", stableSourceRef: clientSales?`${PROFKit_CLIENT_BOOK}:client-months`:`${PROFIT_BOOK}:InstashopSales`, sourceTimezone: clientSales?"Europe/Bucharest":"America/Los_Angeles", grain: "project_daily", sourceSchemaVersion: `${SCHEMA_VERSION}/profkit-sales${clientSales?"-client-v2":""}` };
   const salesRows = sales.rows.filter((raw) => raw.some((item) => norm(item))).map((raw, index) => {
     const localDate = date(value(raw, sales, "date"), `profkit_sales[${index + 2}].date`);
     return observation(project, salesDescriptor, raw, localDate, { key: [localDate, "project"] }, [
@@ -5693,7 +5695,11 @@ function parseProfkit(snapshot, {businessOnly=false}={}) {
     const localDate = date(value(raw, fx, "date"), `profkit_fx[${index + 2}].date`);
     return observation(project, fxDescriptor, raw, localDate, { key: [localDate, "USD", "UAH"] }, [observedMetric("fx.usd_uah", value(raw, fx, "usd_uah"), "exchange_rate", null)]);
   });
-  const streams = [...businessOnly?[]:[finishStream(project, metaDescriptor, metaRows)], finishStream(project, salesDescriptor, salesRows), finishStream(project, fxDescriptor, fxRows)];
+  const salesStream=finishStream(project,salesDescriptor,salesRows);
+  // A different workbook is a distinct source. Keep the previous source and its
+  // sealed generations available for audit instead of reusing their primary key.
+  if(clientSales)salesStream.sourceStreamId+='_client_v2';
+  const streams = [...businessOnly?[]:[finishStream(project, metaDescriptor, metaRows)], salesStream, finishStream(project, fxDescriptor, fxRows)];
   validateProfkit([null,streams.find(s=>s.key==="profkit_sales")]);
   return finishProject(project, streams, parseWeekly(weekly, project), [], {
     exchangeRates: fx.rows.filter((raw) => raw.some((item) => norm(item))).map((raw, index) => ({
@@ -8297,9 +8303,9 @@ export async function syncProfkitBusiness(env, {fetchImpl=fetch,now=()=>new Date
  const projectId=REAL_COMMERCE_PROJECTS[slug].id;
  const runId=await startRun2(db,projectId,at);
  try{
-  const specs=PROJECT_SPECS[slug].tables.filter(s=>['profkit_sales','profkit_fx'].includes(s.key));
-  const sources=await Promise.all(specs.map(s=>fetchGvizTable(fetchImpl,s,20000)));
-  const input={captured_at:at,delivery_provider:'public_gviz',tables:Object.fromEntries(sources.map(({spec,values})=>[spec.key,{spreadsheet_id:spec.spreadsheetId,sheet:spec.sheet,values}]))};
+  const specs=PROJECT_SPECS[slug].tables.filter(s=>s.key==='profkit_fx');
+  const [salesSource,sources]=await Promise.all([readProfkitClient({fetchImpl,now:new Date(at)}),Promise.all(specs.map(s=>fetchGvizTable(fetchImpl,s,20000)))]);
+  const input={captured_at:at,delivery_provider:'public_gviz',tables:{...Object.fromEntries(sources.map(({spec,values})=>[spec.key,{spreadsheet_id:spec.spreadsheetId,sheet:spec.sheet,values}])),profkit_sales:salesSource}};
   const project=parseProfkit(input,{businessOnly:true});
   await preflightRealCommerceProject(db,project);
   const current=await first5(db,`SELECT p.release_id AS releaseId,p.pointer_revision AS revision,r.manifest_json AS manifest FROM project_data_release_pointers p JOIN project_data_releases r ON r.id=p.release_id WHERE p.organization_id=? AND p.project_id=?`,ORGANIZATION_ID2,project.id);
@@ -8317,7 +8323,7 @@ export async function syncProfkitBusiness(env, {fetchImpl=fetch,now=()=>new Date
    const pointer=await first5(db,'SELECT release_id AS id FROM project_data_release_pointers WHERE organization_id=? AND project_id=?',ORGANIZATION_ID2,project.id);
    if(pointer.id!==id)fail6('cas_conflict','Concurrent business update preserved');
   }
-  await finishRun2(db,runId,'success',nowIso3(now),{rowsRead:project.streams.reduce((n,s)=>n+s.rows.length,0),rowsWritten:changed?project.streams.reduce((n,s)=>n+s.rows.length,0):0,message:'PROFKIT business sales and FX checked; no advertising Sheet read',details:{streams:['profkit_sales','profkit_fx']}});
+  await finishRun2(db,runId,'success',nowIso3(now),{rowsRead:project.streams.reduce((n,s)=>n+s.rows.length,0),rowsWritten:changed?project.streams.reduce((n,s)=>n+s.rows.length,0):0,message:'PROFKIT client monthly business source and FX checked; price excluded from inquiries',details:{streams:['profkit_sales','profkit_fx']}});
   return {ok:true,status:changed?'published':'already_current'};
  }catch(e){await finishRun2(db,runId,'error',nowIso3(now),{message:'PROFKIT business import failed',details:{code:e.code||'business_import_failed',...e.details||{}}});return {ok:false,error:e.code||'business_import_failed'};}
 }

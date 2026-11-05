@@ -1,3 +1,4 @@
+import {instashopAdvertising} from './instashop-ads.js';
 import {mountProductFunnel} from '../product-funnel/ui.js';
 import {mountProjectGoals} from '../project-management/overview.js';
 import {renderCompetitorAnalysis} from './competitor-analysis.js';
@@ -89,13 +90,12 @@ function maskUnavailable(){
  }
 }
 function attachHierarchy(){campaignBrowser?.sync();}
+const retainedShopRates=new Map();
 function shopLiveRows(rows){
- // Native Instashop accounting is UAH. Use only the source's explicit daily FX.
- const facts=dashboard.instashop?.ads?.rows||[],ratiosByDay=new Map();for(const f of facts){const u=metric(f).find(m=>m.metricCode==='ads.spend_uah'),d=metric(f).find(m=>m.metricCode==='ads.raw_spend_usd');if(valueOf(d)>0&&valueOf(u)!=null){if(!ratiosByDay.has(f.date))ratiosByDay.set(f.date,[]);ratiosByDay.get(f.date).push(valueOf(u)/valueOf(d));}}
- for(const r of ads?.exchangeRates||[])if(Number(r.rate)>0)ratiosByDay.set(r.date,[Number(r.rate)]);
- return rows.map(r=>{let spend=r.spend,usd=null;if(r.currency==='USD'){const ratios=ratiosByDay.get(r.date)||[];if(!ratios.length||Math.max(...ratios)-Math.min(...ratios)>0.01)return null;usd=spend;spend=spend==null?null:spend*ratios[0];}else if(r.currency!=='UAH')return null;
- return {date:r.date,platform:'Meta Ads',account:title,accountId:r.integrationId||'',currency:'UAH',campaign:r.name,impressions:r.impressions,clicks:r.clicks,spendUah:spend,metaDirect:r.conversions,spendUsd:usd,fx:usd>0?spend/usd:null};});
+ const mapped=instashopAdvertising(rows,{facts:dashboard.instashop?.ads?.rows||[],exchangeRates:ads?.exchangeRates||[],knownRates:retainedShopRates,accountName:title});
+ if(ads)ads.shopMissingFxDates=mapped.missingFxDates;return mapped.rows;
 }
+
 let appliedAds='';
 function applyAds(rows,commerce=null){const signature=JSON.stringify([rows,commerce,ads?.providers.map(p=>p.hierarchy)]);if(signature===appliedAds)return;appliedAds=signature;window.TOYS_NATIVE.refreshAds(rows,commerce);}
 async function refresh(){

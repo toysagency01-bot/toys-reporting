@@ -43,8 +43,8 @@ for(const path of ['core/core.js','housevip-cxp7/core.js','core/instashop.js']){
  if(isShop){
   // Relative periods follow the project calendar, not the archived Sheet tail.
   source=replaceOnce(source,"const latest = dates[dates.length-1];","const latest = window.TOYS_PLATFORM.today();");
-  source=replaceOnce(source,"const fmt0 = value => new Intl.NumberFormat('ru-RU', {maximumFractionDigits:0}).format(value || 0);","const number0=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}),number1=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1});const fmt0=value=>number0.format(value||0);");
-  source=replaceOnce(source,"const fmt1 = value => new Intl.NumberFormat('ru-RU', {maximumFractionDigits:1}).format(value || 0);","const fmt1=value=>number1.format(value||0);");
+  source=replaceOnce(source,"const fmt0 = value => new Intl.NumberFormat('ru-RU', {maximumFractionDigits:0}).format(value || 0);","const number0=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}),number1=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1});const fmt0=value=>value==null?'—':number0.format(value);");
+  source=replaceOnce(source,"const fmt1 = value => new Intl.NumberFormat('ru-RU', {maximumFractionDigits:1}).format(value || 0);","const fmt1=value=>value==null?'—':number1.format(value);");
  }
  source=source.replace(/function render\(\)\s*\{/,'function render(){window.TOYS_PLATFORM.scheduleRender(renderNow);}\nfunction renderNow(){');
  source=source.replaceAll("if(chart) chart.destroy();\n  chart = new Chart(el('chart'),", "chart = window.TOYS_PLATFORM.updateChart(chart,el('chart'),");

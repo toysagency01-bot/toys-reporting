@@ -49,7 +49,7 @@ document.body.innerHTML = `
   <div class="cards" id="cards"></div>
   <div class="grid2">
     <div class="panel"><h2>Instashop-воронка</h2><div id="funnel"></div></div>
-    <div class="panel"><h2>Качество обращений</h2><div id="quality"></div><div class="note">«Заявки» — квалифицированные обращения. «Ціна» — неквалифицированные обращения.</div></div>
+    <div class="panel"><h2>Качество обращений</h2><div id="quality"></div><div class="note">«Заявки» — все обращения Instagram Direct. «Ціна» — стоимость обращения. Квалификация доступна только при отдельном учёте статусов.</div></div>
   </div>
   <div class="panel"><h2>Еженедельные итоги</h2><div id="weekly"></div></div>
   <div class="panel"><h2>Динамика по дням</h2><div class="chart-wrap"><canvas id="chart"></canvas></div></div>
@@ -271,12 +271,12 @@ function render(){
   const steps = [['Показы',s.impressions],['Клики',s.clicks],['Direct-обращения',s.direct],['Квал. обращения',s.qualified],['Продажи',s.sales]];
   el('funnel').innerHTML = steps.map((step,index)=>{
     const previous = index ? steps[index-1][1] : step[1];
-    const width = index ? (previous ? Math.min(100, step[1]/previous*100) : 0) : 100;
-    const rate = index && previous ? `<div class="rate">${(step[1]/previous*100).toFixed(1)}% от предыдущего шага</div>` : '';
+    const width = step[1]==null?0:index?(previous>0?Math.min(100,step[1]/previous*100):0):100;
+    const rate = index && previous>0 && step[1]!=null ? `<div class="rate">${(step[1]/previous*100).toFixed(1)}% от предыдущего шага</div>` : '';
     return `<div class="funnel-step"><div class="funnel-head"><span class="funnel-name">${esc(step[0])}</span><span class="funnel-number">${fmt1(step[1])}</span></div><div class="bar-bg"><div class="bar" style="width:${width}%"></div></div>${rate}</div>`;
   }).join('');
 
-  const unqualRate = s.direct ? s.unqualified/s.direct : null;
+  const unqualRate = s.direct>0&&s.unqualified!=null?s.unqualified/s.direct:null;
   el('quality').innerHTML = `<div class="split"><div class="mini"><span>Квалы</span><b>${fmt0(s.qualified)}</b></div><div class="mini"><span>Неквалы</span><b>${fmt0(s.unqualified)}</b></div><div class="mini"><span>Доля неквалов</span><b>${pct(unqualRate)}</b></div></div><div class="note">Direct → квал.: <b>${pct(s.directToQualified)}</b> · Квал. → продажа: <b>${pct(s.qualifiedToSale)}</b></div>`;
   renderWeekly();
   drawChart(M.dailySeries(dates, meta, sales));

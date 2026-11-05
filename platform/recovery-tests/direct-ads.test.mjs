@@ -12,7 +12,7 @@ import {advertisingModel} from '../unified/model.js';
 import {refreshUsdUah} from '../imports/fx.js';
 import {addDecimal} from '../native/google-receiver.js';
 const dir=mkdtempSync(join(tmpdir(),'direct-ads-'));
-await build({stdin:{contents:readFileSync('runtime/backend.js','utf8')+'\nexport {normalizeAdsHierarchy,integrationScope,parseProfkit,PROFIT_BOOK,METRIC_NAMES};',resolveDir:resolve('runtime')},outfile:join(dir,'runtime.mjs'),bundle:true,format:'esm',platform:'node',plugins:[{name:'cf',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'cf',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export class WorkerEntrypoint {}'}));}}]});
+await build({stdin:{contents:readFileSync('runtime/backend.js','utf8')+'\nexport {normalizeAdsHierarchy,integrationScope,parseProfkit,importRealCommerceProject,PROFIT_BOOK,METRIC_NAMES};',resolveDir:resolve('runtime')},outfile:join(dir,'runtime.mjs'),bundle:true,format:'esm',platform:'node',plugins:[{name:'cf',setup(b){b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'cf',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:'export class WorkerEntrypoint {}'}));}}]});
 const rt=await import(pathToFileURL(join(dir,'runtime.mjs')));rmSync(dir,{force:true,recursive:true});
 const worker=await testWorker();
 test('only registered draft onboarding imports run, with verified account timezone before the first request',async()=>{
@@ -149,6 +149,28 @@ test('business-only PROFKIT parsing needs no advertising or content tables and s
  const input={delivery_provider:'public_gviz',tables:{profkit_sales:make('InstashopSales',[['date','qualified_inquiries','unqualified_inquiries','direct_inquiries','sales','revenue_uah'],['2026-10-12',2,1,3,1,100]]),profkit_fx:make('FxRates',[['date','usd_uah','source_url'],['2026-10-12',41,'https://bank.gov.ua']])}};
  const result=rt.parseProfkit(input,{businessOnly:true});assert.deepEqual(result.streams.map(s=>s.key),['profkit_sales','profkit_fx']);
  input.tables.profkit_sales.values[1][3]=10;assert.throws(()=>rt.parseProfkit(input,{businessOnly:true}),{code:'cross_stream_mismatch'});
+});
+test('migrating Profkit to original client sheets preserves the old source and seals a new one',async()=>{
+ const {db,env}=fixture();try{
+  db.exec("INSERT INTO projects(id,organization_id,slug,name,project_type,status,currency,timezone) VALUES('prj_profkit_instashop_r4vk','org_toys_agency','profkit-instashop-r4vk','Synthetic','instashop','active','UAH','Europe/Kyiv')");
+  const make=(sheet,values)=>({spreadsheet_id:rt.PROFIT_BOOK,sheet,values});
+  const tables={profkit_meta:make('MetaAds',[['date','platform','account_name','account_id','currency','campaign','impressions','clicks','cost','conversions'],['2026-11-04','Meta Ads','Synthetic','123','UAH','Campaign',100,10,90,3]]),profkit_sales:make('InstashopSales',[['date','qualified_inquiries','unqualified_inquiries','direct_inquiries','sales','revenue_uah'],['2026-11-04',10,9,19,0,0]]),profkit_fx:make('FxRates',[['date','usd_uah','source_url'],['2026-11-04',45,'https://bank.gov.ua']]),profkit_weekly:make('WeeklyComments',[['id','period_start','period_end','summary','wins','issues','changes','next_steps','status','created_at','updated_at']])};
+  await rt.importRealCommerceProject(env.TOYS_DB,rt.parseProfkit({tables}));
+  const old=db.prepare("SELECT id,stable_source_ref FROM source_streams WHERE id='src_profkit_instashop_r4vk_profkit_sales'").get();
+  const values=Array.from({length:40},()=>Array(34).fill(''));
+  for(const [r,label]of [[0,'Заказы инстаграм'],[1,'Дата'],[2,'Заказы'],[9,'Инстаграм'],[11,'Выручка з ИНСТ'],[17,'Количество заявок в инстаграм'],[18,'Дата'],[19,'Заявки'],[20,'Ціна']])values[r][0]=label;
+  for(let d=1;d<=30;d++)values[18][d]=String(d).padStart(2,'0')+'.11';
+  values[1][4]='04.11';values[2][4]=25;values[11][4]=75909;values[19][4]=10;values[20][4]=9;
+  const csv=values.map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\n');
+  const fetchImpl=async url=>new URL(url).searchParams.get('gid')==='936349631'?new Response('google.visualization.Query.setResponse('+JSON.stringify({status:'ok',table:{cols:[{label:'date'},{label:'usd_uah'},{label:'source_url'}],rows:[{c:[{v:'2026-11-04'},{v:45},{v:'https://bank.gov.ua'}]}]}})+');'):new Response(csv);
+  // Limit only this synthetic test to November; prior months keep their expected dates.
+  const byGid={'361211290':3,'207473630':4,'866690031':5,'565285812':6,'1105287496':7,'459840614':8,'517634166':9,'221907742':10};
+  const allMonths=async url=>{const month=byGid[new URL(url).searchParams.get('gid')];if(!month)return fetchImpl(url);const v=values.map(r=>r.map(()=>''));for(const r of [0,1,2,9,11,17,18,19,20])v[r][0]=values[r][0];for(let d=1;d<=new Date(Date.UTC(2026,month,0)).getUTCDate();d++)v[18][d]=String(d).padStart(2,'0')+'.'+String(month).padStart(2,'0');return new Response(v.map(r=>r.join(',')).join('\n'));};
+  const result=await rt.syncProfkitBusiness(env,{fetchImpl:allMonths,now:()=>new Date('2026-11-05T10:00:00Z')});assert.equal(result.ok,true,JSON.stringify(result));
+  assert.deepEqual(db.prepare('SELECT id,stable_source_ref FROM source_streams WHERE id=?').get(old.id),old);
+  assert.ok(db.prepare("SELECT id FROM source_streams WHERE id='src_profkit_instashop_r4vk_profkit_sales_client_v2'").get());
+  assert.equal((await rt.syncProfkitBusiness(env,{fetchImpl:allMonths,now:()=>new Date('2026-11-05T10:01:00Z')})).status,'already_current');
+ }finally{db.close();}
 });
 test('night imports run hourly, skip D1 between runs and retry failures only at the next hour',async()=>{
  const{env,db}=setup();try{

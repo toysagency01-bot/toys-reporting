@@ -20,8 +20,9 @@
   }
 
   function number(cell){
-    const value = Number(cellValue(cell));
-    return isFinite(value) ? value : 0;
+    const raw=cellValue(cell);if(raw===''||raw==null)return null;
+    const value=Number(String(raw).replace(/[\s\u00a0]/g,'').replace(',','.'));
+    return isFinite(value)?value:null;
   }
 
   function labelMap(json){
@@ -127,14 +128,15 @@
   }
 
   function sum(rows, key){
-    return rows.reduce(function(total, row){ return total + (+row[key] || 0); }, 0);
+    const known=rows.filter(row=>row[key]!=null&&Number.isFinite(Number(row[key])));
+    return known.length?known.reduce((total,row)=>total+Number(row[key]),0):rows.length?null:0;
   }
 
   function summarize(metaRows, salesRows){
-    const spend = sum(metaRows, 'spendUah');
-    const impressions = sum(metaRows, 'impressions');
-    const clicks = sum(metaRows, 'clicks');
-    const metaDirect = sum(metaRows, 'metaDirect');
+    const spend = metaRows.some(r=>r.spendUah==null)?null:sum(metaRows, 'spendUah');
+    const impressions = metaRows.some(r=>r.impressions==null)?null:sum(metaRows, 'impressions');
+    const clicks = metaRows.some(r=>r.clicks==null)?null:sum(metaRows, 'clicks');
+    const metaDirect = metaRows.some(r=>r.metaDirect==null)?null:sum(metaRows, 'metaDirect');
     const direct = sum(salesRows, 'direct');
     const qualified = sum(salesRows, 'qualified');
     const unqualified = sum(salesRows, 'unqualified');
@@ -150,13 +152,13 @@
       unqualified: unqualified,
       sales: sales,
       revenue: revenue,
-      ctr: impressions ? clicks / impressions : null,
-      roas: spend ? revenue / spend : null,
-      costPerDirect: direct ? spend / direct : null,
-      costPerQualified: qualified ? spend / qualified : null,
-      costPerSale: sales ? spend / sales : null,
-      directToQualified: direct ? qualified / direct : null,
-      qualifiedToSale: qualified ? sales / qualified : null,
+      ctr: impressions>0&&clicks!=null?clicks/impressions:null,
+      roas: spend>0&&revenue!=null?revenue/spend:null,
+      costPerDirect: direct>0&&spend!=null?spend/direct:null,
+      costPerQualified: qualified>0&&spend!=null?spend/qualified:null,
+      costPerSale: sales>0&&spend!=null?spend/sales:null,
+      directToQualified: direct>0&&qualified!=null?qualified/direct:null,
+      qualifiedToSale: qualified>0&&sales!=null?sales/qualified:null,
     };
   }
 
@@ -190,10 +192,10 @@
         spendUah: 0,
         metaDirect: 0,
       });
-      item.impressions += row.impressions;
-      item.clicks += row.clicks;
-      item.spendUah += row.spendUah;
-      item.metaDirect += row.metaDirect;
+      item.impressions=item.impressions==null||row.impressions==null?null:item.impressions+row.impressions;
+      item.clicks=item.clicks==null||row.clicks==null?null:item.clicks+row.clicks;
+      item.spendUah=item.spendUah==null||row.spendUah==null?null:item.spendUah+row.spendUah;
+      item.metaDirect=item.metaDirect==null||row.metaDirect==null?null:item.metaDirect+row.metaDirect;
     });
     return Object.keys(grouped).map(function(key){ return grouped[key]; }).sort(function(a,b){ return b.spendUah - a.spendUah; });
   }
