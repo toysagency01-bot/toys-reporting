@@ -40,6 +40,7 @@ export function mountMetricGroups(){
    if(label){const title=/лид/i.test(leadLabel)?'Цена лида':'Цена результата';if(label.dataset.groupTitle!==title){for(const node of [...label.childNodes])if(node.nodeType===Node.TEXT_NODE)node.remove();label.append(document.createTextNode(title));label.dataset.groupTitle=title;}}
    const nativeQual=compact(['kQual','kQualCpa'].map(byId));
    add('leads',crmQual.length&&!nativeQual.length?'Лиды и квалификация':'Лиды',compact([byId('kConv'),byId('kCpa'),...nativeQual,...(nativeQual.length?[]:crmQual)]));
+   add('bookings','Записи',compact(['kManualBookings','kManualBookingCpa'].map(byId)));
    if(nativeQual.length)add('qualification','Квалификация CRM',crmQual);
    add('crm-sales','Продажи CRM',crmSales);
   }

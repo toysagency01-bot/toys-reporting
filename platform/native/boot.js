@@ -1,4 +1,5 @@
 import {instashopAdvertising} from './instashop-ads.js';
+import {mountManualLeads} from './manual-leads-ui.js';
 import {mountProductFunnel} from '../product-funnel/ui.js';
 import {mountProjectGoals} from '../project-management/overview.js';
 import {renderCompetitorAnalysis} from './competitor-analysis.js';
@@ -52,7 +53,7 @@ const title=projectConfig.title;
 const projectDay=new Intl.DateTimeFormat('en-CA',{timeZone:projectConfig.periodTimezone||'Asia/Tbilisi',year:'numeric',month:'2-digit',day:'2-digit'});
 const $=id=>document.getElementById(id);
 let creativeRankings=null,creativeState="loading",creativeSequence=0;
-let crmStats=null,clientNavigation,campaignBrowser,salesFunnel,clientUX,productFunnel;
+let crmStats=null,clientNavigation,campaignBrowser,salesFunnel,clientUX,productFunnel,manualLeads;
 let dashboard,allRows=[],ads=null,snapshotPromise,tabsPromise,ready=false,toolkit,refreshing=false,sequence=0,calendar,refreshTimer,periodTimer;
 const readJSON=async(url,options={})=>{const r=await fetch(url,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000),...options});const d=await r.json().catch(()=>({}));if(!r.ok||!(d.ok||d.status==='ok')){const status=r.redirected?401:r.status;if([401,403].includes(status))clearDashboardStorage();throw Object.assign(new Error(d.error||`HTTP ${status}`),{status});}return d;};
 const json=(url,options={})=>dataCache.get(url,()=>readJSON(url,options));
@@ -71,6 +72,7 @@ const numberFormat=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2});
 const format=n=>n==null?'—':numberFormat.format(n);
 function selectedRows(){const r=range();return allRows.filter(row=>row.date>=r.from&&row.date<=r.to);}
 function maskUnavailable(){
+ manualLeads?.sync(ads?.manualLeadCounts,aggregate(selectedRows().filter(r=>r.source!=='manual_leads')).conversions,aggregate(selectedRows()).money);
  if(shop)syncInstashopCoverage({dashboard,rows:allRows,ads,range:range()});
  if(!shop&&ads){const latest=allRows.map(r=>r.date).filter(Boolean).sort().at(-1);if(latest&&$('updated'))$('updated').textContent='данные по '+latest;}
  const rows=selectedRows();if(!rows.length)return;const t=aggregate(rows);
@@ -97,22 +99,23 @@ function shopLiveRows(rows){
 }
 
 let appliedAds='';
+let manualRefreshPending=false;
 function applyAds(rows,commerce=null){const signature=JSON.stringify([rows,commerce,ads?.providers.map(p=>p.hierarchy)]);if(signature===appliedAds)return;appliedAds=signature;window.TOYS_NATIVE.refreshAds(rows,commerce);}
 async function refresh(){
- if(refreshing)return;const requested=range();if(!validRange(requested.from,requested.to)||(Date.parse(requested.to)-Date.parse(requested.from))/86400000>=366){notice('Для обновления кабинета выберите период не длиннее года.',true);return;}
+ if(refreshing)return;manualRefreshPending=false;const requested=range();if(!validRange(requested.from,requested.to)||(Date.parse(requested.to)-Date.parse(requested.from))/86400000>=366){notice('Для обновления кабинета выберите период не длиннее года.',true);return;}
  refreshing=true;const seq=++sequence,address=`${api}/${privateMode?'content-project/ads/hierarchy':'ads-summary'}?from=${requested.from}&to=${requested.to}&crmBasis=${qualificationBasis(slug)}&adsBasis=${advertisingBasis(slug)}`;
  const apply=(result,cached=false)=>{if(seq!==sequence||JSON.stringify(range())!==JSON.stringify(requested))return;ads=result;if(!privateMode)crmStats=result.crm||null;renderCRM();
   if(slug==='monorey-acdk'){let n=$('platformReportConversions');if(!n){n=document.createElement('p');n.id='platformReportConversions';n.className='platform-notice';$('platformNotice')?.after(n);}n.textContent=result.manualReport?.available?'Лиды на уровне кампаний: заполненные значения conversions из Report Sheet заменяют результат Meta. Пустые ячейки используют Meta. Ручные лиды не распределены по группам и объявлениям.'+(result.manualReport.status==='error'?' Последнее чтение таблицы не удалось; сохранена предыдущая копия.':''):'Ручные конверсии из Report Sheet ещё не загружены; показан результат Meta.';}
   const names=[...new Set((ads.providers||[]).map(p=>p.provider))].filter(name=>ads.providers.filter(p=>p.provider===name).every(p=>p.hierarchy&&p.requestedRange?.from===requested.from&&p.requestedRange?.to===requested.to));
-  const normalized=advertisingModel(dashboard,ads,requested);const live=allRows.filter(r=>r.date>=requested.from&&r.date<=requested.to&&!names.includes(r.provider)).concat(normalized.filter(r=>names.includes(r.provider)));const base=allRows.filter(r=>r.date<requested.from||r.date>requested.to);const all=[...base,...live];
+  const normalized=advertisingModel(dashboard,ads,requested);const live=allRows.filter(r=>r.date>=requested.from&&r.date<=requested.to&&!names.includes(r.provider)&&r.source!=='manual_leads').concat(normalized.filter(r=>names.includes(r.provider)||r.source==='manual_leads'));const base=allRows.filter(r=>r.date<requested.from||r.date>requested.to);const all=[...base,...live];
   let commerce=null;if(dashboard.ecommerce&&result.commerce?.completeProviders?.length){const updated=new Set(result.commerce.completeProviders.map(p=>p==='meta_ads'?'Meta Ads':'Google Ads'));for(const [key,rows]of [['account',result.commerce.account],['campaigns',result.commerce.campaigns]]){const previous=dashboard.ecommerce[key]||{};dashboard.ecommerce[key]={...previous,rows:[...(previous.rows||[]).filter(r=>!updated.has(r.platform)||r.date<requested.from||r.date>requested.to||(result.commerce.coverageByProvider?.[r.platform==='Meta Ads'?'meta_ads':'google_ads']&&!result.commerce.coverageByProvider[r.platform==='Meta Ads'?'meta_ads':'google_ads'].includes(r.date))),...rows]};}commerce={account:sourceTable(dashboard,'EcomFunnel'),campaigns:sourceTable(dashboard,'EcomFunnelCampaign')};}
-  if(names.length||commerce){if(shop){const mapped=shopLiveRows(all);if(mapped.some(r=>r===null)){notice('Детализация получена. Для сводки в гривнах не хватает подтверждённого курса; сохранены опубликованные показатели.',true);attachHierarchy();return;}allRows=all;applyAds(mapped);}
+  if(names.length||commerce||result.manualLeadCounts){if(shop){const mapped=shopLiveRows(all);if(mapped.some(r=>r===null)){notice('Детализация получена. Для сводки в гривнах не хватает подтверждённого курса; сохранены опубликованные показатели.',true);attachHierarchy();return;}allRows=all;applyAds(mapped);}
   else {allRows=all;applyAds(all.map(r=>({date:r.date,platform:r.provider==='google_ads'?'Google Ads':'Meta Ads',account:title,accountId:r.integrationId||'',currency:r.currency,campaign:r.name,campaignId:r.campaignId,impr:r.impressions,clicks:r.clicks,cost:r.spend,conv:r.conversions})),commerce);}}
   if(result.refreshing){notice('Показаны сохранённые данные. Импорт по расписанию ещё выполняется.');}
   else{notice(result.providers?.map(p=>`${p.provider==='google_ads'?'Google Ads':'Meta Ads'}: ${p.hierarchy?(p.freshness==='fresh'?'обновлено':p.freshness==='partial'?'история + данные API':'сохранённые данные')+(p.fetchedAt?' — '+new Date(p.fetchedAt).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}):''):'подключение не завершено'}`).join('; ')||'');}maskUnavailable();
  };
  try{const saved=await dataCache.load(address);if(saved){apply(saved.value,true);if(saved.fresh)return;notice('Показаны сохранённые данные. Обновляем в фоне…');}else notice('Обновляем данные…');apply(await json(address));}
- catch(e){notice('Не удалось обновить кабинет. Последние данные сохранены. Повторим по расписанию.',true);}finally{refreshing=false;renderCreatives();if(JSON.stringify(range())!==JSON.stringify(requested))queueRefresh();}
+ catch(e){notice('Не удалось обновить кабинет. Последние данные сохранены. Повторим по расписанию.',true);}finally{refreshing=false;renderCreatives();if(manualRefreshPending||JSON.stringify(range())!==JSON.stringify(requested))queueRefresh();}
 }
 
 async function refreshCRM(){
@@ -209,6 +212,7 @@ async function boot(){
  const logo=document.querySelector('header img[alt="TOYS"]');const theme=()=>{if(logo)logo.src=asset(document.documentElement.dataset.theme==='light'?'assets/toys-black.svg':'assets/toys-logo.svg');};theme();new MutationObserver(theme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
  if(projectConfig.productFunnel)productFunnel=mountProductFunnel({api,range,json:readJSON,title});
  campaignBrowser=mountCampaignBrowser({slug,context:salesContext});
+ manualLeads=mountManualLeads({slug,api,range,today:()=>projectDay.format(new Date()),read:readJSON,canEdit:window.TOYS_ACCESS_ROLE==='editor',onSaved:async()=>{sequence++;manualRefreshPending=true;ads=null;dataCache.clear();responseCache({prefix:'/api/v2/master/projects/'+slug+'/summary'}).clear();appliedAds='';queueRefresh();await campaignBrowser?.refresh();}});
  if(projectConfig.synthetic)salesFunnel=mountSalesDemoFunnel({context:salesContext,json:({range,provider})=>json(`${api}/sales-analytics?${new URLSearchParams({...range,provider,version:'1'})}`),onData(data){crmStats={available:data.hasData,qualified:data.totals.qualifiedLeads,sales:data.totals.sales,revenue:[{currency:data.currency,value:data.totals.revenue}]};renderCRM();},onUnavailable(){crmStats=null;renderCRM();}});
  delete document.body.dataset.platformLoading;document.body.dataset.platformReady='true';renderCreatives();finishNovaLoading();
  refreshTimer=setInterval(()=>autoRefresh(),60000);

@@ -76,6 +76,7 @@
   },
   "murmur-up8m": {
     "title": "MurMur",
+    "advertisingChannels": ["meta"],
     "channels": [
       "meta"
     ],

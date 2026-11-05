@@ -43,6 +43,7 @@ export async function campaignAPI(request,env,ctx,{authorizeMvp,projectRecord,on
    return reply({ok:true,creative:{name:entry.node.name,provider:'google_ads',bodies:[],titles:[],descriptions:[],media:[],mediaStatus:'unavailable',contentStatus:'metadata_only',adType:stored?.creative?.type||null,destinationUrl:(stored?.creative?.finalUrls||[]).map(safeCreativeLink).find(Boolean)||null}});
   }
   const history=snapshot?historicalCampaigns(project.id,snapshot,data.providers,range,data.reportConversions||[]):[];
+  if(data.manualLeadCounts?.total>0){const n=data.manualLeadCounts.total;history.push({key:'manual-leads',name:'Лиды, добавленные вручную',level:'campaign',provider:'meta_ads',currency:data.manualLeadCounts.currency,status:null,childCount:0,history:true,manual:true,freshness:'manual',metrics:{spend:0,conversions:n,impressions:null,clicks:null,ctr:null,cpa:null,purchases:null,purchaseValue:null,qualifiedLeads:null,cpql:null,roas:null}});}
   let page=campaignPage({tree,history,range,parent,provider,query,sort,offset});if(!page)return reply({ok:false,error:'campaign_not_found'},404);
   const dataset=!parent&&url.searchParams.get('dataset')==='1'?campaignDataset(tree,history,range):null;
   if(salesDemoProject(project.slug)){

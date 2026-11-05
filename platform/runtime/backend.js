@@ -1,5 +1,6 @@
 import {readProfkitClient,PROFKit_CLIENT_BOOK,PROFKit_CLIENT_SHEET} from '../native/profkit-client-source.js';
 import {attachMonoreyConversions} from '../imports/monorey-report.js';
+import {attachManualLeadCounts} from '../native/manual-leads-api.js';
 import {readArchivedAdsSnapshot} from '../imports/archive-ads.js';
 import {attachProductDimensions} from '../product-funnel/metadata.js';
 import {safeDimensions} from '../product-funnel/model.js';
@@ -3131,7 +3132,7 @@ function onDemandAdsService(env,ctx=null) {
       storedOnly: env.DIRECT_ADS_READ_ENABLED === "true",
       ...(ctx?.waitUntil?{waitUntil:promise=>ctx.waitUntil(promise)}:{})
     });
-    return {...service,async getStats(request){return attachMonoreyConversions(env.TOYS_DB,request,await service.getStats(request));}};
+    return {...service,async getStats(request){return attachManualLeadCounts(env.TOYS_DB,request,await attachMonoreyConversions(env.TOYS_DB,request,await service.getStats(request)));}};
 }
 __name(onDemandAdsService, "onDemandAdsService");
 async function protectedProject(request, env, slug2, requiredRole = "viewer") {

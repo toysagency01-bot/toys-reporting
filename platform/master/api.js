@@ -1,4 +1,5 @@
 import {managedProjectAPI} from '../project-management/api.js';
+import {readManualLeadCounts} from '../native/manual-leads-api.js';
 import {wikiAPI} from '../wiki/api.js';
 import {financeAPI} from '../finance/api.js';
 import {onboardingAPI,briefSetupAPI} from '../onboarding/api.js';
@@ -58,7 +59,9 @@ export async function masterAPI(request,env,ctx){
  let rows=sources.flatMap(hierarchyRows).filter(r=>r.date>=from&&r.date<=to);if(sources.some(s=>s.readOnlyArchive)){const address=new URL(request.url);address.pathname='/api/v2/projects/'+encodeURIComponent(p.slug)+'/dashboard';address.search=new URLSearchParams({from,toExclusive:dateShift(to,1)}).toString();const original=await backend.fetch(new Request(address,{headers:request.headers}),env,ctx);if(!original.ok)throw Error('Historical baseline unavailable');const snapshot=await original.json();rows=advertisingModel(snapshot.dashboard,{providers:sources},{from,to}).filter(r=>r.provider===name);}for(const currency of new Set(rows.map(r=>r.currency))){const group=rows.filter(r=>r.currency===currency);ads.push({provider:name,currency,spend:total(group,'spend'),impressions:total(group,'impressions'),clicks:total(group,'clicks'),conversions:total(group,'conversions'),freshness:sources.every(s=>s.freshness==='fresh')?'fresh':'stale'});}}}
 
  catch(e){liveError='live_unavailable';}
- return reply({ok:true,project:p,crm,ads:ads.filter(a=>!provider||a.provider===provider),liveError,refreshing,imports:env.DIRECT_ADS_IMPORT_ENABLED==='true'?(await env.TOYS_DB.prepare('SELECT provider,state,last_success_at AS lastSuccessAt,last_error_code AS errorCode,range_to AS toDate FROM ads_import_status WHERE project_id=?').bind(p.id).all()).results:[]});
+ const manualLeadCounts=(!provider||provider==='meta_ads')?await readManualLeadCounts(env.TOYS_DB,p.slug,from,to):null;
+ if(manualLeadCounts){const target=ads.find(a=>a.provider==='meta_ads'&&a.currency===manualLeadCounts.currency);if(target&&target.conversions!=null){target.metaConversions=target.conversions;target.conversions+=manualLeadCounts.total;}}
+ return reply({ok:true,project:p,crm,ads:ads.filter(a=>!provider||a.provider===provider),manualLeadCounts,liveError,refreshing,imports:env.DIRECT_ADS_IMPORT_ENABLED==='true'?(await env.TOYS_DB.prepare('SELECT provider,state,last_success_at AS lastSuccessAt,last_error_code AS errorCode,range_to AS toDate FROM ads_import_status WHERE project_id=?').bind(p.id).all()).results:[]});
  }
  return reply({ok:false,error:'not_found'},404);
  }catch(e){return reply({ok:false,error:e.code||'master_unavailable'},e.status||500);}

@@ -1,4 +1,5 @@
 /* One period and one advertising model for overview, campaigns and funnel. */
+import {manualLeadRows} from './manual-leads-model.js';
 export const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const dateShift = (date, days) => {
   const d = new Date(`${date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10);
@@ -44,7 +45,8 @@ export function advertisingModel(dashboard, ads, range) {
         .concat(group.flatMap(p=>hierarchyRows(p).filter(r=>archived.length?coversDate(p,r.date):group.every(a=>coversDate(a,r.date)))));
     }
   }
-  return reportConversions(rows.filter(r => r.date >= range.from && r.date <= range.to),ads?.reportConversions||[]);
+  rows=reportConversions(rows.filter(r => r.date >= range.from && r.date <= range.to),ads?.reportConversions||[]);
+  return [...rows,...manualLeadRows(ads?.manualLeadCounts,providers,rows,range)];
 }
 export function reportConversions(rows,overrides){
  const byKey=new Map(overrides.map(r=>[JSON.stringify([r.date,r.campaign]),r.conversions]));
