@@ -19,8 +19,9 @@ project materials and dashboard settings.
 
 The advertising adapter retains confirmed daily USD/UAH rates across period
 changes. A missing rate hides unavailable UAH costs while current clicks and
-impressions continue updating. Incomplete business periods do not display ROAS
-or cost per sale as though every day were complete. Unknown qualifications and
+impressions continue updating. Available ratios for incomplete business periods
+are marked provisional (see the subsequent Profkit ratios correction).
+Unknown qualifications and
 their conversion rates display an em dash.
 
 Validation on 2026-11-05:

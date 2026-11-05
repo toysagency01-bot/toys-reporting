@@ -7,7 +7,7 @@ export function instashopAdvertising(rows,{facts=[],exchangeRates=[],knownRates=
  for(const r of exchangeRates)if(Number(r.rate)>0)knownRates.set(r.date,Number(r.rate));
  const missingFxDates=[];
  const mapped=rows.map(r=>{
-  let spend=r.spend,usd=null;if(r.currency==='USD'){usd=spend;const rate=knownRates.get(r.date);if(!rate)missingFxDates.push(r.date);spend=spend==null||!rate?null:spend*rate;}else if(r.currency!=='UAH')return null;
+  let spend=r.spend,usd=null;if(r.currency==='USD'){usd=spend;const rate=knownRates.get(r.date);if(spend!==0&&!rate)missingFxDates.push(r.date);spend=spend===0?0:spend==null||!rate?null:spend*rate;}else if(r.currency!=='UAH')return null;
   return {date:r.date,platform:'Meta Ads',account:accountName,accountId:r.integrationId||'',currency:'UAH',campaign:r.name,impressions:r.impressions,clicks:r.clicks,spendUah:spend,metaDirect:r.conversions,spendUsd:usd,fx:usd>0&&spend!=null?spend/usd:null};
  });
  return {rows:mapped,missingFxDates:[...new Set(missingFxDates)]};

@@ -25,4 +25,5 @@ test('missing FX never freezes unrelated advertising or invents zero spend',()=>
  result=instashopAdvertising([row('2026-11-04'),row('2026-11-05',20)],{exchangeRates:[{date:'2026-11-05',rate:46}],knownRates});assert.equal(result.rows[0].spendUah,450);assert.equal(result.rows[1].spendUah,920);
  const s=model.summarize([result.rows[0]], [{direct:10,qualified:null,unqualified:null,sales:25,revenue:75909}]);assert.equal(s.qualified,null);assert.equal(s.directToQualified,null);assert.equal(s.costPerQualified,null);assert.equal(s.sales,25);
  assert.equal(model.summarize([{...result.rows[0],spendUah:null}],[]).spend,null);
+ const zero=instashopAdvertising([row('2026-11-06',0)]);assert.equal(zero.rows[0].spendUah,0);assert.deepEqual(zero.missingFxDates,[]);
 });
